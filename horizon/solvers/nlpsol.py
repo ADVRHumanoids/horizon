@@ -134,6 +134,8 @@ class NlpsolSolver(Solver):
         # get solution dict
         self.var_solution = self._createVarSolDict(sol)
 
+        self.var_solution["opt_cost"] = float(sol['f'])
+
         # get solution as state/input
         self._createVarSolAsInOut(sol)
         self.var_solution['x_opt'] = self.x_opt
