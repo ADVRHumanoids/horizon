@@ -108,6 +108,7 @@ def resample_input(input, node_time, dt):
 
 def second_order_resample_integrator(p, v, u, node_time, dt, dae):
     """
+    DEPRECATED!!!!!
     Resample a solution with the given dt (RK4 integrator is used internally)
     Args:
         p: position
