@@ -5,8 +5,6 @@ from typing import Dict, List
 import casadi as cs
 import numpy as np
 import pprint
-
-
 class NlpsolSolver(Solver):
 
     def __init__(self, prb: Problem, opts: Dict, solver_plugin: str) -> None:
@@ -41,8 +39,46 @@ class NlpsolSolver(Solver):
 
         self.prob_dict = {'f': j, 'x': w, 'g': g, 'p': p}
 
+        self.iter_counter_callback = self.IterCountCallback('iter_counter_callback', w.shape[0], g.shape[0], p.shape[0])
+
+        self.opts['iteration_callback'] =  self.iter_counter_callback
+
         # create solver from prob
-        self.solver = cs.nlpsol('solver', solver_plugin, self.prob_dict, self.opts)
+        self.solver = cs.nlpsol('solver', solver_plugin, self.prob_dict, self.opts,)
+
+    class IterCountCallback(cs.Callback):
+        def __init__(self, name, nx, ng, np, opts={}, iter_counter = -1):
+            cs.Callback.__init__(self)
+
+            self.nx = nx
+            self.ng = ng
+            self.np = np
+
+            self.iter_counter = iter_counter
+            # Initialize internal objects
+            self.construct(name, opts)
+
+        def get_n_in(self): return cs.nlpsol_n_out()
+        def get_n_out(self): return 1
+        def get_name_in(self, i): return cs.nlpsol_out(i)
+        def get_name_out(self, i): return "ret"
+
+        def get_sparsity_in(self, i):
+            n = cs.nlpsol_out(i)
+            if n=='f':
+                return cs.Sparsity. scalar()
+            elif n in ('x', 'lam_x'):
+                return cs.Sparsity.dense(self.nx)
+            elif n in ('g', 'lam_g'):
+                return cs.Sparsity.dense(self.ng)
+            else:
+                return cs.Sparsity(0,0)
+
+        def eval(self, arg):
+
+            self.iter_counter = self.iter_counter + 1
+
+            return [0]
 
     def build(self):
         """
@@ -95,6 +131,8 @@ class NlpsolSolver(Solver):
 
     def solve(self) -> bool:
 
+        self.iter_counter_callback.iter_counter = 0 # resetting iteration number at each solve 
+
         # update lower/upper bounds of variables
         lbw = self._getVarList('lb')
         ubw = self._getVarList('ub')
@@ -135,6 +173,8 @@ class NlpsolSolver(Solver):
         self.var_solution = self._createVarSolDict(sol)
 
         self.var_solution["opt_cost"] = float(sol['f'])
+
+        self.var_solution["n_iter2sol"] =  self.iter_counter_callback.iter_counter
 
         # get solution as state/input
         self._createVarSolAsInOut(sol)
