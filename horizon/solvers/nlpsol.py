@@ -167,6 +167,10 @@ class NlpsolSolver(Solver):
 
         self.cnstr_solution = self._createCnsrtSolDict(sol)
 
+        #getting lagrange multipliers of constraints
+        self.cnstr_solution['lam_x'] = np.array(sol['lam_x'])
+        self.cnstr_solution['lam_g'] = np.array(sol['lam_g'])
+
         # retrieve state and input trajector
 
         # get solution dict
