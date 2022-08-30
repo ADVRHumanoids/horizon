@@ -196,6 +196,9 @@ class NlpsolSolver(Solver):
 
     def getConstraintSolutionDict(self):
         return self.cnstr_solution
+    
+    def getCnstrLmbdSolDict(self):
+        return self.lambd_solution
 
     def getDt(self):
         return self.dt_solution
