@@ -110,7 +110,7 @@ class NlpsolSolver(Solver):
             if fun_to_append is not None:
                 fun_list.append(fun_to_append)
         g = cs.veccat(*fun_list)
-
+        
         # todo: residual, recedingResidual should be the same class
         # treat differently cost and residual (residual must be quadratized)
         fun_list = list()
@@ -166,12 +166,13 @@ class NlpsolSolver(Solver):
             self.dict_sol['lam_g0'] = sol['lam_g']
 
         self.cnstr_solution = self._createCnsrtSolDict(sol)
-
-        #getting lagrange multipliers of constraints
-        self.cnstr_solution['lam_x'] = np.array(sol['lam_x'])
-        self.cnstr_solution['lam_g'] = np.array(sol['lam_g'])
-
-        # retrieve state and input trajector
+    
+        self.lambd_solution = self._createCnsrtLambDict(sol)
+        #adding lagrange multipliers list of g to dict
+        # self.cnstr_solution['lam_x'] = np.array(sol['lam_x'])
+        self.lambd_solution['lam_g'] = np.array(sol['lam_g'])
+        
+        # retrieve state and input trajectory
 
         # get solution dict
         self.var_solution = self._createVarSolDict(sol)
