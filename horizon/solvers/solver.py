@@ -149,7 +149,7 @@ class Solver(ABC):
             lam_g_vals = solution['lam_g'][pos:pos + fun.getDim() * len(fun.getNodes())]
             lam_g_vals_mat = np.reshape(lam_g_vals, (fun.getDim(), len(fun.getNodes())), order='F')
 
-            lambd_cnsrt_dict[name] = lam_g_vals_mat
+            lambd_cnsrt_dict[name + "_lambd"] = lam_g_vals_mat
 
             pos = pos + fun.getDim() * len(fun.getNodes()) 
         
