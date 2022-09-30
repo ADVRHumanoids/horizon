@@ -51,7 +51,7 @@ dt = tf/ns
 # Set dynamics of the system and the relative dt.
 fd = kindyn.aba()  # this is the forward dynamics function
 qddot = fd(q=q, v=qdot, tau=tau)['a'] # qddot = M^-1(tau - h)
-x, xdot = utils.double_integrator(q, qdot, qddot) # xdot = [qdot, qddot]
+xdot = utils.double_integrator(qdot, qddot) # xdot = [qdot, qddot]
 prb.setDynamics(xdot)
 prb.setDt(dt)
 
@@ -93,7 +93,7 @@ tf.setInitialGuess(tf_init)
 q_prev = q.getVarOffset(-1)
 qdot_prev = qdot.getVarOffset(-1)
 u_prev = u.getVarOffset(-1)
-x_prev, _ = utils.double_integrator(q_prev, qdot_prev, fd(q=q_prev, v=qdot_prev, tau=cs.vertcat(u_prev, 0.))['a'])
+x_prev, _ = utils.double_integrator(qdot_prev, fd(q=q_prev, v=qdot_prev, tau=cs.vertcat(u_prev, 0.))['a'])
 x_int = F_integrator(x0=x_prev, p=u_prev, time=dt)
 prb.createConstraint("multiple_shooting", x_int["xf"] - x, nodes=list(range(1, ns+1)), bounds=dict(lb=np.zeros(nv+nq), ub=np.zeros(nv+nq)))
 

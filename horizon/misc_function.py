@@ -37,6 +37,7 @@ def checkNodes(nodes, nodes_array=None):
     # todo check for repeated nodes
     if nodes_array is None:
         checked_nodes = nodes_vec
+        discarded_nodes = np.array([])
     else:
         # get from nodes only the nodes active in nodes_array
         # example: nodes_array = [0 0 1 0 1 1 0 0]
@@ -44,12 +45,13 @@ def checkNodes(nodes, nodes_array=None):
         #       1. get from nodes array only the elements at position [2, 3, 4]  --> [1 0 1]
         #       2. mask 'nodes' with [1 0 1] --> [2, 4]
         checked_nodes = np.ma.masked_array(nodes_vec, mask=np.logical_not(nodes_array[nodes_vec])).compressed()
+        discarded_nodes = np.ma.masked_array(nodes_vec, mask=nodes_array[nodes_vec]).compressed()
 
+        # todo: this sucks, as it does not tells you which item calls this
         if checked_nodes.size != nodes_vec.size:
-            wrong_nodes = np.ma.masked_array(nodes_vec, mask=nodes_array[nodes_vec]).compressed()
-            warnings.warn(f'Element requested is not defined/active on node: {wrong_nodes}.')
+            warnings.warn(f'Element requested is not defined/active on node: {discarded_nodes}.')
 
-    return checked_nodes
+    return checked_nodes, discarded_nodes
 
 def checkValueEntry(val):
     if isinstance(val, (int, float)):
@@ -77,7 +79,7 @@ def getBinaryFromNodes(total_nodes: int, active_nodes: list):
     # if not isinstance(nodes, list):
     #     raise TypeError('input must be a list of nodes')
 
-    nodes_array = np.zeros(total_nodes)
+    nodes_array = np.zeros(total_nodes).astype(int)
     nodes_array[active_nodes] = 1
 
     return nodes_array

@@ -10,6 +10,15 @@ Timer::Timer(const char *name, TocCallback& cb):
 {
 }
 
+Timer::Timer(std::string name, Timer::TocCallback &cb):
+    _on_toc(cb),
+    _name_str(name),
+    _t0(hrc::now()),
+    _done(false),
+    _name(_name_str.c_str())
+{
+}
+
 void Timer::toc()
 {
     if(_done) return;

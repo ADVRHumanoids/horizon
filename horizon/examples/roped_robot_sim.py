@@ -42,7 +42,7 @@ def main(args):
 
     # OPTIMIZATION PARAMETERS
 
-    n_nodes = 30
+    n_nodes = 3
     nc = 3  # number of contacts
     nq = kindyn.nq()  # number of DoFs - NB: 7 DoFs floating base (quaternions)
     DoF = nq - 7  # Contacts + anchor_rope + rope
@@ -50,7 +50,7 @@ def main(args):
     nf = 3  # 2 feet contacts + rope contact with wall, Force DOfs
 
     # Create horizon problem
-    prb = problem.Problem(n_nodes)
+    prb = problem.Problem(n_nodes, casadi_type=cs.MX)
 
     # Creates problem STATE variables
     q = prb.createStateVariable("q", nq)
@@ -63,7 +63,7 @@ def main(args):
     frope = prb.createInputVariable("frope", nf)
 
     # Creates double integrator
-    x, xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+    xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
 
     tf = 1.  # [s]
     dt = tf / n_nodes
@@ -76,10 +76,12 @@ def main(args):
     prb.setDynamics(xdot)
     prb.setDt(dt)
 
-
     # Formulate discrete time dynamics
     L = 0.5 * cs.sumsqr(qdot)  # Objective term
-    dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': L}
+
+
+    dae = {'x': prb.getState().getVars(), 'p': qddot, 'ode': xdot, 'quad': L}
+
     if rope_mode == 'swing':
         F_integrator_LEAPFROG = integrators.LEAPFROG(dae)
         F_integrator = integrators.RK4(dae)
@@ -105,10 +107,10 @@ def main(args):
         q_max[7:13] = np.zeros(6)
 
     # if rope_mode == 'jump':
-        # foot_z_offset = 0.5
-        # q_max[9] = q_max[9] + foot_z_offset
-        # q_max[12] = q_max[12] + foot_z_offset
-        # q_max[-1] = 1
+    # foot_z_offset = 0.5
+    # q_max[9] = q_max[9] + foot_z_offset
+    # q_max[12] = q_max[12] + foot_z_offset
+    # q_max[-1] = 1
 
     q_init = [0., 0., 0., 0., 0., 0., 1.0,
               0., 0., 0.,
@@ -161,20 +163,25 @@ def main(args):
     state_prev = state.getVarOffset(-1)
     input_prev = input.getVarOffset(-1)
 
-    x_prev, _ = utils.double_integrator_with_floating_base(state_prev[0], state_prev[1], input_prev[0])
+    # x_prev, _ = utils.double_integrator_with_floating_base(state_prev[0], state_prev[1], input_prev[0])
+    x_prev = prb.getState().getVarOffset(-1).getVars()
+    x = prb.getState().getVars()
+
     x_int = F_integrator(x0=x_prev, p=input_prev[0], time=dt)
+
 
     if rope_mode == 'swing':
         prb.createConstraint("multiple_shooting", x_int["xf"] - x, nodes=1)
         q_pprev = q.getVarOffset(-2)
         qdot_pprev = qdot.getVarOffset(-2)
         qddot_pprev = qddot.getVarOffset(-2)
-        x_pprev, _ = utils.double_integrator_with_floating_base(q_pprev, qdot_pprev, qddot_pprev)
+        # x_pprev, _ = utils.double_integrator_with_floating_base(q_pprev, qdot_pprev, qddot_pprev)
+        x_pprev = prb.getState().getVarOffset(-2).getVars()
+
         x_int2 = F_integrator_LEAPFROG(x0=x_prev, x0_prev=x_pprev, p=input_prev[0], time=dt)
         prb.createConstraint("multiple_shooting2", x_int2["xf"] - x, nodes=range(2, n_nodes + 1))
     else:
         prb.createConstraint("multiple_shooting", x_int["xf"] - x, nodes=range(1, n_nodes + 1))
-
 
     # Constraints
     prb.createConstraint("q_init", q - q_init, nodes=0)

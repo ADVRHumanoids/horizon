@@ -13,7 +13,7 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from horizon.rhc.taskInterface import TaskInterface
 from horizon.rhc.tasks.cartesianTask import CartesianTask
-
+from horizon.rhc.model_description import *
 from horizon.problem import Problem
 from horizon.solvers import Solver
 from horizon.transcriptions.transcriptor import Transcriptor
@@ -50,17 +50,69 @@ class HorizonWpg:
         self.tf = opt.get('tf', 10.0)
         self.dt = self.tf / self.N
         self.nf = 3
-        problem_opts = {'ns': self.N, 'tf': self.tf, 'dt': self.dt}
+
+        self.prb = Problem(self.N, receding=True)  # logging_level=logging.DEBUG
+        self.prb.setDt(self.dt)
 
         self.contacts = contacts
         self.nc = len(self.contacts)
-        model_description = 'whole_body'
 
-        self.ti = TaskInterface(urdf, q_init, base_init, problem_opts, model_description, contacts=self.contacts)
+        self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
+        self.kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
+
+        self.model = FullModelInverseDynamics(problem=self.prb,
+                                         kd=self.kd,
+                                         q_init=q_init,
+                                         base_init=base_init)
+
+
+        self.ti = TaskInterface(self.prb, self.model)
         # register my plugin 'Contact'
-        self.ti.loadPlugins(['horizon.rhc.plugins.contactTaskMirror'])
+        self.ti.loadPlugins(['horizon.rhc.plugins.interactionTaskMirror'])
 
-        self.forces = [self.ti.prb.getVariables('f_' + c) for c in contacts]
+        for frame in self.contacts:
+            # add contact task (by dict)
+
+            subtask_force = {'type': 'VertexForceMirror',
+                             'name': f'interaction_{frame}',
+                             'frame': frame,
+                             'fn_min': 10.0,
+                             'vertex_frames': [frame]
+                             }
+
+            subtask_cartesian = {'type': 'Cartesian',
+                                 'name': f'zero_velocity_{frame}',
+                                 'distal_link': frame,
+                                 'indices': [0, 1, 2, 3, 4, 5],
+                                 'cartesian_type': 'velocity',
+                                 'nodes': 'all'
+                                 }
+
+            contact_task = {'type': 'Contact',
+                            'subtask': [subtask_force, subtask_cartesian],
+                            'name': 'foot_contact_' + frame}
+
+            z_task = {'type': 'Cartesian',
+                      'name': f'foot_z_{frame}',
+                      'distal_link': frame,
+                      'indices': [2],
+                      'fun_type': 'constraint',
+                      'cartesian_type': 'position'}
+
+            foot_tgt_task = {'type': 'Cartesian',
+                             'name': f'foot_xy_{frame}',
+                             'distal_link': frame,
+                             'indices': [0, 1],
+                             'fun_type': 'constraint',
+                             'cartesian_type': 'position'}
+
+            self.ti.setTaskFromDict(contact_task)
+            self.ti.setTaskFromDict(z_task)
+            self.ti.setTaskFromDict(foot_tgt_task)
+
+
+        self.forces = [self.prb.getVariables('f_' + c) for c in contacts]
+
         ## gait params
         f0 = opt.get('f0', np.array([0, 0, 250]))
         self.fmin = opt.get('fmin', 0)
@@ -74,13 +126,15 @@ class HorizonWpg:
         # self.ptgt = self.ti.prb.createParameter('ptgt', 3)
 
         # goalx = self.ti.prb.createFinalConstraint("final_x", self.ti.model.q[0] - self.ptgt[0])
-        goalx = {'type': 'Postural',
+        goalx = {'type': 'Cartesian',
+                 'distal_link': 'base_link',
                  'name': 'final_base_x',
                  'indices': [0],
                  'nodes': [self.N]}
 
         # goaly = self.ti.prb.createFinalResidual("final_y", 1e3 * (self.ti.model.q[1] - self.ptgt[1]))
-        goaly = {'type': 'Postural',
+        goaly = {'type': 'Cartesian',
+                 'distal_link': 'base_link',
                  'name': 'final_base_y',
                  'indices': [1],
                  'nodes': [self.N],
@@ -88,8 +142,10 @@ class HorizonWpg:
                  'weight': 1e3}
 
         # goalrz = self.ti.prb.createFinalResidual("final_rz", 1e3 * (self.ti.model.q[5] - self.ptgt[2]))
-        goalrz = {'type': 'Postural',
+        # TODO this does not work
+        goalrz = {'type': 'Cartesian',
                   'name': 'final_base_rz',
+                  'distal_link': 'base_link',
                   'indices': [5],
                   'nodes': [self.N],
                   'fun_type': 'residual',
@@ -99,20 +155,30 @@ class HorizonWpg:
         self.ti.setTaskFromDict(goaly)
         self.ti.setTaskFromDict(goalrz)
 
-        self.base_goal_tasks = [self.ti.getTask('final_base_x'), self.ti.getTask('final_base_y'), self.ti.getTask('final_base_rz')]
+        f_b_x = self.ti.getTask('final_base_x')
+        f_b_y = self.ti.getTask('final_base_y')
+        f_b_rz = self.ti.getTask('final_base_rz')
 
-        q0 = self.ti.q0
-        v0 = self.ti.v0
+        f_b_x.setRef([self.model.q0[0], 0, 0, 0, 0, 0, 1])
+        f_b_y.setRef([0, self.model.q0[1], 0, 0, 0, 0, 1])
+        f_b_rz.setRef([0, 0, 0, 0, 0, self.model.q0[5], 1])
+
+        self.base_goal_tasks = [f_b_x, f_b_y, f_b_rz]
+
+        q0 = self.model.q0
+        v0 = self.model.v0
         f0 = np.array([0, 0, 250])
 
         # final velocity
-        self.ti.model.v.setBounds(v0, v0, nodes=self.N)
+        self.model.v.setBounds(v0, v0, nodes=self.N)
 
         # regularization costs
 
         # base rotation
         # self.ti.prb.createResidual("min_rot", 1e-4 * (self.ti.model.q[3:5] - q0[3:5]))
-        minrot = {'type': 'Postural',
+
+        minrot = {'type': 'Cartesian',
+                  'distal_link': 'base_link',
                   'name': 'min_rot',
                   'indices': [3, 4],
                   'nodes': list(range(self.N+1)),
@@ -121,12 +187,13 @@ class HorizonWpg:
 
         self.ti.setTaskFromDict(minrot)
 
+        min_rot = self.ti.getTask('min_rot')
+        min_rot.setRef([0, 0, 0, self.model.q0[3], self.model.q0[4], self.model.q0[5], 1])
 
         # joint posture
         # self.ti.prb.createResidual("min_q", 1e-1 * (self.ti.model.q[7:] - q0[7:]))
         minq = {'type': 'Postural',
                   'name': 'min_q',
-                  'indices': list(range(7, self.ti.model.q.getDim())),
                   'nodes': list(range(self.N+1)),
                   'fun_type': 'residual',
                   'weight': 1e-1}
@@ -140,7 +207,6 @@ class HorizonWpg:
         # self.ti.prb.createFinalResidual("min_qf", 1e1 * (self.ti.model.q[7:] - q0[7:]))
         minqf = {'type': 'Postural',
                   'name': 'min_qf',
-                  'indices': list(range(7, self.ti.model.q.getDim())),
                   'nodes': [50],
                   'fun_type': 'residual',
                   'weight': 1e1}
@@ -172,7 +238,7 @@ class HorizonWpg:
             self.ti.prb.createIntermediateResidual(f"min_{f.getName()}", 1e-3 * (f - f0))
 
         self.fk_fn = list()
-        self.com_fn = cs.Function.deserialize(self.ti.kd.centerOfMass())
+        self.com_fn = self.kd.centerOfMass()
 
         # save default foot height
         self.default_foot_z = dict()
@@ -181,10 +247,9 @@ class HorizonWpg:
         self.foot_tgt_task = dict()
 
         # contact velocity is zero, and normal force is positive
-        for i, frame in enumerate(self.ti.model.contacts):
+        for i, frame in enumerate(self.contacts):
             # fk functions and evaluated vars
-            fk = cs.Function.deserialize(self.ti.kd.fk(frame))
-            dfk = cs.Function.deserialize(self.ti.kd.frameVelocity(frame, self.ti.kd_frame))
+            fk = self.kd.fk(frame)
             self.fk_fn.append(fk)
 
             ee_rot = fk(q=self.ti.model.q)['ee_rot']
@@ -195,51 +260,6 @@ class HorizonWpg:
             # vertical contact frame
             rot_err = cs.sumsqr(ee_rot[2, :2])
             self.ti.prb.createIntermediateCost(f'{frame}_rot', 1e1 * rot_err)
-
-            # add contact task (by dict)
-
-            # todo: useless repetition of force and frame both present in subtask and task
-
-            subtask_force = {'type': 'Force',
-                             'name': f'interaction_{frame}',
-                             'frame': frame,
-                             'indices': [0, 1, 2]}
-
-            subtask_cartesian = {'type': 'Cartesian',
-                                 'name': 'zero_velocity',
-                                 'frame': frame,
-                                 'indices': [0, 1, 2, 3, 4, 5],
-                                 'cartesian_type': 'velocity'}
-
-            contact = {'type': 'Contact',
-                       'subtask': [subtask_force, subtask_cartesian],
-                       'name': 'contact_' + frame}
-
-            self.ti.setTaskFromDict(contact)
-
-            # self.contact_task[frame] = contact
-
-            z_task_dict = {'type': 'Cartesian',
-                           'name': f'{frame}_z_task',
-                           'frame': frame,
-                           'indices': [2],
-                           'weight': 1.,
-                           'fun_type': 'constraint',
-                           'cartesian_type': 'position'}
-
-            self.ti.setTaskFromDict(z_task_dict)
-
-            task_node = {'type': 'Cartesian',
-                         'name': f'{frame}_foot_tgt_constr',
-                         'frame': frame,
-                         'indices': [0, 1],
-                         'weight': 1.,
-                         'cartesian_type': 'position'}
-
-            context = {'prb': self.ti.prb, 'kin_dyn': self.ti.kd}
-            foot_task = CartesianTask(**context, **task_node)
-
-            self.ti.setTask(foot_task)
 
         ## transcription method
         solver_type = opt.get('solver_type', 'ilqr')
@@ -297,9 +317,9 @@ class HorizonWpg:
         self.bootstrap()
 
         self.repl = replay_trajectory.replay_trajectory(0.01,
-                                                        self.ti.joint_names, np.array([]),
+                                                        self.kd.joint_names()[2:], np.array([]),
                                                         {k: None for k in self.ti.model.contacts}, self.ti.kd_frame,
-                                                        self.ti.kd)
+                                                        self.kd)
         self.fixed_joint_pub = rospy.Publisher('joint_states', JointState, queue_size=10)
 
     def set_target_position(self, x, y, rotz, k=0):
@@ -309,9 +329,11 @@ class HorizonWpg:
         kf_rotz = int(abs((math.sin(rotz / 2.0) - self.solution['q'][5, 0]) / self.vmax[2] / self.dt) + 0.5)
         kf = k + max((kf_x, kf_y, kf_rotz))
         print(f'[k = {k}] target {self.ptgt_final} to be reached at kf = {kf}')
-        self.ti.getTask('final_base_x').setRef(self.ptgt_final[0])
-        self.ti.getTask('final_base_y').setRef(self.ptgt_final[1])
-        self.ti.getTask('final_base_rz').setRef(self.ptgt_final[2])
+
+
+        self.ti.getTask('final_base_x').setRef([self.ptgt_final[0], 0, 0, 0, 0, 0, 1])
+        self.ti.getTask('final_base_y').setRef([0, self.ptgt_final[1], 0, 0, 0, 0, 1])
+        self.ti.getTask('final_base_rz').setRef([0, 0, 0, 0, 0, self.ptgt_final[2], 1])
         # self.ptgt.assign(self.ptgt_final, nodes=self.N)
 
     def set_mode(self, mode: str):
@@ -357,7 +379,7 @@ class HorizonWpg:
 
     def publish_solution(self):
 
-        self.repl.frame_force_mapping = {self.ti.contacts[i]: self.solution[self.forces[i].getName()] for i in
+        self.repl.frame_force_mapping = {self.contacts[i]: self.solution[self.forces[i].getName()] for i in
                                          range(3)}
         self.repl.publish_joints(self.solution['q'][:, 0])
         self.repl.publishContactForces(rospy.Time.now(), self.solution['q'][:, 0], 0)
@@ -397,7 +419,7 @@ class HorizonWpg:
             self.dt, dt_res,
             dae,
             contact_map,
-            self.ti.kd, self.ti.kd_frame
+            self.kd, self.kd_frame
         )
 
         self.solution['q_res'] = q_res
@@ -411,8 +433,8 @@ class HorizonWpg:
     def replay(self, dt_res=0.01):
 
         q_res, v_res, a_res, tau_res, f_res = self.resample(dt_res)
-        repl = replay_trajectory.replay_trajectory(dt_res, self.ti.joint_names, q_res, f_res, self.ti.kd_frame,
-                                                   self.ti.kd)
+        repl = replay_trajectory.replay_trajectory(dt_res, self.kd.joint_names()[2:], q_res, f_res, self.ti.kd_frame,
+                                                   self.kd)
         repl.replay()
 
     def compute_trj_msg(self, resample=False, dt_res=0.01):
@@ -429,7 +451,7 @@ class HorizonWpg:
 
         msg = JointTrajectory()
         msg.header.stamp = rospy.Time.now()
-        msg.joint_names = [f'base_joint_{i}' for i in range(7)] + self.ti.joint_names
+        msg.joint_names = [f'base_joint_{i}' for i in range(7)] + self.kd.joint_names()[2:]
         for i in range(self.N):
             p = JointTrajectoryPoint()
             p.positions = self.solution['q' + suffix][:, i]
@@ -456,7 +478,7 @@ class HorizonWpg:
 
         msgs = dict()
 
-        for i, c in enumerate(self.ti.contacts):
+        for i, c in enumerate(self.contacts):
 
             msg = Path()
             msg.header.frame_id = 'world'
@@ -594,12 +616,23 @@ class HorizonWpg:
 
         # update contact nodes
 
+        # TODO: this is very ugly.
+        #  this is because I require now to set the whole vector [pos (3) + orientation (4)] to the cartesian Task
         for frame in self.contacts:
-            self.ti.getTask(f'contact_{frame}').setNodes(contact_nodes[frame])
-            self.ti.getTask(f'{frame}_z_task').setRef(z_ref[frame])
-            self.ti.getTask(f'{frame}_z_task').setNodes(clea_nodes[frame])
-            self.ti.getTask(f'{frame}_foot_tgt_constr').setRef(np.array((xy_ref[frame])))
-            self.ti.getTask(f'{frame}_foot_tgt_constr').setNodes(contact_k[frame])
+            self.ti.getTask(f'foot_contact_{frame}').setNodes(contact_nodes[frame])
+            self.ti.getTask(f'foot_z_{frame}').setNodes(clea_nodes[frame])
+
+            if z_ref[frame] is not None:
+                z_ref_mat = np.zeros([7, z_ref[frame].size])
+                z_ref_mat[2, :] = z_ref[frame]
+            else:
+                z_ref_mat = None
+
+            self.ti.getTask(f'foot_z_{frame}').setRef(z_ref_mat)
+            self.ti.getTask(f'foot_xy_{frame}').setNodes(contact_k[frame])
+
+            xy_ref_mat = None if xy_ref[frame] is None else [xy_ref[frame][0], xy_ref[frame][1], 0, 0, 0, 0, 1]
+            self.ti.getTask(f'foot_xy_{frame}').setRef(xy_ref_mat)
             # self.contact_constr[i].setNodes(contact_nodes[i], erasing=True)
             # self.unilat_constr[i].setNodes(unilat_nodes[i], erasing=True)  # fz > 10
             # friction_constr[i].setNodes(unilat_nodes[i], erasing=True)

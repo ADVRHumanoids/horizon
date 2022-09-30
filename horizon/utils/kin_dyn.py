@@ -257,10 +257,10 @@ class InverseDynamics():
                 WORLD
                 LOCAL_WORLD_ALIGNED
         """
-        self.id = cs.Function.deserialize(kindyn.rnea())
+        self.id = kindyn.rnea()
         self.contact_jacobians = dict()
         for frame in contact_frames:
-            self.contact_jacobians[frame] = cs.Function.deserialize(kindyn.jacobian(frame, force_reference_frame))
+            self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
     def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0):
         """

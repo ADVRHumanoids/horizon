@@ -80,12 +80,12 @@ def main(args):
     contacts_name = ['lf_foot', 'rf_foot', 'lh_foot', 'rh_foot']
 
     # define dynamics
-    prb = problem.Problem(n_nodes, receding=True)
+    prb = problem.Problem(n_nodes, receding=True, casadi_type=cs.MX)
     q = prb.createStateVariable('q', n_q)
     q_dot = prb.createStateVariable('q_dot', n_v)
     q_ddot = prb.createInputVariable('q_ddot', n_v)
     f_list = [prb.createInputVariable(f'force_{i}', n_f) for i in contacts_name]
-    x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+    x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
     prb.setDynamics(x_dot)
     prb.setDt(dt)
 

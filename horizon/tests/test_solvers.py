@@ -15,11 +15,12 @@ class TestSolvers(unittest.TestCase):
         self.mu = 0.2
         self.grav = 9.81
 
-        self.prb = Problem(self.nodes)
+        self.prb = Problem(self.nodes, casadi_type=cs.MX)
 
         p = self.prb.createStateVariable('pos', dim=2)
         v = self.prb.createStateVariable('vel', dim=2)
         f = self.prb.createInputVariable('force', dim=2)
+        u = self.prb.createInputVariable('independent_input', dim=2)
 
         state = self.prb.getState()
         state_prev = state.getVarOffset(-1)
@@ -47,6 +48,7 @@ class TestSolvers(unittest.TestCase):
         # obs_cnsrt = self.prb.createIntermediateConstraint('obstacle', obs)
         # obs_cnsrt.setUpperBounds(np.inf)
         self.prb.createIntermediateResidual('cost', f)
+        self.prb.createIntermediateCost('c12', cs.sumsqr(p - u))
 
         self.prb.createFinalConstraint('final_pos', p - [1, 1])
 

@@ -53,7 +53,7 @@ fs = cs.vertcat(*f_list)
 state = cs.vertcat(q, q_dot)
 input = cs.vertcat(q_ddot, fs)
 
-x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
 dae = {'x': state, 'p': input, 'ode': x_dot, 'quad': 1}
 integrator = integ.RK4(dae, opts=dict(tf=dt))
 

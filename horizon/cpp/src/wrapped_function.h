@@ -108,6 +108,7 @@ public:
 
     void setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi);
     void call(bool sparse = false);
+    void call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>>& out);
     const Eigen::MatrixXd& getOutput(int i) const;
     const Eigen::SparseMatrix<double>& getSparseOutput(int i) const;
     casadi::Function& functionRef();
@@ -123,6 +124,13 @@ private:
                        const std::vector<casadi_int>&  sp_cols,
                        const std::vector<double>& data,
                        Eigen::MatrixXd& matrix);
+
+    void csc_to_matrix_accu(const casadi::Sparsity& sp,
+                            const std::vector<casadi_int>&  sp_rows,
+                            const std::vector<casadi_int>&  sp_cols,
+                            const std::vector<double>& data,
+                            Eigen::Ref<Eigen::MatrixXd> matrix);
+
     void csc_to_sparse_matrix(const casadi::Sparsity& sp,
                               const std::vector<casadi_int>&  sp_rows,
                               const std::vector<casadi_int>&  sp_cols,

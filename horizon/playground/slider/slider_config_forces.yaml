@@ -1,0 +1,147 @@
+solver:
+  type: ipopt
+  ipopt.linear_solver: ma57
+  ipopt.tol: 1e-3
+  ipopt.constr_viol_tol: 1e-3
+  # ipopt.hessian_approximation: limited-memory
+  ilqr.verbose: false
+  ilqr.codegen_enabled: true
+  ilqr.codegen_workdir: /tmp/miao
+  ilqr.enable_gn: true
+  ilqr.max_iter: 200
+  ilqr.hxx_reg_base: 0.0
+  ilqr.n_threads: 0
+
+
+constraints:
+ - final_base_x          # required to set x-target for the walk
+ - foot_contact_Left_Foot   # required from the ActionManager
+ - foot_contact_Right_Foot   # required from the ActionManager
+ - foot_z_Left_Foot         # required from the ActionManager
+ - foot_xy_Left_Foot        # required from the ActionManager
+ - foot_z_Right_Foot         # required from the ActionManager
+ - foot_xy_Right_Foot        # required from the ActionManager
+ - rot_Left_Foot            # keep the sole straight
+ - rot_Right_Foot            # keep the sole straight
+
+costs:
+  - joint_posture
+  - joint_regularization
+  # - final_posture
+  # - base_posture
+
+
+final_base_x:
+  type: Cartesian
+  distal_link: base_link
+  indices: [0]
+  nodes: final
+
+rot_Left_Foot:
+  type: Cartesian
+  distal_link: Left_Foot
+  indices: [3, 4, 5]
+  nodes: ${range(1, N)}
+  cartesian_type: velocity
+
+rot_Right_Foot:
+  type: Cartesian
+  distal_link: Right_Foot
+  indices: [3, 4, 5]
+  nodes: ${range(1, N)}
+  cartesian_type: velocity
+
+# ===============================
+
+force_l_foot:
+  type: VertexForce
+  frame: Left_Foot
+  fn_min: 10.0
+  vertex_frames:
+    - Left_Foot_A
+    - Left_Foot_B
+    - Left_Foot_C
+    - Left_Foot_D
+
+zero_velocity_l_foot:
+  type: Cartesian
+  distal_link: Left_Foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+
+force_r_foot:
+  type: VertexForce
+  frame: Right_Foot
+  fn_min: 10.0
+  vertex_frames:
+    - Right_Foot_A
+    - Right_Foot_B
+    - Right_Foot_C
+    - Right_Foot_D
+
+zero_velocity_r_foot:
+  type: Cartesian
+  distal_link: Right_Foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+# ==================================
+
+foot_contact_Left_Foot:
+  type: Contact
+  subtask: [force_l_foot, zero_velocity_l_foot]
+
+foot_contact_Right_Foot:
+  type: Contact
+  subtask: [force_r_foot, zero_velocity_r_foot]
+
+joint_posture:
+  type: Postural
+  weight: 2. # 10
+  nodes: all
+
+base_posture:
+  type: Cartesian
+  indices: [3, 4, 5]
+  weight: 10
+  distal_link: DWYTorso
+  nodes: all
+
+final_posture:
+  type: Postural
+  weight: 50. # 10
+  nodes: final
+
+# todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they wont get considered.
+joint_regularization:
+  type: Regularization
+  nodes: all
+  weight:
+#    velocity: 1.
+    acceleration: 0.1 # 0.01
+    force: 0.01 # todo <----- how to do? if there are more forces...
+
+foot_z_Left_Foot:
+  type: Cartesian
+  distal_link: Left_Foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_Right_Foot:
+  type: Cartesian
+  distal_link: Right_Foot
+  indices: [2]
+  cartesian_type: position
+
+foot_xy_Left_Foot:
+  type: Cartesian
+  distal_link: Left_Foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_Right_Foot:
+  type: Cartesian
+  distal_link: Right_Foot
+  indices: [0, 1]
+  cartesian_type: position

@@ -89,7 +89,8 @@ def main(args):
     dt = 0.02
 
     # Creates double integrator
-    x, xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+    xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+
     prb.setDynamics(xdot)
     prb.setDt(dt)
 
@@ -248,7 +249,7 @@ def main(args):
 
     # resampling
     if resample:
-        dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': 1}
+        dae = {'x': prb.getState().getVars(), 'p': qddot, 'ode': xdot, 'quad': 1}
 
         dt_res = 0.001
         frame_force_hist_mapping = {'Contact1': solution["f1"], 'Contact2': solution["f2"], 'rope_anchor2': solution["frope"]} #

@@ -48,8 +48,9 @@ q = cs.MX.sym("q", nq)
 qdot = cs.MX.sym("qdot", nv)
 qddot = cs.MX.sym("qddot", nv)
 
+x = cs.vertcat(q, qdot)
 # Creates double integrator
-x, xdot = utils.double_integrator(q, qdot, qddot)
+xdot = utils.double_integrator(qdot, qddot)
 dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': 1}
 integrator = integ.RK4(dae)
 # int_map = integrator
@@ -180,7 +181,6 @@ solver = cs.nlpsol('solver', 'ipopt', prob_dict, opts)
 toc = time.time()
 print('time elapsed loading:', toc - tic)
 
-exit()
 
 tic = time.time()
 solution = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)

@@ -60,7 +60,7 @@ qddot = prb.createInputVariable("qddot", nv)
 q_ref = prb.createParameter('q_ref', 1)
 
 # Create double integrator
-x, xdot = utils.double_integrator(q, qdot, qddot)
+xdot = utils.double_integrator(qdot, qddot)
 
 # Set dynamics of the system and the relative dt
 prb.setDynamics(xdot)

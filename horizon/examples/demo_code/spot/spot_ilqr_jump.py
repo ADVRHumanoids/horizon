@@ -59,7 +59,7 @@ q = prb.createStateVariable('q', n_q)
 q_dot = prb.createStateVariable('q_dot', n_v)
 q_ddot = prb.createInputVariable('q_ddot', n_v)
 f_list = [prb.createInputVariable(f'f{i}', n_f) for i in range(n_c)]
-x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
 prb.setDynamics(x_dot)
 prb.setDt(dt)
 
@@ -291,7 +291,7 @@ if resampling:
         dt_before_res = dt
 
     dt_res = 0.001
-    dae = {'x': x, 'p': q_ddot, 'ode': x_dot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': q_ddot, 'ode': x_dot, 'quad': 1}
     q_res, qdot_res, qddot_res, contact_map_res, tau_res = resampler_trajectory.resample_torques(
         solution["q"], solution["q_dot"], solution["q_ddot"], dt_before_res, dt_res, dae, contact_map,
         kindyn,

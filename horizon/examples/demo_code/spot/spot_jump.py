@@ -107,7 +107,7 @@ if load_initial_guess:
 
 
 # Creates double integrator taking care of the floating base part
-x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
 
 # Set dynamics of the system and the relative dt
 prb.setDynamics(x_dot)
@@ -361,7 +361,7 @@ if resampling:
         dt_before_res = dt
 
     dt_res = 0.001
-    dae = {'x': x, 'p': q_ddot, 'ode': x_dot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': q_ddot, 'ode': x_dot, 'quad': 1}
     q_res, qdot_res, qddot_res, contact_map_res, tau_res = resampler_trajectory.resample_torques(
         solution["q"], solution["q_dot"], solution["q_ddot"], dt_before_res, dt_res, dae, contact_map,
         kindyn,

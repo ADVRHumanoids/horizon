@@ -29,7 +29,8 @@ class Problem:
     """
 
     # todo probably better to set logger, not logging_level
-    def __init__(self, N: int, casadi_type=cs.MX, receding=False, logging_level=logging.INFO):
+    def __init__(self, N: int, casadi_type=cs.MX, abstract_casadi_type=cs.SX, receding=False,
+                 logging_level=logging.INFO):
         """
         Initialize the optimization problem.
 
@@ -41,6 +42,8 @@ class Problem:
         self.is_receding = receding
         self.thread_map_num = 10
         self.default_casadi_type = casadi_type
+        self.default_abstract_casadi_type = abstract_casadi_type
+
         self.default_solver = cs.nlpsol
         self.default_solver_plugin = 'ipopt'
 
@@ -57,10 +60,12 @@ class Problem:
 
         self.state_aggr = sv.StateAggregate()
         self.input_aggr = sv.InputAggregate()
-        self.state_der: cs.SX = None
+
+        self.state_der: Union[cs.SX, cs.MX] = None
+        self.f_int: cs.Function = None
         self.dt = None
 
-    def createStateVariable(self, name: str, dim: int, casadi_type=None) -> sv.StateVariable:
+    def createStateVariable(self, name: str, dim: int, casadi_type=None, abstract_casadi_type=None) -> sv.StateVariable:
         """
         Create a State Variable active on ALL the N+1 nodes of the optimization problem.
         Remember: the State of the problem contains, in order of creation, all the State Variables created.
@@ -73,6 +78,7 @@ class Problem:
 
         """
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
         if self.state_der is not None:
             raise RuntimeError('createStateVariable must be called *before* setDynamics')
@@ -80,11 +86,11 @@ class Problem:
         # binary array to select which nodes are "active" for the variable. In this case, all of them
         nodes_array = np.ones(self.nodes)
 
-        var = self.var_container.setStateVar(name, dim, nodes_array, casadi_type)
+        var = self.var_container.setStateVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         self.state_aggr.addVariable(var)
         return var
 
-    def createInputVariable(self, name: str, dim: int, casadi_type=None) -> sv.InputVariable:
+    def createInputVariable(self, name: str, dim: int, casadi_type=None, abstract_casadi_type=None) -> sv.InputVariable:
         """
         Create an Input Variable active on all the nodes of the optimization problem except the final one. (Input is not defined on the last node)
         Remember: the Input of the problem contains, in order of creation, all the Input Variables created.
@@ -96,16 +102,18 @@ class Problem:
             instance of Input Variable
         """
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
         # binary array to select which nodes are "active" for the variable. In this case, all of them
         nodes_array = np.ones(self.nodes)
         nodes_array[-1] = 0
 
-        var = self.var_container.setInputVar(name, dim, nodes_array, casadi_type)
+        var = self.var_container.setInputVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         self.input_aggr.addVariable(var)
         return var
 
-    def createSingleVariable(self, name: str, dim: int, casadi_type=None) -> sv.SingleVariable:
+    def createSingleVariable(self, name: str, dim: int, casadi_type=None,
+                             abstract_casadi_type=None) -> sv.SingleVariable:
         """
         Create a node-independent Single Variable of the optimization problem. It is a single decision variable which is not projected over the horizon.
 
@@ -117,13 +125,15 @@ class Problem:
             instance of Single Variable
         """
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
         nodes_array = np.ones(self.nodes)  # dummy, cause it is the same on all the nodes
 
-        var = self.var_container.setSingleVar(name, dim, nodes_array, casadi_type)
+        var = self.var_container.setSingleVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return var
 
-    def createVariable(self, name: str, dim: int, nodes: Iterable = None, casadi_type=None) -> Union[
+    def createVariable(self, name: str, dim: int, nodes: Iterable = None, casadi_type=None,
+                       abstract_casadi_type=None) -> Union[
         sv.StateVariable, sv.SingleVariable]:
         """
         Create a generic Variable of the optimization problem. Can be specified over a desired portion of the horizon nodes.
@@ -141,15 +151,16 @@ class Problem:
         #     better to create it on every nodes anyway?
 
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        nodes_array = np.ones(self.nodes) if nodes is None else misc.getBinaryFromNodes(self.nodes,
-                                                                                        misc.checkNodes(nodes, np.ones(
-                                                                                            self.nodes)))
+        nodes_array = np.ones(self.nodes) if nodes is None else \
+            misc.getBinaryFromNodes(self.nodes, misc.checkNodes(nodes, np.ones(self.nodes))[0])
 
-        var = self.var_container.setVar(name, dim, nodes_array, casadi_type)
+        var = self.var_container.setVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return var
 
-    def createParameter(self, name: str, dim: int, nodes: Iterable = None, casadi_type=None) -> Union[
+    def createParameter(self, name: str, dim: int, nodes: Iterable = None, casadi_type=None,
+                        abstract_casadi_type=None) -> Union[
         sv.Parameter, sv.SingleParameter]:
         """
         Create a Parameter used in the optimization problem. Can be specified over a desired portion of the horizon nodes.
@@ -165,14 +176,16 @@ class Problem:
 
         """
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
         nodes_array = np.zeros(self.nodes)
         nodes_array[nodes] = 1
 
-        par = self.var_container.setParameter(name, dim, nodes_array, casadi_type)
+        par = self.var_container.setParameter(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return par
 
-    def createSingleParameter(self, name: str, dim: int, casadi_type=None) -> sv.SingleParameter:
+    def createSingleParameter(self, name: str, dim: int, casadi_type=None,
+                              abstract_casadi_type=None) -> sv.SingleParameter:
         """
         Create a node-independent Single Parameter used to solve the optimization problem. It is a single parameter which is not projected over the horizon.
         Parameters are specified before building the problem and can be 'assigned' afterwards, before solving the problem.
@@ -186,9 +199,26 @@ class Problem:
 
         """
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
+        abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
+
         nodes_array = np.ones(self.nodes)
-        par = self.var_container.setSingleParameter(name, dim, nodes_array, casadi_type)
+        par = self.var_container.setSingleParameter(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return par
+
+    def setParameter(self, par):
+        assert (isinstance(par, sv.AbstractVariable))
+    # def setVariable(self, name, var):
+
+    # assert (isinstance(var, (cs.casadi.SX, cs.casadi.MX)))
+    # setattr(Problem, name, var)
+    # self.var_container.append(name)
+
+    # def getStateVariable(self, name):
+    #
+    #     for var in self.var_container:
+    #         if var.getName() == name:
+    #             return var
+    #     return None
 
     def getState(self) -> sv.StateAggregate:
         """
@@ -207,7 +237,23 @@ class Problem:
         """
         return self.input_aggr
 
-    def setDynamics(self, xdot):
+    def setIntegrator(self, f_int: cs.Function):
+        """
+        Setter for the integrator function. The integrator function is used to integrate the system dynamics.
+        Args:
+            f_int: integrator function
+        """
+        self.f_int = f_int
+        if f_int.size1_in(0) != self.getState().getVars().shape[0] or \
+                f_int.size1_in(1) != self.getInput().getVars().shape[0] or \
+                f_int.size1_in(2) != 1:
+            raise ValueError(f"Integrator function {f_int} must have the following input arguments: "
+                             "state, input, time (with appropriate input sizes)")
+
+    def getIntegrator(self) -> cs.Function:
+        return self.f_int
+
+    def setDynamics(self, xdot, integrator='RK4'):
         """
         Setter of the system Dynamics used in the optimization problem.
         Remember that the variables in "xdot" are to be ordered as the variable in the state "x"
@@ -218,7 +264,21 @@ class Problem:
         nx = self.getState().getVars().shape[0]
         if xdot.shape[0] != nx:
             raise ValueError(f'state derivative dimension mismatch ({xdot.shape[0]} != {nx})')
+
         self.state_der = xdot
+
+        import horizon.transcriptions.integrators as integrators
+
+        dae = {
+            'x': self.getState().getVars(),
+            'p': self.getInput().getVars(),
+            'ode': self.state_der,
+            'quad': 0
+        }
+
+        f_int = integrators.__dict__[integrator](dae, {}, self.default_abstract_casadi_type)
+
+        self.setIntegrator(f_int)
 
     def getDynamics(self) -> cs.SX:
         """
@@ -277,7 +337,7 @@ class Problem:
             return None
         return lb
 
-    def _getUsedVar(self, f: cs.SX) -> list:
+    def _getUsedVar(self, f: Union[cs.SX, cs.MX]) -> list:
         """
         Finds all the variable used by a given CASADI function
 
@@ -288,11 +348,7 @@ class Problem:
             list of used variable
 
         """
-        used_var = list()
-        for var in self.var_container.getVarList(offset=True):
-            if cs.depends_on(f, var):
-                used_var.append(var)
-
+        used_var = self._getUsedSym(f, self.var_container.getVarList(offset=True))
         return used_var
 
     def _getUsedPar(self, f) -> list:
@@ -306,12 +362,28 @@ class Problem:
             list of used parameters
 
         """
-        used_par = list()
-        for var in self.var_container.getParList(offset=True):
-            if cs.depends_on(f, var):
-                used_par.append(var)
-
+        used_par = self._getUsedSym(f, self.var_container.getParList(offset=True))
         return used_par
+
+    def _getUsedSym(self, f, sym_list):
+
+        used_sym = list()
+        # todo add guards
+
+        if isinstance(f, cs.SX):
+            for sym in sym_list:
+                if cs.depends_on(f, sym):
+                    used_sym.append(sym)
+
+        # todo is this ok?
+        elif isinstance(f, cs.MX):
+            sym_in_f = cs.symvar(f)
+            for symbol in sym_in_f:
+                for sym in sym_list:
+                    if str(sym) == symbol.name():
+                        used_sym.append(sym)
+
+        return used_sym
 
     # def _autoNodes(self, type, nodes=None):
     #
@@ -358,7 +430,6 @@ class Problem:
 
             # nodes = misc.checkNodes(nodes, range(self.nodes))
 
-        # get vars that constraint depends upon
         used_var = self._getUsedVar(g)  # these now are lists!
         used_par = self._getUsedPar(g)
 
@@ -446,7 +517,7 @@ class Problem:
 
         # if receding, add a weight for activating/disabling the node
         if self.is_receding:
-            fun._setWeightMask(self.default_casadi_type)
+            fun._setWeightMask(self.default_casadi_type, self.default_abstract_casadi_type)
             weight_mask = fun._getWeightMask()
             self.var_container._pars[weight_mask.getName()] = weight_mask
 
@@ -522,7 +593,7 @@ class Problem:
 
         # if receding, add a weight for activating/disabling the node
         if self.is_receding:
-            fun._setWeightMask(self.default_casadi_type)
+            fun._setWeightMask(self.default_casadi_type, self.default_abstract_casadi_type)
             weight_mask = fun._getWeightMask()
             self.var_container._pars[weight_mask.getName()] = weight_mask
 
@@ -607,17 +678,17 @@ class Problem:
         """
         return self.function_container.removeFunction(name)
 
-    def setNNodes(self, n_nodes: int):
-        """
-        set a desired number of nodes of the optimization problem.
-
-        Args:
-            n_nodes: new number of nodes
-
-        """
-        self.nodes = n_nodes + 1  # todo because I decided so
-        self.var_container.setNNodes(self.nodes)
-        self.function_container.setNNodes(self.nodes)
+    # def setNNodes(self, n_nodes: int):
+    #     """
+    #     set a desired number of nodes of the optimization problem.
+    #
+    #     Args:
+    #         n_nodes: new number of nodes
+    #
+    #     """
+    #     self.nodes = n_nodes + 1  # todo because I decided so
+    #     self.var_container.setNNodes(self.nodes)
+    #     self.function_container.setNNodes(self.nodes)
 
     def getNNodes(self) -> int:
         """
@@ -627,6 +698,101 @@ class Problem:
             the number of optimization nodes
         """
         return self.nodes
+
+    def modifyNodes(self, nodes_map):
+        """
+        get a map of old_node: number of new_nodes
+        """
+        from horizon.variables import SingleVariable, InputVariable, StateVariable, Variable
+        old_to_new = dict()
+        # number of supplementary node inserted
+        n_supplementary_nodes = 0
+        for old_node in range(self.getNNodes()):
+            old_to_new[old_node] = old_node + n_supplementary_nodes
+            if old_node in nodes_map.keys():
+                # if in map, add node + supplementary nodes
+                n_supplementary_nodes += nodes_map[old_node]
+
+        # last new node + 1 is the number of total new nodes
+        self.nodes = old_to_new[self.getNNodes() - 1] + 1
+
+        # MODIFY VARIABLES NODES
+        for var in self.var_container._vars.values():
+            print(f'modifying var {var.getName()}')
+            print('old_nodes:', var.getNodes())
+
+            node_array = self.__array_from_node_map(var.getNodes(), old_to_new, nodes_map)
+            var._setNodes(node_array)
+
+            if hasattr(var, 'var_offset'):
+                for val in var.var_offset.values():
+                    val._impl = var._impl
+                    val._nodes_array = node_array
+
+            print('new_nodes:', var.getNodes())
+
+        # MODIFY PARAMETER NODES
+        for par in self.var_container._pars.values():
+            print(f'modifying par {par.getName()}')
+            print('old_nodes:', par.getNodes())
+
+            node_array = self.__array_from_node_map(par.getNodes(), old_to_new, nodes_map)
+            par._setNodes(node_array)
+
+            if hasattr(par, 'var_offset'):
+                for val in par.var_offset.values():
+                    val._impl = par._impl
+                    val._nodes_array = node_array
+
+            print('new_nodes:', par.getNodes())
+
+        # MODIFY FUNCTIONS NODES
+        for name, cnsrt in self.getConstraints().items():
+            print(f'========================== constraint {name} =========================================')
+            # old_n = self.old_cnsrt_nodes[name]
+            # old_lb, old_ub = self.old_cnrst_bounds[name]
+
+            print('old nodes:', cnsrt.getNodes())
+            # todo
+            #  if constraint depends on dt, what to do?
+            #  if it is a variable, it is ok. Can be changed and recognized easily.
+            #  What if it is a constant?
+            #  I have to change that constant value to the new value (old dt to new dt).
+            #  a possible thing is that i "mark" it, so that I can find it around.
+            #  Otherwise it would be impossible to understand which constraint depends on dt?
+            feas_node_array = self.__array_from_node_map(misc.getNodesFromBinary(cnsrt._getFeasNodes()), old_to_new, nodes_map)
+            node_array = self.__array_from_node_map(cnsrt.getNodes(), old_to_new, nodes_map)
+
+            cnsrt._setFeasNodes(feas_node_array)
+            cnsrt.setNodes(misc.getNodesFromBinary(node_array))
+            print('new nodes:', cnsrt.getNodes())
+
+        for name, cost in self.getCosts().items():
+            print(f'========================== cost {name} =========================================')
+            # old_n = self.old_cnsrt_nodes[name]
+            # old_lb, old_ub = self.old_cnrst_bounds[name]
+
+            print('old nodes:', cost.getNodes())
+
+            feas_node_array = self.__array_from_node_map(misc.getNodesFromBinary(cost._getFeasNodes()), old_to_new,
+                                                         nodes_map)
+            node_array = self.__array_from_node_map(cost.getNodes(), old_to_new, nodes_map)
+
+            cost._setFeasNodes(feas_node_array)
+            cost.setNodes(misc.getNodesFromBinary(node_array))
+            print('new nodes:', cost.getNodes())
+
+    def __array_from_node_map(self, old_nodes, old_to_new, nodes_map):
+
+        node_array = np.zeros(self.nodes)
+        for old_node in old_nodes:
+            new_node = old_to_new[old_node]
+            node_array[new_node] = 1
+
+            if old_node in nodes_map.keys() and old_node + 1 in old_nodes:
+                node_array[new_node + 1: new_node + nodes_map[old_node] + 1] = 1
+
+        return node_array
 
     def getVariables(self, name: str = None):
         """
@@ -735,37 +901,32 @@ class Problem:
         if var_name not in self.getVariables().keys():
             raise Exception(f'variable {var_name} not recognized.')
 
-        old_var = self.getVariables(var_name)
-        old_name = old_var.getName()
-        old_dim = old_var.getDim()
-        old_nodes = old_var.getNodes()
-        self.removeVariable(var_name)
-
-        if isinstance(old_var, sv.Variable):
-            par = self.createParameter(old_name, old_dim, old_nodes)
-        elif isinstance(old_var, sv.SingleVariable):
-            par = self.createSingleParameter(old_name, old_dim)
+        # substitute variable with parameter
+        par = self.var_container._vars.pop(var_name).toParameter()
+        self.var_container._pars[var_name] = par
 
         # if the variable is also the dt, set new dt
-        dt = self.getDt()
-        if isinstance(dt, List):
-            for i in range(len(dt)):
-                if isinstance(dt[i], (sv.Variable, sv.SingleVariable)):
-                    if dt[i].getName() == var_name:
-                        dt[i] = par
-        if isinstance(dt, (sv.Variable, sv.SingleVariable)):
-            if var_name == self.getDt().getName():
-                self.setDt(par)
+        if var_name == self.getDt().getName():
+            if isinstance(self.getDt(), List):
+                raise NotImplementedError('tbd')
+            else:
+                self.setDt(self.getParameters(var_name))
+
+        # dt = self.getDt()
+        # if isinstance(dt, List):
+        #     for i in range(len(dt)):
+        #         if isinstance(dt[i], (sv.Variable, sv.SingleVariable)):
+        #             if dt[i].getName() == var_name:
+        #                 dt[i] = par
 
         if var_name in [input_var.getName() for input_var in self.getInput()]:
             self.getInput().removeVariable(var_name)
-            self.getInput().addVariable(par)
-
+        #     self.getInput().addVariable(par)
+        #
         if var_name in [state_var.getName() for state_var in self.getState()]:
             self.getState().removeVariable(var_name)
-            self.getState().addVariable(par)
+        #     self.getState().addVariable(par)
 
-        # transform variable to parameter (delete var and create a equal parameter)
         # modify constraints on their core (correct?)
         for fun in self.getConstraints().values():
             for i in range(len(fun.vars)):
@@ -795,6 +956,9 @@ class Problem:
                 #     fun.vars[i] = par
 
                 fun._project()
+
+        # finally, change integrator dimension, rebuilding the dynamics
+        self.setDynamics(self.getDynamics())
 
         # for fun in self.getConstraints().values():
         #     for fun_var in fun.getVariables():
@@ -947,13 +1111,31 @@ def pickleable(obj):
         return False
     return True
 
-
 if __name__ == '__main__':
+
     import pickle
     from transcriptions import transcriptor
     from horizon.solvers import Solver
     from horizon.utils import plotter
     import matplotlib.pyplot as plt
+
+    N = 10
+    nodes_vec = np.array(range(N + 1))  # nodes = 10
+    dt = 0.01
+    prb = Problem(N, receding=True, casadi_type=cs.SX)
+    x = prb.createStateVariable('x', 2)
+    y = prb.createInputVariable('y', 2)
+    mimmo = prb.createIntermediateConstraint('cost_y', y - x)
+
+    print(mimmo.getNodes())
+    mimmo.setBounds([-np.inf, -np.inf], [np.inf, np.inf], nodes=4)
+    mimmo.setBounds([0, 1], [0, 1], nodes=4)
+    print(mimmo.getNodes())
+
+    exit()
+    # ============================================================
+    # ============================================================
+    # ============================================================
 
     N = 10
     nodes_vec = np.array(range(N + 1))  # nodes = 10
@@ -1030,7 +1212,6 @@ if __name__ == '__main__':
     par = prb.createParameter('par', 2)
 
     cost = prb.createCost('cost', x, nodes=[3, 4, 5])
-
 
     y_prev = y.getVarOffset(-1)
     prb.setDynamics(x)

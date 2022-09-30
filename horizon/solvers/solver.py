@@ -36,23 +36,27 @@ class Solver(ABC):
 
         if type == 'blocksqp':
             from . import blocksqp
-            return blocksqp.BlockSqpSolver(prb, opts)
+            ret = blocksqp.BlockSqpSolver(prb, opts)
         elif type == 'ipopt':
             from . import ipopt
-            return ipopt.IpoptSolver(prb, opts)
+            ret = ipopt.IpoptSolver(prb, opts)
         elif type == 'ilqr':
             from . import ilqr
-            return ilqr.SolverILQR(prb, opts)
+            ret = ilqr.SolverILQR(prb, opts)
         elif type == 'gnsqp':
             from . import sqp
-            qp_solver = 'qpoases'
+            qp_solver = 'osqp'
             if opts is not None:
                 if 'gnsqp.qp_solver' in opts:
                     qp_solver = opts['gnsqp.qp_solver']
                     del opts['gnsqp.qp_solver']
-            return sqp.GNSQPSolver(prb, opts, qp_solver)
+            ret = sqp.GNSQPSolver(prb, opts, qp_solver)
         else:
             raise KeyError(f'unsupperted solver type "{type}"')
+
+        ret.type = type
+        return ret
+
 
     def __init__(self, 
                  prb: Problem,
@@ -80,7 +84,6 @@ class Solver(ABC):
         # save state and control
         self.x = prb.getState().getVars()
         self.u = prb.getInput().getVars()
-        self.xdot = prb.getDynamics()
         self.dt = prb.getDt()
 
         # derived classes should at least provide the optimal state trajectory, 

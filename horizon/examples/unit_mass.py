@@ -12,7 +12,7 @@ n_nodes = 50
 dt = 0.1
 mu = 0.2
 grav = 9.81
-prob = prb.Problem(n_nodes)
+prob = prb.Problem(n_nodes, casadi_type=cs.SX)
 
 p = prob.createStateVariable('pos', dim=2)
 v = prob.createStateVariable('vel', dim=2)

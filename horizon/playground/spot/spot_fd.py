@@ -229,7 +229,7 @@ if resampling:
 
     # resampling
     dt_res = 0.001
-    dae = {'x': x, 'p': cs.vertcat(u, f_list[0], f_list[1], f_list[2], f_list[3]), 'ode': x_dot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': cs.vertcat(u, f_list[0], f_list[1], f_list[2], f_list[3]), 'ode': x_dot, 'quad': 1}
 
     input = np.array(cs.vertcat(u_hist, solution["f0"], solution["f1"], solution["f2"], solution["f3"]))
     q_res, qdot_res, input_res = resampler_trajectory.second_order_resample_integrator(solution["q"], solution["q_dot"], input, dt_before_res, dt_res, dae)

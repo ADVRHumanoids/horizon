@@ -27,9 +27,7 @@
 #     <joint name="RForearmPlate" value="0.0"/>
 #     <joint name="RWrj1" value="-0.523599"/>
 #     <joint name="RWrj2" value="-0.0"/>
-'''
-An example of the famous robot Spot (from Boston Dynamics) performing a jump.
-'''
+
 
 from horizon import problem
 from horizon.transcriptions.transcriptor import Transcriptor
@@ -53,7 +51,7 @@ plot_sol = True
 load_initial_guess = False
 
 # get path to the examples folder and temporary add it to the environment
-path_to_examples = os.path.abspath(__file__ + "/../../examples")
+path_to_examples = os.path.abspath(__file__ + "/../../../examples")
 os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
 
 # mat storer
@@ -133,7 +131,7 @@ if load_initial_guess:
 
 
 # Creates double integrator taking care of the floating base part
-x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
 
 # Set dynamics of the system and the relative dt
 prb.setDynamics(x_dot)
@@ -376,7 +374,7 @@ if resampling:
         dt_before_res = dt
 
     dt_res = 0.001
-    dae = {'x': x, 'p': q_ddot, 'ode': x_dot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': q_ddot, 'ode': x_dot, 'quad': 1}
     q_res, qdot_res, qddot_res, contact_map_res, tau_res = resampler_trajectory.resample_torques(
         solution["q"], solution["q_dot"], solution["q_ddot"], dt_before_res, dt_res, dae, contact_map,
         kindyn,

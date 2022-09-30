@@ -1,11 +1,13 @@
-import numpy as np
-import casadi as cs
-from horizon.utils.actionManager import Step, ActionManager
+from horizon.utils import plotter
 from horizon.transcriptions.transcriptor import Transcriptor
-from horizon.solvers.solver import Solver
 from horizon.ros import replay_trajectory
-import rospy, rospkg
+from horizon.solvers.solver import Solver
 from horizon.rhc.taskInterface import TaskInterface
+from horizon.rhc.model_description import *
+from horizon.utils.actionManager import ActionManager, Step
+import numpy as np
+import rospkg
+import casadi as cs
 
 """
 An application of mirror walking using the ActionManager.
@@ -14,8 +16,8 @@ It uses the TaskInterface, but just for the problem setting, everything else is 
 
 urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
-
-solver_type = 'ilqr'
+kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
+kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
 
 ns = 50
 tf = 8.0  # 10s
@@ -36,10 +38,67 @@ base_init = np.array([0, 0, 0.72, 0, 0, 0, 1])
 # todo: this should not be in initialization
 #  I should add contacts after the initialization, as forceTasks, no?
 
-contacts = [f'arm_{i+1}_TCP' for i in range(3)]
-ti = TaskInterface(urdf, q_init, base_init, problem_opts, model_description, contacts=contacts)
-# register my plugin 'Contact'
-ti.loadPlugins(['horizon.rhc.plugins.contactTaskMirror'])
+# set up model
+prb = Problem(ns, receding=True)  # logging_level=logging.DEBUG
+prb.setDt(dt)
+
+model = FullModelInverseDynamics(problem=prb,
+                                 kd=kd,
+                                 q_init=q_init,
+                                 base_init=base_init)
+
+contacts = [f'arm_{i + 1}_TCP' for i in range(3)]
+
+ti = TaskInterface(prb, model)
+
+# this adds the vertical takeoff to the interactionTask VertexForce
+ti.loadPlugins(['horizon.rhc.plugins.interactionTaskMirror'])
+
+for frame in contacts:
+    subtask_force = {'type': 'VertexForceMirror',
+                     'name': f'interaction_{frame}',
+                     'frame': frame,
+                     'fn_min': 10.0,
+                     'vertex_frames': [frame]
+                     }
+
+    # subtask_force = {'type': 'Wrench',
+    #                  'name': f'interaction_{frame}',
+    #                  'frame': frame,
+    #                  'fn_min': 10.0,
+    #                  'enable_cop': False,
+    #                  'indices': [0, 1, 2],
+    #                  'dimensions': [0.2, 0.2]}
+
+    subtask_cartesian = {'type': 'Cartesian',
+                         'name': f'zero_velocity_{frame}',
+                         'distal_link': frame,
+                         'indices': [0, 1, 2, 3, 4, 5],
+                         'cartesian_type': 'velocity',
+                         'nodes': 'all'
+                         }
+
+    contact_task = {'type': 'Contact',
+                    'subtask': [subtask_force, subtask_cartesian],
+                    'name': 'foot_contact_' + frame}
+
+    z_task = {'type': 'Cartesian',
+              'name': f'foot_z_{frame}',
+              'distal_link': frame,
+              'indices': [2],
+              'fun_type': 'constraint',
+              'cartesian_type': 'position'}
+
+    foot_tgt_task = {'type': 'Cartesian',
+                     'name': f'foot_xy_{frame}',
+                     'distal_link': frame,
+                     'indices': [0, 1],
+                     'fun_type': 'constraint',
+                     'cartesian_type': 'position'}
+
+    ti.setTaskFromDict(contact_task)
+    ti.setTaskFromDict(z_task)
+    ti.setTaskFromDict(foot_tgt_task)
 
 # todo I should NOT do this here
 q = ti.prb.getVariables('q')
@@ -47,13 +106,12 @@ v = ti.prb.getVariables('v')
 a = ti.prb.getVariables('a')
 forces = [ti.prb.getVariables('f_' + c) for c in contacts]
 
-q0 = ti.q0
-v0 = ti.v0
+q0 = model.q0
+v0 = model.v0
 f0 = np.array([0, 0, 300])
 nc = 3
 
 ptgt_final = [0., 0., 0.]
-vmax = [0.05, 0.05, 0.05]
 ptgt = ti.prb.createParameter('ptgt', 3)
 
 # goalx = ti.prb.createFinalResidual("final_z",  1e3*(q[2] - ptgt[2]))
@@ -76,7 +134,7 @@ ti.prb.createResidual("min_q", 1e-1 * (q[7:] - q0[7:]))
 ti.prb.createResidual("min_v", 1e-2 * v)
 
 # final posture
-ti.prb.createFinalResidual("min_qf", 1e1 * (q[7:] - q0[7:]))
+ti.prb.createResidual("min_qf", 1e1 * (q[7:] - q0[7:]))
 
 # regularize input
 ti.prb.createIntermediateResidual("min_q_ddot", 1e0 * a)
@@ -85,24 +143,15 @@ ti.prb.createIntermediateResidual("min_q_ddot", 1e0 * a)
 for f in forces:
     ti.prb.createIntermediateResidual(f"min_{f.getName()}", 1e-3 * (f - f0))
 
-# costs and constraints implementing a gait schedule
-com_fn = cs.Function.deserialize(ti.kd.centerOfMass())
-
-# save default foot height
-default_foot_z = dict()
-
 # contact velocity is zero, and normal force is positive
 for i, frame in enumerate(contacts):
     # fk functions and evaluated vars
-    fk = cs.Function.deserialize(ti.kd.fk(frame))
-    dfk = cs.Function.deserialize(ti.kd.frameVelocity(frame, ti.kd_frame))
+    fk = kd.fk(frame)
+    dfk = kd.frameVelocity(frame, kd_frame)
 
     ee_p = fk(q=q)['ee_pos']
     ee_rot = fk(q=q)['ee_rot']
     ee_v = dfk(q=q, qdot=v)['ee_vel_linear']
-
-    # save foot height
-    default_foot_z[frame] = (fk(q=q0)['ee_pos'][2]).toarray()
 
     # vertical contact frame
     rot_err = cs.sumsqr(ee_rot[2, :2])
@@ -115,46 +164,9 @@ for i, frame in enumerate(contacts):
     # clearance
     # xy goal
 
-for frame in contacts:
-    subtask_force = {'type': 'Force',
-                     'name': f'interaction_{frame}',
-                     'frame': frame,
-                     'indices': [0, 1, 2]}
-
-    subtask_cartesian = {'type': 'Cartesian',
-                         'name': f'zero_velocity_{frame}',
-                         'frame': frame,
-                         'indices': [0, 1, 2, 3, 4, 5],
-                         'cartesian_type': 'velocity'}
-
-    contact_task_node = {'type': 'Contact',
-                         'name': f'foot_contact_{frame}',
-                         'subtask': [subtask_force, subtask_cartesian]}
-
-    z_task_node = {'type': 'Cartesian',
-                   'name': f'foot_z_{frame}',
-                   'frame': frame,
-                   'indices': [2],
-                   'fun_type': 'constraint',
-                   'cartesian_type': 'position'}
-
-    foot_tgt_task_node = {'type': 'Cartesian',
-                          'name': f'foot_xy_{frame}',
-                          'frame': frame,
-                          'indices': [0, 1],
-                          'fun_type': 'constraint',
-                          'cartesian_type': 'position'}
-
-    ti.setTaskFromDict(contact_task_node)
-    ti.setTaskFromDict(z_task_node)
-    ti.setTaskFromDict(foot_tgt_task_node)
 
 opts = dict()
-opts['default_foot_z'] = default_foot_z
 am = ActionManager(ti, opts)
-
-if solver_type != 'ilqr':
-    Transcriptor.make_method('multiple_shooting', ti.prb)
 
 # set initial condition and initial guess
 q.setBounds(q0, q0, nodes=0)
@@ -173,6 +185,7 @@ for f in forces:
 am._walk([10, 200], step_pattern=[0, 2, 1], step_nodes_duration=10)
 # am._trot([50, 100])
 # am._jump([55, 65])
+
 
 # create solver and solve initial seed
 # print('===========executing ...========================')
@@ -199,12 +212,28 @@ opts_rti = opts.copy()
 opts_rti['ilqr.enable_line_search'] = False
 opts_rti['ilqr.max_iter'] = 4
 
-solver_bs = Solver.make_solver(solver_type, ti.prb, opts)
-solver_rti = Solver.make_solver(solver_type, ti.prb, opts_rti)
+opts['type'] = 'ipopt'
+
+opts_rti = opts.copy()
+opts_rti['ilqr.enable_line_search'] = False
+opts_rti['ilqr.max_iter'] = 4
+
+#
+# print('CONSTRAINTS:')
+# for cnsrt, obj in ti.prb.getConstraints().items():
+#     print(cnsrt,':', type(obj))
+#     print(obj.getNodes())
+
+# exit()
+# solver_bs = Solver.make_solver(solver_type, ti.prb, opts)
+# solver_rti = Solver.make_solver(solver_type, ti.prb, opts_rti)
 
 ptgt.assign(ptgt_final, nodes=ns)
-solver_bs.solve()
-solution = solver_bs.getSolutionDict()
+
+ti.setSolverOptions(opts)
+ti.finalize()
+ti.bootstrap()
+solution = ti.solution
 
 # os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
 # subprocess.Popen(["roslaunch", path_to_examples + "/replay/launch/launcher.launch", 'robot:=spot'])
@@ -213,13 +242,13 @@ solution = solver_bs.getSolutionDict()
 ## single replay
 q_sol = solution['q']
 frame_force_mapping = {contacts[i]: solution[forces[i].getName()] for i in range(nc)}
-repl = replay_trajectory.replay_trajectory(dt, ti.kd.joint_names()[2:], q_sol, frame_force_mapping, ti.kd_frame, ti.kd)
+repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), q_sol, frame_force_mapping, kd_frame, kd)
 repl.sleep(1.)
 repl.replay(is_floating_base=True)
 exit()
 # =========================================================================
-repl = replay_trajectory.replay_trajectory(dt, ti.kd.joint_names()[2:], np.array([]), {k: None for k in contacts},
-                                           ti.kd_frame, ti.kd)
+repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), np.array([]), {k: None for k in contacts},
+                                           kd_frame, kd)
 iteration = 0
 
 if solver_type == 'ilqr':
@@ -228,7 +257,6 @@ if solver_type == 'ilqr':
 
 flag_action = 1
 while True:
-
     # if flag_action == 1 and iteration > 50:
     #     flag_action = 0
     #     am._trot([40, 80])
@@ -294,7 +322,3 @@ if plot:
     hplt.plotVariables([elem.getName() for elem in forces], show_bounds=True, gather=2, legend=False)
     hplt.plotVariables(['q'], show_bounds=True, gather=2, legend=False)
     matplotlib.pyplot.show()
-
-
-
-

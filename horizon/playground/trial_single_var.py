@@ -55,7 +55,7 @@ dt2.setBounds(0.06, 0.1)
 dt_some.setBounds(0.01, 0.1)
 
 # Creates double integrator
-x, xdot = utils.double_integrator(q, qdot, qddot)
+xdot = utils.double_integrator(qdot, qddot)
 prb.setDynamics(xdot)
 
 dt_all = int(ns/2) * [dt] + int(ns/2) * [dt1]

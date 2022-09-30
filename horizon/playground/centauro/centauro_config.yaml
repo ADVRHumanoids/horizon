@@ -1,0 +1,233 @@
+solver:
+  type: ipopt
+#  print_time: 0
+#  ipopt.print_level: 0
+#  ipopt.sb: "yes"
+  ipopt.linear_solver: ma57
+#  ipopt.tol: 1e-3
+#  ipopt.constr_viol_tol: 1e-3
+#  ipopt.max_iter: 200
+#  ipopt.hessian_approximation: limited-memory
+  ilqr.verbose: false
+  ilqr.codegen_enabled: true
+  ilqr.codegen_workdir: /tmp/miao
+  ilqr.enable_gn: true
+  ilqr.max_iter: 200
+  ilqr.hxx_reg_base: 0.0
+  ilqr.n_threads: 0
+
+
+constraints:
+ - final_base_xy          # required to set xy-target for the walk
+ - foot_contact_contact_1   # required from the ActionManager
+ - foot_contact_contact_2   # required from the ActionManager
+ - foot_contact_contact_3   # required from the ActionManager
+ - foot_contact_contact_4   # required from the ActionManager
+ - foot_z_contact_1         # required from the ActionManager
+ - foot_z_contact_2         # required from the ActionManager
+ - foot_z_contact_3         # required from the ActionManager
+ - foot_z_contact_4         # required from the ActionManager
+ - foot_xy_contact_1        # required from the ActionManager
+ - foot_xy_contact_2        # required from the ActionManager
+ - foot_xy_contact_3        # required from the ActionManager
+ - foot_xy_contact_4        # required from the ActionManager
+ -
+costs:
+  - joint_posture
+  - joint_posture_ankles
+  - joint_regularization
+  # - final_posture
+#  - base_posture
+
+
+final_base_xy:
+  type: Cartesian
+  distal_link: base_link
+  indices: [0, 1]
+  nodes: final
+# ===============================
+# point contact
+force_contact_1:
+  type: VertexForce
+  frame: contact_1
+  fn_min: 10.0
+  vertex_frames:
+    - contact_1
+
+force_contact_2:
+  type: VertexForce
+  frame: contact_2
+  fn_min: 10.0
+  vertex_frames:
+    - contact_2
+
+force_contact_3:
+  type: VertexForce
+  frame: contact_3
+  fn_min: 10.0
+  vertex_frames:
+    - contact_3
+
+force_contact_4:
+  type: VertexForce
+  frame: contact_4
+  fn_min: 10.0
+  vertex_frames:
+    - contact_4
+
+#rolling_contact_1:
+#  type: Cartesian
+#  distal_link: contact_1
+#  indices: [2]
+#  cartesian_type: velocity
+#
+#rolling_contact_2:
+#  type: Cartesian
+#  distal_link: contact_2
+#  indices: [2]
+#  cartesian_type: velocity
+#
+#rolling_contact_3:
+#  type: Cartesian
+#  distal_link: contact_3
+#  indices: [2]
+#  cartesian_type: velocity
+#
+#rolling_contact_4:
+#  type: Cartesian
+#  distal_link: contact_4
+#  indices: [2]
+#  cartesian_type: velocity
+
+# ==================================
+
+rolling_contact_1:
+  type: Rolling
+  frame: wheel_1
+  radius: 0.078
+  nodes: all
+
+rolling_contact_2:
+  type: Rolling
+  frame: wheel_2
+  radius: 0.078
+  nodes: all
+
+rolling_contact_3:
+  type: Rolling
+  frame: wheel_3
+  radius: 0.078
+  nodes: all
+
+rolling_contact_4:
+  type: Rolling
+  frame: wheel_4
+  radius: 0.078
+  nodes: all
+
+# ==================================
+
+foot_contact_contact_1:
+  type: Contact
+  subtask: [force_contact_1, rolling_contact_1]
+
+foot_contact_contact_2:
+  type: Contact
+  subtask: [force_contact_2, rolling_contact_2]
+
+foot_contact_contact_3:
+  type: Contact
+  subtask: [force_contact_3, rolling_contact_3]
+
+foot_contact_contact_4:
+  type: Contact
+  subtask: [force_contact_4, rolling_contact_4]
+
+
+joint_posture_ankles:
+  type: Postural
+  weight: 0.02 # 10
+  indices: [4, 10, 16, 22]
+  nodes: all
+
+joint_posture:
+  type: Postural
+  weight: 1. # 10
+  indices: [0, 1, 2, 3, #4, 5, normal, no postural on ankle yaw, no wheel
+            6, 7, 8, 9, #10, 11,
+            12, 13, 14, 15, #16, 17
+            18, 19, 20, 21, #22, 23
+            ]
+  nodes: all
+
+#base_posture:
+#  type: Cartesian
+#  indices: [0, 1, 2, 3, 4]
+#  weight: 10
+#  distal_link: pelvis
+#  nodes: all
+
+#final_posture:
+#  type: Postural
+#  weight: 50. # 10
+#  nodes: final
+
+# todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they wont get considered.
+joint_regularization:
+  type: Regularization
+  nodes: all
+  weight:
+#    velocity: 0.5
+    acceleration: 0.1 # 0.01
+    force: 0.01 # todo <----- how to do? if there are more forces...
+
+foot_z_contact_1:
+  type: Cartesian
+  distal_link: contact_1
+  indices: [2]
+  cartesian_type: position
+
+foot_z_contact_2:
+  type: Cartesian
+  distal_link: contact_2
+  indices: [2]
+  cartesian_type: position
+
+foot_z_contact_3:
+  type: Cartesian
+  distal_link: contact_3
+  indices: [2]
+  cartesian_type: position
+
+foot_z_contact_4:
+  type: Cartesian
+  distal_link: contact_4
+  indices: [2]
+  cartesian_type: position
+
+foot_xy_contact_1:
+  type: Cartesian
+  distal_link: contact_1
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_contact_2:
+  type: Cartesian
+  distal_link: contact_2
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_contact_3:
+  type: Cartesian
+  distal_link: contact_3
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_contact_4:
+  type: Cartesian
+  distal_link: contact_4
+  indices: [0, 1]
+  cartesian_type: position
+
+
+

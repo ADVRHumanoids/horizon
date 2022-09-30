@@ -11,7 +11,11 @@ class PosturalTask(Task):
 
         super().__init__(*args, **kwargs)
 
-        self.q0_ref = postural_ref[self.indices]
+        self.indices = np.array(list(range(self.kin_dyn.nq() - 7))).astype(int) if self.indices is None else np.array(self.indices).astype(int)
+        self.q = self.prb.getVariables('q')[7:]
+        self.q0_joints_ref = postural_ref[7:]
+        self.q0_ref = self.q0_joints_ref[self.indices]
+
         # if 'postural_ref' not in task_node:
         #     raise ValueError('Postural reference is not set')
 
@@ -25,7 +29,8 @@ class PosturalTask(Task):
         self._initialize()
 
     def _initialize(self):
-        self.q = self.prb.getVariables('q')
+        # get only the joint positions
+
         name_fun = f'postural_{self.name}'# '_'.join(map(str, self.indices))
         self.q0 = self.prb.createParameter(f'{name_fun}_tgt', self.indices.size)
         self.fun = self.instantiator(f'{name_fun}_task', self.weight * (self.q[self.indices] - self.q0), nodes=self.nodes)
@@ -51,7 +56,7 @@ class PosturalTask(Task):
         if not nodes:
             self.nodes = []
 
-        self.fun.setNodes(self.nodes, erasing=True)  # <==== SET NODES
+        self.fun.setNodes(self.nodes)  # <==== SET NODES
 
         # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
         # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')

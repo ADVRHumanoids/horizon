@@ -53,7 +53,7 @@ class RegularizationTask(Task):
 
     def setNodes(self, nodes):
         super().setNodes(nodes)
-        self.reg_fun.setNodes(nodes, erasing=True)
+        self.reg_fun.setNodes(nodes)
 
 
 # class RegularizationTaskInterface:n

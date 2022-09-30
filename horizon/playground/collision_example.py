@@ -28,10 +28,12 @@ ilqr_plot_iter = False
 # load urdf
 urdffile = os.path.join(rospkg.RosPack().get_path('teleop_urdf'), 'urdf', 'teleop_capsules.rviz')
 urdf = open(urdffile, 'r').read()
+srdffile = os.path.join(rospkg.RosPack().get_path('teleop_srdf'), 'srdf', 'teleop_capsules.srdf')
+srdf = open(srdffile, 'r').read()
 kindyn = cas_kin_dyn.CasadiKinDyn(urdf)
 
 # collision
-ch = collision.CollisionHandler(urdf, kindyn)
+ch = cas_kin_dyn.CollisionHandler(kindyn, srdf)
 
 # joint names
 joint_names = kindyn.joint_names()
@@ -91,8 +93,8 @@ prb.createConstraint('pick', q - q0, nodes=[n_nodes//2])
 prb.createConstraint('pickv', q_dot, nodes=[n_nodes//2])
 
 # regularize
-prb.createIntermediateCost('rega', residual_to_cost(1e-2*q_ddot))
-prb.createIntermediateCost('regv', residual_to_cost(1e-2*q_dot))
+prb.createIntermediateResidual('rega', q_ddot)
+prb.createIntermediateResidual('regv', q_dot)
 # prb.createIntermediateCost('regq', residual_to_cost(1e-2*(q - q_init)[1:n_q]))
 
 # collision
@@ -100,7 +102,16 @@ from urdf_parser_py import urdf as upp
 g1 = upp.Cylinder(length=10.0, radius=0.10)
 c1 = upp.Collision(geometry=g1, origin=upp.Pose(xyz=[0.70, 0, 0.0], rpy=[0, 0, 0]))
 ch.world['world/caps'] = c1 
-d = ch.compute_distances(q=q)
+
+ch.addShape('mycaps', 'capsule',
+{
+    'length': [10.0],
+    'radius': [0.10],
+    'position': [0.70, 0, 0.0],
+})
+
+dfn = ch.getDistanceFunction()
+d = dfn(q=q)
 nd = d.size1()
 # prb.createIntermediateConstraint('coll', d, bounds=dict(lb=np.zeros(nd), ub=np.full(nd, np.inf)))
 coll_w = prb.createParameter('coll_w', 1)

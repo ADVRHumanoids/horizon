@@ -48,7 +48,7 @@ frope = prb.createInputVariable("frope", nf)
 dt = prb.createVariable("dt", 1, nodes=list(range(0, ns)))
 
 # Creates double integrator
-x, xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
 prb.setDynamics(xdot)
 prb.setDt(dt)
 

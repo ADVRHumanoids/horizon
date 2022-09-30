@@ -1,0 +1,1413 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-1-g15f4949  Build Version: 1.6.7594.29634
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter 
+     By Varan Gupta
+	 // %   SLIDER project, Robot Intelligence Lab, Imperial College London, 2016-2018
+	// %   http://www.imperial.ac.uk/robot-intelligence/
+	// %
+	// 
+-->
+<robot
+  name="slider_2_0_urdf">
+<gazebo>
+  <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+    <robotNamespace>slider_2_0_urdf</robotNamespace>
+    <legacyModeNS>true</legacyModeNS>
+  </plugin>
+</gazebo>
+  <!--Initial height 63401 -->
+  <link
+    name="world"/>
+
+  <joint
+    name="base_joint"
+    type="floating">
+    <origin
+      xyz="0 0 0" 
+      rpy="0 0 0" />
+    <parent
+      link="world" />
+    <child
+      link="base_link" />
+  </joint>
+    <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.0453875985958373 4.1101974042046E-09 0.0190138660207818"
+        rpy="0 0 0" />
+      <mass
+        value="2.43528061544389" />
+      <inertia
+        ixx="0.00413341668715068"
+        ixy="-1.3241820084219E-07"
+        ixz="-4.03338738202236E-06"
+        iyy="0.00231368923917245"
+        iyz="4.40192080686644E-10"
+        izz="0.00271164207352103" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Right_Pitch_casing">
+    <inertial>
+      <origin
+        xyz="-0.00651307299910235 -0.000261818107759049 7.57108328304501E-06"
+        rpy="0 0 0" />
+      <mass
+        value="1.12926003306143" />
+      <inertia
+        ixx="0.00127402444645982"
+        ixy="-3.29852965020171E-06"
+        ixz="3.71991088459448E-07"
+        iyy="0.00204304191154168"
+        iyz="-1.08712190437952E-06"
+        izz="0.00154557348211055" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Right_Pitch_casing.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Right_Pitch_casing.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_Roll"
+    type="revolute">
+    <origin
+      xyz="0 -0.075 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Right_Pitch_casing" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-1.57"
+      upper="0.35"
+      effort="480"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="Right_Slide_Casing">
+    <inertial>
+      <origin
+        xyz="-0.032449657946544 -0.0178443973043905 0.000925651738627742"
+        rpy="0 0 0" />
+      <mass
+        value="1.06490938870739" />
+      <inertia
+        ixx="0.00177168306828385"
+        ixy="9.42143802025665E-05"
+        ixz="1.06116585579069E-05"
+        iyy="0.00185406707357424"
+        iyz="-4.7626626084953E-05"
+        izz="0.00084343137730316" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Right_Slide_Casing.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Right_Slide_Casing.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_Pitch"
+    type="revolute">
+    <origin
+      xyz="0 -0.1042 0"
+      rpy="0 0 0" />
+    <parent
+      link="Right_Pitch_casing" />
+    <child
+      link="Right_Slide_Casing" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="180"
+      velocity="28" />
+  </joint>
+  <link
+    name="Right_Leg">
+    <inertial>
+      <origin
+        xyz="-0.023399788642906 0.000112329052341098 0.455007883008058"
+        rpy="0 0 0" />
+      <mass
+        value="1.78099056785378" />
+      <inertia
+        ixx="0.0423994212593207"
+        ixy="8.85717263604672E-07"
+        ixz="-3.06328044795182E-06"
+        iyy="0.0432292529501747"
+        iyz="2.34769550705421E-06"
+        izz="0.00149023390575234" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Right_Leg.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Right_Leg.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_Slide"
+    type="prismatic">
+    <origin
+      xyz="0 0 -0.7"
+      rpy="0 0 0" />
+    <parent
+      link="Right_Slide_Casing" />
+    <child
+      link="Right_Leg" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.35"
+      upper="0.26"
+      effort="3150"
+      velocity="0.56" />
+  </joint>
+  <link
+    name="Right_Foot_Pitch_Link">
+    <inertial>
+      <origin
+        xyz="6.30627592078862E-05 2.21613180029223E-08 -1.27034415209337E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.0383125474516294" />
+      <inertia
+        ixx="4.3235133950203E-06"
+        ixy="-1.57099122601101E-12"
+        ixz="-1.16795718725966E-12"
+        iyy="4.37123956381505E-06"
+        iyz="7.01277910311096E-13"
+        izz="4.11906265940508E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Right_Foot_Pitch_Link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Right_Foot_Pitch_Link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_Foot_Pitch"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Right_Leg" />
+    <child
+      link="Right_Foot_Pitch_Link" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="100"
+      velocity="28" />
+  </joint>
+  <link
+    name="Right_Foot">
+    <inertial>
+      <origin
+        xyz="-0.00123693071420694 -3.33066907387547E-16 -0.0248604745871576"
+        rpy="0 0 0" />
+      <mass
+        value="0.756541848703211" />
+      <inertia
+        ixx="0.000826117771410223"
+        ixy="-8.45141249055299E-13"
+        ixz="5.44373609390476E-09"
+        iyy="0.00233223123259619"
+        iyz="-1.21621858010233E-19"
+        izz="0.00314822353477104" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Right_Foot.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Right_Foot.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_Foot_Roll"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Right_Foot_Pitch_Link" />
+    <child
+      link="Right_Foot" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="30"
+      velocity="28" />
+  </joint>
+  <link
+    name="Left_Pitch_casing">
+    <inertial>
+      <origin
+        xyz="-0.006513072999102 0.000261818107759423 -7.57108328312828E-06"
+        rpy="0 0 0" />
+      <mass
+        value="1.12926003306143" />
+      <inertia
+        ixx="0.00127402444645982"
+        ixy="3.29852965019084E-06"
+        ixz="-3.71991088473583E-07"
+        iyy="0.00204304191154168"
+        iyz="-1.08712190438163E-06"
+        izz="0.00154557348211055" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Left_Pitch_casing.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Left_Pitch_casing.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Roll"
+    type="revolute">
+    <origin
+      xyz="0 0.075 0"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="Left_Pitch_casing" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.35"
+      upper="1.57"
+      effort="480"
+      velocity="3.14" />
+  </joint>
+  <link
+    name="Left_Slide_Casing">
+    <inertial>
+      <origin
+        xyz="-0.0324496564904676 0.017844395213362 -0.000925651221822657"
+        rpy="0 0 0" />
+      <mass
+        value="1.0649094427087" />
+      <inertia
+        ixx="0.00177168314567418"
+        ixy="-9.42143732292687E-05"
+        ixz="-1.06116448651668E-05"
+        iyy="0.00185406715777426"
+        iyz="-4.76266339938005E-05"
+        izz="0.000843431393182513" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Left_Slide_Casing.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Left_Slide_Casing.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Pitch"
+    type="revolute">
+    <origin
+      xyz="0 0.1042 0"
+      rpy="0 0 0" />
+    <parent
+      link="Left_Pitch_casing" />
+    <child
+      link="Left_Slide_Casing" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="180"
+      velocity="28" />
+  </joint>
+  <link
+    name="Left_Leg">
+    <inertial>
+      <origin
+        xyz="-0.0233997886429063 0.000112329052338822 0.455007883008056"
+        rpy="0 0 0" />
+      <mass
+        value="1.78099056785378" />
+      <inertia
+        ixx="0.0423994212593208"
+        ixy="8.85717263604819E-07"
+        ixz="-3.06328044795385E-06"
+        iyy="0.0432292529501749"
+        iyz="2.34769550697438E-06"
+        izz="0.00149023390575234" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Left_Leg.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Left_Leg.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Slide"
+    type="prismatic">
+    <origin
+      xyz="0 0 -0.7"
+      rpy="0 0 0" />
+    <parent
+      link="Left_Slide_Casing" />
+    <child
+      link="Left_Leg" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-0.35"
+      upper="0.26"
+      effort="3150"
+      velocity="0.56" />
+  </joint>
+  <link
+    name="Left_Foot_Pitch_Link">
+    <inertial>
+      <origin
+        xyz="6.3062759202114E-05 2.21613188355896E-08 -1.27034456287589E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.0383125474516294" />
+      <inertia
+        ixx="4.32351339502029E-06"
+        ixy="-1.57099121289768E-12"
+        ixz="-1.16795718677098E-12"
+        iyy="4.37123956381505E-06"
+        iyz="7.01277910428786E-13"
+        izz="4.11906265940506E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Left_Foot_Pitch_Link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Left_Foot_Pitch_Link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Foot_Pitch"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Left_Leg" />
+    <child
+      link="Left_Foot_Pitch_Link" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="100"
+      velocity="28" />
+  </joint>
+  <link
+    name="Left_Foot">
+    <inertial>
+      <origin
+        xyz="-0.0012369307142082 -1.60982338570648E-15 -0.0248604745871576"
+        rpy="0 0 0" />
+      <mass
+        value="0.756541848703211" />
+      <inertia
+        ixx="0.000826117771410221"
+        ixy="-8.4514438495739E-13"
+        ixz="5.44373609355106E-09"
+        iyy="0.0023322312325962"
+        iyz="9.16914941364761E-19"
+        izz="0.00314822353477104" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/Left_Foot.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://slider_2_0_urdf/meshes/col/Left_Foot.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_Foot_Roll"
+    type="revolute">
+    <origin
+      xyz="0 0 0"
+      rpy="0 0 0" />
+    <parent
+      link="Left_Foot_Pitch_Link" />
+    <child
+      link="Left_Foot" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-0.52"
+      upper="0.52"
+      effort="30"
+      velocity="28" />
+  </joint>
+   
+  
+  <!-- \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\       Pads \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ -->
+  
+    <material name="blue">
+    <color rgba="0 0 0.8 1"/>
+  </material>
+  
+  
+  <link
+    name="Left_Foot_A">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+	  
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_A"
+    type="fixed">
+    <origin
+      xyz="0.08181 0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Left_Foot" />
+    <child
+      link="Left_Foot_A" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <link
+    name="Left_Foot_B">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_B"
+    type="fixed">
+    <origin
+      xyz="0.08181 -0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Left_Foot" />
+    <child
+      link="Left_Foot_B" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+    <link
+    name="Left_Foot_C">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_C"
+    type="fixed">
+    <origin
+      xyz="-0.08181 -0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Left_Foot" />
+    <child
+      link="Left_Foot_C" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+    <link
+    name="Left_Foot_D">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Left_D"
+    type="fixed">
+    <origin
+      xyz="-0.08181 0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Left_Foot" />
+    <child
+      link="Left_Foot_D" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+   <link
+    name="Right_Foot_A">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_A"
+    type="fixed">
+    <origin
+      xyz="0.08181 0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Right_Foot" />
+    <child
+      link="Right_Foot_A" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+  <link
+    name="Right_Foot_B">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_B"
+    type="fixed">
+    <origin
+      xyz="0.08181 -0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Right_Foot" />
+    <child
+      link="Right_Foot_B" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+    <link
+    name="Right_Foot_C">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-03"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_C"
+    type="fixed">
+    <origin
+      xyz="-0.08181 -0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Right_Foot" />
+    <child
+      link="Right_Foot_C" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+    <link
+    name="Right_Foot_D">
+    <inertial>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <mass
+        value="1E-03" />
+      <inertia
+        ixx="1E-3"
+        ixy="0"
+        ixz="0"
+        iyy="1E-03"
+        iyz="0"
+        izz="1E-03" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin
+        xyz="0.0 0.0 0.0"
+        rpy="0 0 0" />
+      <geometry>
+        <sphere radius="0.01"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Right_D"
+    type="fixed">
+    <origin
+      xyz="-0.08181 0.04715 -0.0325 "
+      rpy="0 0 0" />
+    <parent
+      link="Right_Foot" />
+    <child
+      link="Right_Foot_D" />
+    <axis
+      xyz="0 0 0" />
+  </joint>
+
+
+ <gazebo reference="Left_Foot_A">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Left_Foot_B">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Left_Foot_C">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Left_Foot_D">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+
+ <gazebo reference="Right_Foot_A">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Right_Foot_B">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Right_Foot_C">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+ <gazebo reference="Right_Foot_D">
+     <collision>
+      <surface>
+        <friction>
+          <ode>
+            <mu>1000000000</mu>
+            <mu2>1000000000</mu2>
+          </ode>
+          <torsional>
+            <coefficient>10.0</coefficient>
+            <surface_radius>0.5</surface_radius>
+            <use_patch_radius>false</use_patch_radius>
+          </torsional>
+        </friction>
+      </surface>
+    </collision>
+  </gazebo>
+
+
+  <gazebo reference="Left_Foot_A">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Right_Foot_A">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Left_Foot_B">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Right_Foot_B">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Left_Foot_C">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Right_Foot_C">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Left_Foot_D">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  <gazebo reference="Right_Foot_D">
+    <kp value = "4.0e+6"/>
+    <kd value = "8.0e+3"/>
+  </gazebo>
+
+  
+
+    <!-- Add contact sensor at each sphere -->
+  <gazebo reference="Left_Foot_A">
+    <sensor name="Left_Foot_A_contact" type="contact">
+      <contact>
+        <collision>Left_Foot_A_collision_1</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Left_Foot_B">
+    <sensor name="Left_Foot_B_contact" type="contact">
+      <contact>
+        <collision>Left_Foot_B_collision_2</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Left_Foot_C">
+    <sensor name="Left_Foot_C_contact" type="contact">
+      <contact>
+        <collision>Left_Foot_C_collision_3</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Left_Foot_D">
+    <sensor name="Left_Foot_D_contact" type="contact">
+      <contact>
+        <collision>Left_Foot_D_collision_4</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+    <gazebo reference="Right_Foot_A">
+    <sensor name="Right_Foot_A_contact" type="contact">
+      <contact>
+        <collision>Right_Foot_A_collision_1</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Right_Foot_B">
+    <sensor name="Right_Foot_B_contact" type="contact">
+      <contact>
+        <collision>Right_Foot_B_collision_2</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Right_Foot_C">
+    <sensor name="Right_Foot_C_contact" type="contact">
+      <contact>
+        <collision>Right_Foot_C_collision_3</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  
+  <gazebo reference="Right_Foot_D">
+    <sensor name="Right_Foot_D_contact" type="contact">
+      <contact>
+        <collision>Right_Foot_D_collision_4</collision>
+      </contact>
+      <update_rate>1000.000</update_rate>
+    </sensor>
+  </gazebo>
+  <!-- Transmissions used for ros_control -->
+  <transmission name="tran1">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Left_Pitch">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor1">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran2">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Left_Roll">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor2">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran3">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Left_Slide">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor3">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran4">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Right_Pitch">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor4">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran5">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Right_Roll">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor5">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran6">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Right_Slide">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor6">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran7">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Left_Foot_Pitch">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor7">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran8">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Left_Foot_Roll">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor8">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran9">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Right_Foot_Pitch">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor9">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="tran10">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="Right_Foot_Roll">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor10">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+  
+</robot>

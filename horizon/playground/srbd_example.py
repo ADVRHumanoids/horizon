@@ -468,7 +468,7 @@ Formulate discrete time dynamics using multiple_shooting and RK2 integrator
 #           I_base =      w_R_b * b_I_base * w_R_b.T
 # I_base is constant (i.e. time invariant) only in expressed in the base (local) frame!
 
-x, xdot = utils.double_integrator_with_floating_base(q.getVars(), qdot.getVars(), qddot.getVars(), base_velocity_reference_frame=cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
+xdot = utils.double_integrator_with_floating_base(q.getVars(), qdot.getVars(), qddot.getVars(), base_velocity_reference_frame=cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
 prb.setDynamics(xdot)
 prb.setDt(T/ns)
 transcription_method = rospy.get_param("transcription_method", 'multiple_shooting')  # can choose between 'multiple_shooting' and 'direct_collocation'

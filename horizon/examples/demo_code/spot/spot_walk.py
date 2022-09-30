@@ -201,6 +201,7 @@ try:
 except:
     pass
 
+
 # helper class representing a step
 class Step:
     def __init__(self, leg, k_start, k_goal, goal=[]):
@@ -308,6 +309,7 @@ t = time.time()
 solv.solve()
 elapsed = time.time() - t
 print(f'solved in {elapsed} s')
+
 solution = solv.getSolutionDict()
 dt_sol = solv.getDt()
 cumulative_dt = np.zeros(len(dt_sol) + 1)

@@ -1,14 +1,20 @@
+import numpy as np
+
 from horizon import problem
 from horizon.variables import Variable, SingleVariable, Parameter, SingleParameter
 from horizon.utils import utils, kin_dyn, resampler_trajectory, mat_storer
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.ros.replay_trajectory import *
 from horizon.solvers import solver
+import horizon.variables as sv
+import horizon.functions as fn
+import horizon.misc_function as misc
 import matplotlib.pyplot as plt
 from horizon.solvers import Solver
 from itertools import groupby
 from operator import itemgetter
 from typing import List
+
 
 # todo only work with a 'dt' specified as Variable. In fact, if dt is:
 #  - a list: changing the number of nodes with the refiner means inject new nodes between two old nodes. This requires
@@ -16,51 +22,198 @@ from typing import List
 #    all the variables and the constraints defined in that interval needs to be expanded.
 #  - constant: all the constraint and cost functions depending on a constant dt needs to be:
 #     detected (so it cannot be constant, but maybe parameter) and then modified depending on the injected nodes.
+def group_elements(vec):
+    ranges_vec = list()
+    for k, g in groupby(enumerate(vec), lambda x: x[0] - x[1]):
+        group = (map(itemgetter(1), g))
+        group = list(map(int, group))
+        # all elements:
+        ranges_vec.append(group)
+        # ranges:
+        # ranges_vec.append((group[0], group[-1]))
+
+    return ranges_vec
+
+def resample(solution, prb, dt_res, contacts_name):
+
+    n_nodes = prb.getNNodes()
+
+    prev_f_list = [prev_solution[f'force_{c_name}'] for c_name in contacts_name]
+
+    solution_res = dict()
+    u_res = resampler_trajectory.resample_input(
+        solution['u_opt'],
+        solution['dt'].flatten(),
+        dt_res)
+
+    x_res = resampler_trajectory.resampler(
+        solution['x_opt'],
+        solution['u_opt'],
+        solution['dt'].flatten(),
+        dt_res,
+        dae=None,
+        f_int=prb.getIntegrator())
+
+    for s in prb.getState():
+        sname = s.getName()
+        off, dim = prb.getState().getVarIndex(sname)
+        solution_res[f'{sname}_res'] = x_res[off:off + dim, :]
+
+    for s in prb.getInput():
+        sname = s.getName()
+        off, dim = prb.getInput().getVarIndex(sname)
+        solution_res[f'{sname}_res'] = u_res[off:off + dim, :]
+
+    solution_res['dt_res'] = dt_res
+    solution_res['x_opt_res'] = x_res
+    solution_res['u_opt_res'] = u_res
+
+    fmap = dict()
+    for frame, wrench in contact_map.items():
+        fmap[frame] = solution[f'{wrench.getName()}']
+
+    fmap_res = dict()
+    for frame, wrench in contact_map.items():
+        fmap_res[frame] = solution_res[f'{wrench.getName()}_res']
+
+    f_res_list = list()
+    for f in prev_f_list:
+        f_res_list.append(resampler_trajectory.resample_input(f, solution['dt'].flatten(), dt_res))
+
+    tau = solution['inverse_dynamics']
+    tau_res = np.zeros([tau.shape[0], u_res.shape[1]])
+
+    id = kin_dyn.InverseDynamics(kindyn, fmap_res.keys(), cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
+
+    for i in range(tau.shape[1]):
+        fmap_i = dict()
+        for frame, wrench in fmap.items():
+            fmap_i[frame] = wrench[:, i]
+        tau_i = id.call(solution['q'][:, i], solution['q_dot'][:, i], solution['q_ddot'][:, i], fmap_i)
+        tau[:, i] = tau_i.toarray().flatten()
+
+    for i in range(tau_res.shape[1]):
+        fmap_res_i = dict()
+        for frame, wrench in fmap_res.items():
+            fmap_res_i[frame] = wrench[:, i]
+        tau_res_i = id.call(solution_res['q_res'][:, i], solution_res['q_dot_res'][:, i],
+                            solution_res['q_ddot_res'][:, i],
+                            fmap_res_i)
+        tau_res[:, i] = tau_res_i.toarray().flatten()
+
+    solution_res['tau'] = tau
+    solution_res['tau_res'] = tau_res
+
+    num_samples = tau_res.shape[1]
+
+    nodes_vec = np.zeros([n_nodes])
+    for i in range(1, n_nodes):
+        nodes_vec[i] = nodes_vec[i - 1] + solution['dt'].flatten()[i - 1]
+
+    nodes_vec_res = np.zeros([num_samples + 1])
+    for i in range(1, num_samples + 1):
+        nodes_vec_res[i] = nodes_vec_res[i - 1] + dt_res
+
+    return solution_res, nodes_vec, nodes_vec_res, num_samples
 
 class Refiner:
-    def __init__(self, prb: problem.Problem, new_nodes_vec, solver):
+    def __init__(self, prb: problem.Problem, node_map, new_dt_vec, solver):
 
-        self.solver = solver
-        self.prev_solution = self.solver.getSolutionDict()
+        # self.solver = solver
+        # self.prev_solution = self.solver.getSolutionDict()
+        self.prev_solution = solver
         self.prb = prb
         self.old_n_nodes = self.prb.getNNodes()
 
-        # new array of vector.
-        #    Dimension: new n of nodes
-        #    Elements: cumulative dt
-        self.new_nodes_vec = new_nodes_vec
+        self.new_dt_vec = new_dt_vec
+        # # new time array.
+        # #    Dimension: new n of nodes
+        # #    Elements: cumulative dt
+        # self.new_nodes_vec = new_nodes_vec
+        #
+        # prev_dt = solver['dt'].flatten()  # todo marcio
+        # # prev_dt = self.solver.getDt()
+        #
+        # self.nodes_vec = self.get_node_time(prev_dt)
+        # # get number of new node
+        # self.new_n_nodes = self.new_nodes_vec.shape[0]
+        # # get array of new dt
+        # self.new_dt_vec = np.diff(self.new_nodes_vec)
+        #
+        # # get new indeices and old indices in the new array of times
+        # old_values = np.in1d(self.new_nodes_vec, self.nodes_vec)
+        # self.new_indices = np.arange(len(self.new_nodes_vec))[~old_values]
+        # self.base_indices = np.arange(len(self.new_nodes_vec))[old_values]
+        #
+        # # map from base_indices to expanded indices: [0, 1, 2, 3, 4] ---> [0, 1, [2new, 3new, 4new], 2, 3, 4]
+        # self.old_to_new = dict(zip(range(self.old_n_nodes + 1), self.base_indices))
+        # self.new_to_old = {v: k for k, v in self.old_to_new.items()}
+        # # group elements (collapses lists to ranges)
+        # group_base_indices = self.group_elements(self.base_indices)
+        # group_new_indices = self.group_elements(self.new_indices)
+        #
+        # # each first indices in ranges_base_indices
+        # first_indices = [item[-1] for item in group_base_indices[:-1]]
+        # indices_to_expand = [self.new_to_old[elem] for elem in first_indices]
 
-        # prev_dt = self.prev_solution['dt'].flatten()
-        prev_dt = self.solver.getDt()
 
-        self.nodes_vec = self.get_node_time(prev_dt)
 
-        self.new_n_nodes = self.new_nodes_vec.shape[0]
-        self.new_dt_vec = np.diff(self.new_nodes_vec)
+        # ============= fake elem and expansion ===============
+        # supp_num = 2
+        # supp_tot = 0
+        # self.elem_and_expansion = list()
+        # for node in range(self.old_n_nodes - 1):
+        #     next_node = supp_tot + 1
+        #     supp_nodes = list(range(next_node, next_node + supp_num))
+        #     self.elem_and_expansion.append((node, supp_nodes))
+        #     supp_tot += supp_num + 1
+        #
+        # self.new_indices = list()
+        # self.base_indices = list()
+        #
+        # supp_tot = 0
+        # for node in range(self.old_n_nodes):
+        #     self.base_indices.append(node + supp_tot)
+        #     supp_tot = [supp_tot + len(elem[1]) for elem in self.elem_and_expansion if node in elem[0]]
+        #
+        # print(self.base_indices)
+        # exit()
+        # self.new_indices = np.array(self.new_indices)
+        # self.base_indices = np.array(self.base_indices)
+        #
+        # self.old_to_new = dict(zip(range(self.old_n_nodes + 1), self.base_indices))
+        # self.new_to_old = {v: k for k, v in self.old_to_new.items()}
+        #
+        # self.new_n_nodes = (self.old_n_nodes - 1) * (supp_num + 1) + 1
+        # ============================================
+        self.node_map = node_map
 
-        old_values = np.in1d(self.new_nodes_vec, self.nodes_vec)
-        self.new_indices = np.arange(len(self.new_nodes_vec))[~old_values]
-        self.base_indices = np.arange(len(self.new_nodes_vec))[old_values]
+        # map old to new
+        self.old_to_new = dict()
+        self.base_indices = list()
+        self.new_indices = list()
+        self.elem_and_expansion = list()
+        n_supplementary_nodes = 0
+        for old_node in range(old_n_nodes):
+            converted_node = old_node + n_supplementary_nodes
+            self.old_to_new[old_node] = converted_node
+            self.base_indices.append(converted_node)
+            if old_node in self.node_map.keys():
 
-        # map from base_indices to expanded indices: [0, 1, 2, 3, 4] ---> [0, 1, [2new, 3new, 4new], 2, 3, 4]
-        self.old_to_new = dict(zip(range(self.old_n_nodes + 1), self.base_indices))
-        self.new_to_old = {v: k for k, v in self.old_to_new.items()}
-        # group elements (collapses lists to ranges)
-        group_base_indices = self.group_elements(self.base_indices)
-        group_new_indices = self.group_elements(self.new_indices)
+                new_node = converted_node + 1
+                list_new_nodes = list(range(new_node, new_node+self.node_map[old_node]))
+                self.new_indices.extend(list_new_nodes)
+                self.elem_and_expansion.append((old_node, list_new_nodes))
+                # if in map, add node + supplementary nodes
+                n_supplementary_nodes += self.node_map[old_node]
 
-        # each first indices in ranges_base_indices
-        first_indices = [item[-1] for item in group_base_indices[:-1]]
-        indices_to_expand = [self.new_to_old[elem] for elem in first_indices]
+        self.new_to_old = {v: k for k, v in old_to_new.items()}
 
-        # zip couples to expand with expanded nodes
-        # couples_to_inject = list()
-        # for base_elem, new_elem in zip(first_indices, ranges_new_indices):
-        #     couples_to_inject.append((base_elem, base_elem + 1))
 
-        self.elem_and_expansion = list(zip(indices_to_expand, group_new_indices))
+        # last new node + 1 is the number of total new nodes
+        self.new_n_nodes = old_to_new[old_n_nodes - 1] + 1
 
-        print('elem_and_expansion: ', self.elem_and_expansion)
+        print('node_map: ', self.node_map)
 
     def get_node_time(self, dt):
         # get cumulative list of times
@@ -70,60 +223,91 @@ class Refiner:
 
         return nodes_vec
 
-    def group_elements(self, vec):
-        ranges_vec = list()
-        for k, g in groupby(enumerate(vec), lambda x: x[0] - x[1]):
-            group = (map(itemgetter(1), g))
-            group = list(map(int, group))
-            # all elements:
-            ranges_vec.append(group)
-            # ranges:
-            # ranges_vec.append((group[0], group[-1]))
+    # def expand_nodes(self, vec_to_expand):
+    #
+    #     # fill new_samples_nodes with corresponding new_nodes (convert old nodes to new nodes)
+    #     new_nodes_vec = [self.old_to_new[elem] for elem in vec_to_expand]
+    #
+    #     # search for the nodes couples and expand them: return elements detected in self.elem_and_expansion
+    #     elem_and_expansion_masked = self.find_nodes_to_inject(vec_to_expand)
+    #
+    #     # add nodes of elem_and_expansion to new_nodes_vec
+    #     for elem in elem_and_expansion_masked:
+    #         new_nodes_vec.extend(elem[1])
+    #
+    #     new_nodes_vec.sort()
+    #     return new_nodes_vec
 
-        return ranges_vec
+    # def find_nodes_to_inject(self, vec_to_expand):
+    #     # the rationale behind this. Given 'augmented nodes':
+    #     # if augmented nodes in between two nodes: inject
+    #     # if augmented nodes after the last nodes: inject
+    #
+    #     # search for the nodes couples and expand if necessary
+    #     recipe_vec = self.elem_and_expansion
+    #
+    #     recipe_vec_masked = list()
+    #     # expand couples of nodes
+    #     # for each element in vector, check if couples to expand are present
+    #     for i in range(len(vec_to_expand)):
+    #         for j in range(len(recipe_vec)):
+    #             if vec_to_expand[i] == recipe_vec[j][0]:
+    #                 # if last element:
+    #                 if i == len(vec_to_expand) - 1:
+    #                     print(f'last element detected: {vec_to_expand[i]}: injecting {recipe_vec[j][1]}')
+    #                     recipe_vec_masked.append(recipe_vec[j])
+    #
+    #                 elif vec_to_expand[i + 1] == vec_to_expand[i] + 1:
+    #                     print(
+    #                         f'couple detected: {vec_to_expand[i], vec_to_expand[i] + 1}: injecting {recipe_vec[j][1]}')
+    #                     recipe_vec_masked.append(recipe_vec[j])
+    #
+    #     return recipe_vec_masked
 
-    def expand_nodes(self, vec_to_expand):
+    def addVarBounds(self, item, var_lb, var_ub):
 
-        # fill new_samples_nodes with corresponding new_nodes (convert old nodes to new nodes)
-        new_nodes_vec = [self.old_to_new[elem] for elem in vec_to_expand]
+        # todo: THIS IS UGLY, should be redone
+        for node in item.getNodes():
+            # set bounds for old nodes
+            if node in self.base_indices:
+                old_node_index = self.new_to_old[node]
+                item.setBounds(var_lb[:, old_node_index], var_ub[:, old_node_index], node)
+            elif node in self.new_indices:
+                node_elem = [elem[0] for elem in self.elem_and_expansion if node in elem[1]]
+                item.setBounds(var_lb[:, node_elem], var_ub[:, node_elem], nodes=node)
 
-        # search for the nodes couples and expand them: return elements detected in self.elem_and_expansion
-        elem_and_expansion_masked = self.find_nodes_to_inject(vec_to_expand)
+    def addConstraintBounds(self, item, var_lb, var_ub):
 
-        # add nodes of elem_and_expansion to new_nodes_vec
-        for elem in elem_and_expansion_masked:
-            new_nodes_vec.extend(elem[1])
+        # todo: THIS IS UGLY, should be redone
+        for node in item.getNodes():
+            # set bounds for old nodes
+            if node in self.base_indices:
+                old_node_index = self.new_to_old[node]
+                # size of old bounds is size of feasible nodes of constraint function
+                old_feas_nodes = self.old_feas_cnsrt_nodes[item.getName()]
+                pos_old_node = misc.convertNodestoPos(old_node_index, old_feas_nodes)
+                item.setBounds(var_lb[:, pos_old_node], var_ub[:, pos_old_node], node)
+            elif node in self.new_indices:
+                node_elem = [elem[0] for elem in self.elem_and_expansion if node in elem[1]]
+                # set bounds for injected nodes (using the bounds of old nodes)
+                old_feas_nodes = self.old_feas_cnsrt_nodes[item.getName()]
+                pos_old_node = misc.convertNodestoPos(node_elem, old_feas_nodes)
+                item.setBounds(var_lb[:, pos_old_node], var_ub[:, pos_old_node], nodes=node)
 
-        new_nodes_vec.sort()
-        return new_nodes_vec
 
-    def find_nodes_to_inject(self, vec_to_expand):
-        # the rationale behind this. Given 'augmented nodes':
-            # if augmented nodes in between two nodes: inject
-            # if augmented nodes after the last nodes: inject
-            
-        # search for the nodes couples and expand if necessary
-        recipe_vec = self.elem_and_expansion
+    def addInitialBounds(self, item, var_ig):
 
-        recipe_vec_masked = list()
-        # expand couples of nodes
-        # for each element in vector, check if couples to expand are present
-        for i in range(len(vec_to_expand)):
-            for j in range(len(recipe_vec)):
-                if vec_to_expand[i] == recipe_vec[j][0]:
-                    # if last element:
-                    if i == len(vec_to_expand) - 1:
-                        print(f'last element detected: {vec_to_expand[i]}: injecting {recipe_vec[j][1]}')
-                        recipe_vec_masked.append(recipe_vec[j])
-
-                    elif vec_to_expand[i + 1] == vec_to_expand[i] + 1:
-                        print(f'couple detected: {vec_to_expand[i], vec_to_expand[i] + 1}: injecting {recipe_vec[j][1]}')
-                        recipe_vec_masked.append(recipe_vec[j])
-
-        return recipe_vec_masked
+        # todo: THIS IS UGLY, should be redone
+        for node in item.getNodes():
+            # set bounds for old nodes
+            if node in self.base_indices:
+                old_node_index = self.new_to_old[node]
+                item.setInitialGuess(var_ig[:, old_node_index], node)
+            elif node in self.new_indices:
+                node_elem = [elem[0] for elem in self.elem_and_expansion if node in elem[1]]
+                item.setInitialGuess(var_ig[:, node_elem], nodes=node)
 
     def resetProblem(self):
-
         # get every node, bounds for old functions and variables
         self.old_var_bounds = dict()
         self.old_var_nodes = dict()
@@ -133,30 +317,95 @@ class Refiner:
 
         self.old_cnrst_bounds = dict()
         self.old_cnsrt_nodes = dict()
+        self.old_feas_cnsrt_nodes = dict()
         for name, cnsrt in self.prb.getConstraints().items():
+            # cnsrt_lb = -np.inf * np.ones([cnsrt.getDim(), self.old_n_nodes])
+            # cnsrt_ub = np.inf * np.ones([cnsrt.getDim(), self.old_n_nodes])
+            # cnsrt_lb[:, cnsrt.getNodes()] = cnsrt.getLowerBounds()
+            # cnsrt_ub[:, cnsrt.getNodes()] = cnsrt.getUpperBounds()
             self.old_cnrst_bounds[name] = deepcopy(cnsrt.getBounds())
             self.old_cnsrt_nodes[name] = cnsrt.getNodes().copy()
+            self.old_feas_cnsrt_nodes[name] = cnsrt._getFeasNodes().copy()
 
         self.old_cost_nodes = dict()
         for name, cost in self.prb.getCosts().items():
             self.old_cost_nodes[name] = cost.getNodes().copy()
 
-        self.prb.setNNodes(self.new_n_nodes-1)
+        # modify the nodes in the problem, which modifies variables nodes
+        self.prb.modifyNodes(self.node_map)
+        exit()
+        # set bounds of modified variables
+        for var_name, var_item in self.prb.getVariables().items():
+            var_lb, var_ub = self.old_var_bounds[var_name]
+            self.addVarBounds(var_item, var_lb, var_ub)
 
+        # set bounds of modified variables
+        # this is not entirely correct, as the initialization should be some kind of interpolation
+        for var_name, var_item in self.prb.getVariables().items():
+            var_ig = self.prev_solution[var_name]
+            self.addInitialBounds(var_item, var_ig)
+
+        plot_bounds = False
+        plot_ig = False
+        if plot_bounds:
+            from horizon.variables import InputVariable, RecedingInputVariable
+            for name, var in self.prb.getVariables().items():
+
+                old_var_lb, old_var_ub = self.old_var_bounds[name]
+                var_lb, var_ub = var.getBounds()
+
+                old_nodes_vec_vis = self.nodes_vec
+                nodes_vec_vis = self.new_nodes_vec
+                if isinstance(var, (RecedingInputVariable, InputVariable)):
+                    old_nodes_vec_vis = self.nodes_vec[:-1]
+                    nodes_vec_vis = self.new_nodes_vec[:-1]
+
+                plt.figure()
+                plt.title(f'lower bounds: {name}')
+                for dim in range(var_lb.shape[0]):
+                    plt.scatter(old_nodes_vec_vis, old_var_lb[dim, :], color='red')
+                    plt.scatter(nodes_vec_vis, var_lb[dim, :], edgecolors='blue', facecolor='none')
+
+                plt.figure()
+                plt.title(f'upper bounds: {name}')
+                for dim in range(var_lb.shape[0]):
+                    plt.scatter(old_nodes_vec_vis, old_var_ub[dim, :], color='orange')
+                    plt.scatter(nodes_vec_vis, var_ub[dim, :], edgecolors='green', facecolor='none')
+
+            plt.show()
+
+        if plot_ig:
+            from horizon.variables import RecedingInputVariable, InputVariable
+            for name, var in self.prb.getVariables().items():
+                for dim in range(self.prev_solution[name].shape[0]):
+                    nodes_vec_vis = self.nodes_vec
+                    if isinstance(var, (RecedingInputVariable, InputVariable)):
+                        nodes_vec_vis = self.nodes_vec[:-1]
+
+                    plt.scatter(nodes_vec_vis, self.prev_solution[name][dim, :], color='red')
+
+                var_to_print = var.getInitialGuess()
+
+                for dim in range(var_to_print.shape[0]):
+                    nodes_vec_vis = self.new_nodes_vec
+                    if isinstance(var, (RecedingInputVariable, InputVariable)):
+                        nodes_vec_vis = self.new_nodes_vec[:-1]
+                    plt.scatter(nodes_vec_vis, var_to_print[dim, :], edgecolors='blue', facecolor='none')
+
+                plt.show()
         # check for dt (if it is a symbolic variable, transform it to a parameter)
-
         # if combination of state/input variable but NOT a variable itself:
-            # i don't know
+        #       i don't know
         # if value:
-            # ok no prob
+        #       ok no prob
         # if single variable (one for each node):
-            # remove variable and add parameter
+        #       remove variable and add parameter
         # if single parameter (one for each node):
-            # keep the parameter
+        #       keep the parameter
         # if a mixed array of values/variable/parameters:
-            # for each variable, remove the variable and add the parameter
+        #       for each variable, remove the variable and add the parameter
         # if a variable defined only on certain nodes
-            # ... dunno, I have to change the logic a bit
+        #       ... dunno, I have to change the logic a bit
 
         # todo check if nodes of variable is correct
         # converting variable dt into parameter, if possible
@@ -183,6 +432,7 @@ class Refiner:
             if isinstance(old_dt, (Variable, SingleVariable)):
                 self.prb.toParameter(old_dt.getName())
 
+
         # self.expandDt()
 
     def expandDt(self):
@@ -191,177 +441,183 @@ class Refiner:
         dt = self.prb.getDt()
         if isinstance(dt, List):
 
-            old_n = range(self.prb.getNNodes()-1)
+            old_n = range(self.prb.getNNodes() - 1)
             elem_and_expansion_masked = self.find_nodes_to_inject(old_n)
 
             for expansion in reversed(elem_and_expansion_masked):
                 dt[expansion[0]:expansion[0]] = len(expansion[1]) * [dt[expansion[0]]]
 
-
     def resetFunctions(self):
         # set constraints
-        for name, cnsrt in self.prb.getConstraints().items():
-            print(f'========================== constraint {name} =========================================')
-            old_n = self.old_cnsrt_nodes[name]
-            old_lb, old_ub = self.old_cnrst_bounds[name]
 
-            # if constraint depends on dt, what to do?
-            # if it is a variable, it is ok. Can be changed and recognized easily.
-            # What if it is a constant?
-            # I have to change that constant value to the new value (old dt to new dt).
 
-            # a possible thing is that i "mark" it, so that I can find it around.
-            # Otherwise it would be impossible to understand which constraint depends on dt?
+        for cnsrt_name, cnsrt_item in self.prb.getConstraints().items():
+            old_nodes = cnsrt_item.getNodes().copy()
+            print(cnsrt_name)
+            print('old nodes:', old_nodes)
+            cnsrt_lb, cnsrt_ub = self.old_cnrst_bounds[cnsrt_name]
+            self.addConstraintBounds(cnsrt_item, cnsrt_lb, cnsrt_ub)
+            print('new nodes:', cnsrt_item.getNodes())
+            if not (old_nodes == cnsrt_item.getNodes()).all():
+                raise ValueError('updating the constraint bounds destroyed something')
 
-            print('old nodes:', old_n)
-            cnsrt_nodes_new = self.expand_nodes(old_n)
-            cnsrt.setNodes(cnsrt_nodes_new, erasing=True)
-            print('new nodes:', cnsrt.getNodes())
-
-            # manage bounds
-            # old nodes: set their old bounds
-            for node in cnsrt.getNodes():
-                if node in self.base_indices:
-                    old_node_index = old_n.index(self.new_to_old[node])
-                    print(f'setting bounds at old nodes: {node}')
-                    cnsrt.setBounds(old_lb[:, old_node_index], old_ub[:, old_node_index], node)
-
-            elem_and_expansion_masked = self.find_nodes_to_inject(old_n)
-
-            # injected nodes: set the bounds of the previous node
-            for elem in elem_and_expansion_masked:
-                # setting bounds using old bound index!
-                # careful: retrieved old bounds corresponds to the nodes where the constraint is defined.
-                # If the constraint is defined over [20, 21, 22, 23], and I want to set the bounds in node 23 (= elem[0]), I need to use the index 4 of old_bound_index
-                print(f'setting bounds at injected nodes: {elem[1]}')
-                old_bound_index = old_n.index(elem[0])
-                cnsrt.setBounds(old_lb[:, old_bound_index], old_ub[:, old_bound_index], nodes=elem[1])
-
+        # for name, cnsrt in self.prb.getConstraints().items():
+        #     print(f'========================== constraint {name} =========================================')
+        #     old_n = self.old_cnsrt_nodes[name]
+        #     old_lb, old_ub = self.old_cnrst_bounds[name]
+        #
+        #     # if constraint depends on dt, what to do?
+        #     # if it is a variable, it is ok. Can be changed and recognized easily.
+        #     # What if it is a constant?
+        #     # I have to change that constant value to the new value (old dt to new dt).
+        #
+        #     # a possible thing is that i "mark" it, so that I can find it around.
+        #     # Otherwise it would be impossible to understand which constraint depends on dt?
+        #
+        #     # manage bounds
+        #     # old nodes: set their old bounds
+        #     for node in cnsrt.getNodes():
+        #         if node in self.base_indices:
+        #             old_node_index = old_n.index(self.new_to_old[node])
+        #             print(f'setting bounds at old nodes: {node}')
+        #             cnsrt.setBounds(old_lb[:, old_node_index], old_ub[:, old_node_index], node)
+        #
+        #     elem_and_expansion_masked = self.find_nodes_to_inject(old_n)
+        #
+        #     # injected nodes: set the bounds of the previous node
+        #     for elem in elem_and_expansion_masked:
+        #         # setting bounds using old bound index!
+        #         # careful: retrieved old bounds corresponds to the nodes where the constraint is defined.
+        #         # If the constraint is defined over [20, 21, 22, 23], and I want to set the bounds in node 23 (= elem[0]), I need to use the index 4 of old_bound_index
+        #         print(f'setting bounds at injected nodes: {elem[1]}')
+        #         old_bound_index = old_n.index(elem[0])
+        #         cnsrt.setBounds(old_lb[:, old_bound_index], old_ub[:, old_bound_index], nodes=elem[1])
 
         plot_bounds = False
         if plot_bounds:
             for name, cnsrt in self.prb.getConstraints().items():
+                # if name != 'rh_foot_fc_after_lift':
+                #     continue
+
                 old_lb, old_ub = self.old_cnrst_bounds[name]
                 lb, ub = cnsrt.getBounds()
 
+                old_n = self.old_cnsrt_nodes[name]
                 cnsrt_nodes = cnsrt.getNodes()
+
+                old_feas_nodes = self.old_feas_cnsrt_nodes[name]
+                pos_old_node = misc.convertNodestoPos(old_n, old_feas_nodes)
+
+                pos_new_node = misc.convertNodestoPos(cnsrt_nodes, cnsrt._getFeasNodes())
+
                 old_t = self.nodes_vec[self.old_cnsrt_nodes[name]]
                 t = self.new_nodes_vec[cnsrt_nodes]
 
                 plt.figure()
                 plt.title(f'lower bounds: {name}')
                 for dim in range(lb.shape[0]):
-                    plt.scatter(old_t, old_lb[dim, :], color='red')
-                    plt.scatter(t, lb[dim, :], edgecolors='blue', facecolor='none')
+                    plt.scatter(old_t, old_lb[dim, pos_old_node], color='red')
+                    plt.scatter(t, lb[dim, pos_new_node], edgecolors='blue', facecolor='none')
 
                 plt.figure()
                 plt.title(f'upper bounds: {name}')
                 for dim in range(lb.shape[0]):
-                    plt.scatter(old_t, old_ub[dim, :], color='orange')
-                    plt.scatter(t, ub[dim, :], edgecolors='green', facecolor='none')
+                    plt.scatter(old_t, old_ub[dim, pos_old_node], color='orange')
+                    plt.scatter(t, ub[dim, pos_new_node], edgecolors='green', facecolor='none')
 
             plt.show()
 
-        # set cost functions
-        for name, cost in self.prb.getCosts().items():
-            print(f'============================ cost {name} =======================================')
-            old_n = self.old_cost_nodes[name]
-            print('old nodes:', old_n)
-            cost_nodes_new = self.expand_nodes(old_n)
-            cost.setNodes(cost_nodes_new, erasing=True)
-            print('new nodes:', cost.getNodes())
+    # def resetVarBounds(self):
+    #
+    #     plot_bounds = False
+    #
+    #     # manage bounds
+    #     for name_var, var in self.prb.getVariables().items():
+    #         var_nodes_old = self.old_var_nodes[name_var]
+    #         var_lb, var_ub = self.old_var_bounds[name_var]
+    #
+    #         for node in var.getNodes():
+    #             # set bounds for old nodes
+    #             if node in self.base_indices:
+    #                 old_node_index = var_nodes_old.index(self.new_to_old[node])
+    #                 var.setBounds(var_lb[:, old_node_index], var_ub[:, old_node_index], node)
+    #
+    #         elem_and_expansion_masked = self.find_nodes_to_inject(var_nodes_old)
+    #
+    #         # set bounds for injected nodes (using the bounds of old nodes)
+    #         for elem in elem_and_expansion_masked:
+    #             print(elem[1])
+    #             var.setBounds(var_lb[:, elem[0]], var_ub[:, elem[0]], nodes=elem[1])
+    #
+    #     if plot_bounds:
+    #         for name, var in self.prb.getVariables().items():
+    #
+    #             old_var_lb, old_var_ub = self.old_var_bounds[name]
+    #             var_lb, var_ub = var.getBounds()
+    #
+    #             from horizon.variables import InputVariable
+    #             old_nodes_vec_vis = self.nodes_vec
+    #             nodes_vec_vis = self.new_nodes_vec
+    #             if isinstance(var, InputVariable):
+    #                 old_nodes_vec_vis = self.nodes_vec[:-1]
+    #                 nodes_vec_vis = self.new_nodes_vec[:-1]
+    #
+    #             plt.figure()
+    #             plt.title(f'lower bounds: {name}')
+    #             for dim in range(var_lb.shape[0]):
+    #                 plt.scatter(old_nodes_vec_vis, old_var_lb[dim, :], color='red')
+    #                 plt.scatter(nodes_vec_vis, var_lb[dim, :], edgecolors='blue', facecolor='none')
+    #
+    #                 plt.figure()
+    #                 plt.title(f'upper bounds: {name}')
+    #             for dim in range(var_lb.shape[0]):
+    #                 plt.scatter(old_nodes_vec_vis, old_var_ub[dim, :], color='orange')
+    #                 plt.scatter(nodes_vec_vis, var_ub[dim, :], edgecolors='green', facecolor='none')
+    #
+    #         plt.show()
 
-    def resetVarBounds(self):
-
-        plot_bounds = False
-
-        # manage bounds
-        for name_var, var in self.prb.getVariables().items():
-            var_nodes_old = self.old_var_nodes[name_var]
-            var_lb, var_ub = self.old_var_bounds[name_var]
-
-            for node in var.getNodes():
-                # set bounds for old nodes
-                if node in self.base_indices:
-                    old_node_index = var_nodes_old.index(self.new_to_old[node])
-                    var.setBounds(var_lb[:, old_node_index], var_ub[:, old_node_index], node)
-
-            elem_and_expansion_masked = self.find_nodes_to_inject(var_nodes_old)
-
-            # set bounds for injected nodes (using the bounds of old nodes)
-            for elem in elem_and_expansion_masked:
-                print(elem[1])
-                var.setBounds(var_lb[:, elem[0]], var_ub[:, elem[0]], nodes=elem[1])
-
-        if plot_bounds:
-            for name, var in self.prb.getVariables().items():
-
-                old_var_lb, old_var_ub = self.old_var_bounds[name]
-                var_lb, var_ub = var.getBounds()
-
-                from horizon.variables import InputVariable
-                old_nodes_vec_vis = self.nodes_vec
-                nodes_vec_vis = self.new_nodes_vec
-                if isinstance(var, InputVariable):
-                    old_nodes_vec_vis = self.nodes_vec[:-1]
-                    nodes_vec_vis = self.new_nodes_vec[:-1]
-
-                plt.figure()
-                plt.title(f'lower bounds: {name}')
-                for dim in range(var_lb.shape[0]):
-                    plt.scatter(old_nodes_vec_vis, old_var_lb[dim, :], color='red')
-                    plt.scatter(nodes_vec_vis, var_lb[dim, :], edgecolors='blue', facecolor='none')
-
-                    plt.figure()
-                    plt.title(f'upper bounds: {name}')
-                for dim in range(var_lb.shape[0]):
-                    plt.scatter(old_nodes_vec_vis, old_var_ub[dim, :], color='orange')
-                    plt.scatter(nodes_vec_vis, var_ub[dim, :], edgecolors='green', facecolor='none')
-
-            plt.show()
-
-    def resetInitialGuess(self):
-
-        plot_ig = False
-
+    # def resetInitialGuess(self):
+    #
+    #     plot_ig = False
+    #
         # variables
-        for name_var, var in self.prb.getVariables().items():
-
-            var_nodes_old = self.old_var_nodes[name_var]
-            print(f'============================ var {name_var} =======================================')
-            for node in var.getNodes():
-                if node in self.base_indices:
-                    old_node_index = var_nodes_old.index(self.new_to_old[node])
-                    var.setInitialGuess(self.prev_solution[name_var][:, old_node_index], node)
-
-                if node in self.new_indices:
-                    for elem in self.elem_and_expansion:
-                        if node in elem[1]:
-                            prev_node = elem[0]
-
-                    print(f'node {node} initialized with old node {prev_node}.')
-                    var.setInitialGuess(np.zeros([var.shape[0], var.shape[1]]), node)
-                    # var.setInitialGuess(self.prev_solution[name_var][:, prev_node], node)
-
-        if plot_ig:
-            for name, var in self.prb.getVariables().items():
-                for dim in range(self.prev_solution[name].shape[0]):
-                    from horizon.variables import InputVariable
-                    nodes_vec_vis = self.nodes_vec
-                    if isinstance(var, InputVariable):
-                        nodes_vec_vis = self.nodes_vec[:-1]
-
-                    plt.scatter(nodes_vec_vis, self.prev_solution[name][dim, :], color='red')
-
-                var_to_print = var.getInitialGuess()
-
-                for dim in range(var_to_print.shape[0]):
-                    nodes_vec_vis = self.new_nodes_vec
-                    if isinstance(var, InputVariable):
-                        nodes_vec_vis = self.new_nodes_vec[:-1]
-                    plt.scatter(nodes_vec_vis, var_to_print[dim, :], edgecolors='blue', facecolor='none')
-
-                plt.show()
+        # for name_var, var in self.prb.getVariables().items():
+        #
+        #     var_nodes_old = self.old_var_nodes[name_var]
+        #     print(f'============================ var {name_var} =======================================')
+        #     for node in var.getNodes():
+        #         if node in self.base_indices:
+        #             old_node_index = var_nodes_old.index(self.new_to_old[node])
+        #             var.setInitialGuess(self.prev_solution[name_var][:, old_node_index], node)
+        #
+        #         if node in self.new_indices:
+        #             for elem in self.elem_and_expansion:
+        #                 if node in elem[1]:
+        #                     prev_node = elem[0]
+        #
+        #             print(f'node {node} initialized with old node {prev_node}.')
+        #             var.setInitialGuess(np.zeros([var.shape[0], var.shape[1]]), node)
+        #             var.setInitialGuess(self.prev_solution[name_var][:, prev_node], node)
+        #
+        # if plot_ig:
+        #     for name, var in self.prb.getVariables().items():
+        #         for dim in range(self.prev_solution[name].shape[0]):
+        #             from horizon.variables import InputVariable
+        #             nodes_vec_vis = self.nodes_vec
+        #             if isinstance(var, InputVariable):
+        #                 nodes_vec_vis = self.nodes_vec[:-1]
+        #
+        #             plt.scatter(nodes_vec_vis, self.prev_solution[name][dim, :], color='red')
+        #
+        #         var_to_print = var.getInitialGuess()
+        #
+        #         for dim in range(var_to_print.shape[0]):
+        #             nodes_vec_vis = self.new_nodes_vec
+        #             if isinstance(var, InputVariable):
+        #                 nodes_vec_vis = self.new_nodes_vec[:-1]
+        #             plt.scatter(nodes_vec_vis, var_to_print[dim, :], edgecolors='blue', facecolor='none')
+        #
+        #         plt.show()
 
     def solveProblem(self):
 
@@ -390,7 +646,6 @@ class Refiner:
                 'ipopt.max_iter': 2000,
                 'ipopt.linear_solver': 'ma57'}
 
-
         # parametric time
         param_dt = self.prb.getDt()
         if isinstance(param_dt, List):
@@ -408,6 +663,9 @@ class Refiner:
 
         self.sol = Solver.make_solver('ipopt', self.prb, opts)
         self.sol.solve()
+
+    def getSolver(self):
+        return self.sol
 
     def getSolution(self):
 
@@ -432,11 +690,8 @@ class Refiner:
         proximal_cost_state = 1e5
 
         self.prb.removeCostFunction('min_q_dot')
-
-        self.prb.removeCostFunction('min_qdot')
+        # self.prb.removeCostFunction('min_qdot')
         self.prb.removeCostFunction('min_qddot')
-
-
 
         # minimize states
         for state_var in self.prb.getState().getVars(abstr=True):
@@ -445,29 +700,33 @@ class Refiner:
                     old_sol = self.prev_solution[state_var.getName()]
                     old_n = self.new_to_old[node]
                     print(f'Creating proximal cost for variable {state_var.getName()} at node {node}')
-                    self.prb.createCost(f"{state_var.getName()}_proximal_{node}", proximal_cost_state * cs.sumsqr(state_var - old_sol[:, old_n]), nodes=node)
+                    self.prb.createCost(f"{state_var.getName()}_proximal_{node}",
+                                        proximal_cost_state * cs.sumsqr(state_var - old_sol[:, old_n]), nodes=node)
                 if node in self.new_indices:
-                    print(f'Proximal cost of {state_var} not created for node {node}: required a value')
+                    print(f'Proximal cost of {state_var.getName()} not created for node {node}: required a value')
                     # prb.createCostFunction(f"q_close_to_res_node_{node}", 1e5 * cs.sumsqr(q - q_res[:, zip_indices_new[node]]), nodes=node)
 
         proximal_cost_input = 1
         # minimize inputs
         for input_var in self.prb.getInput().getVars(abstr=True):
-            for node in range(self.new_n_nodes-1):
+            for node in range(self.new_n_nodes - 1):
                 if not isinstance(input_var, (Parameter, SingleParameter)):
                     if node in self.base_indices:
                         old_sol = self.prev_solution[input_var.getName()]
                         old_n = self.new_to_old[node]
-                        self.prb.createCost(f"minimize_{input_var.getName()}_node_{node}", proximal_cost_input * cs.sumsqr(input_var - old_sol[:, old_n]), nodes=node)
+                        self.prb.createCost(f"minimize_{input_var.getName()}_node_{node}",
+                                            proximal_cost_input * cs.sumsqr(input_var - old_sol[:, old_n]), nodes=node)
                     if node in self.new_indices:
-                        print(f'Proximal cost of {input_var} created for node {node}: without any value, it is just minimized w.r.t zero')
-                        self.prb.createCost(f"minimize_{input_var.getName()}_node_{node}", proximal_cost_input * cs.sumsqr(input_var), nodes=node)
-
+                        print(
+                            f'Proximal cost of {input_var.getName()} created for node {node}: without any value, it is just minimized w.r.t zero')
+                        self.prb.createCost(f"minimize_{input_var.getName()}_node_{node}",
+                                            proximal_cost_input * cs.sumsqr(input_var), nodes=node)
 
     def getAugmentedProblem(self):
 
         # todo add checks for the building of the problem
         return self.prb
+
 
 if __name__ == '__main__':
 
@@ -513,7 +772,7 @@ if __name__ == '__main__':
     load_initial_guess = True
     # import initial guess if present
     if load_initial_guess:
-        ms = mat_storer.matStorer('../playground/mesh_refiner/refining_mat/spot_jump.mat')
+        ms = mat_storer.matStorer('../playground/mesh_refiner/spot_jump.mat')
         prev_solution = ms.load()
         q_ig = prev_solution['q']
         q_dot_ig = prev_solution['q_dot']
@@ -528,7 +787,7 @@ if __name__ == '__main__':
     dt = prb.createInputVariable("dt", 1)  # variable dt as input
     # dt = 0.01
     # Computing dynamics
-    x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+    x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
     prb.setDynamics(x_dot)
     prb.setDt(dt)
 
@@ -633,24 +892,24 @@ if __name__ == '__main__':
 
     for frame, f in contact_map.items():
         # 2. velocity of each end effector must be zero
-        FK = cs.Function.deserialize(kindyn.fk(frame))
+        FK = kindyn.fk(frame)
         p = FK(q=q)['ee_pos']
         p_start = FK(q=q_init)['ee_pos']
         p_goal = p_start + [0., 0., jump_height]
-        DFK = cs.Function.deserialize(kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED))
+        DFK = kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
         v = DFK(q=q, qdot=q_dot)['ee_vel_linear']
-        DDFK = cs.Function.deserialize(kindyn.frameAcceleration(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED))
+        DDFK = kindyn.frameAcceleration(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
         a = DDFK(q=q, qdot=q_dot)['ee_acc_linear']
 
         prb.createConstraint(f"{frame}_vel_before_lift", v, nodes=range(0, node_start_step))
-        prb.createConstraint(f"{frame}_vel_after_lift", v, nodes=range(node_end_step, n_nodes + 1))
+        c = prb.createConstraint(f"{frame}_vel_after_lift", v, nodes=range(node_end_step, n_nodes + 1))
 
         # friction cones must be satisfied
         fc, fc_lb, fc_ub = kin_dyn.linearized_friction_cone(f, mu, R)
         prb.createIntermediateConstraint(f"{frame}_fc_before_lift", fc, nodes=range(0, node_start_step),
                                          bounds=dict(lb=fc_lb, ub=fc_ub))
-        prb.createIntermediateConstraint(f"{frame}_fc_after_lift", fc, nodes=range(node_end_step, n_nodes),
-                                         bounds=dict(lb=fc_lb, ub=fc_ub))
+        cfc = prb.createIntermediateConstraint(f"{frame}_fc_after_lift", fc, nodes=range(node_end_step, n_nodes),
+                                               bounds=dict(lb=fc_lb, ub=fc_ub))
 
         prb.createConstraint(f"{frame}_no_force_during_lift", f, nodes=range(node_start_step, node_end_step))
 
@@ -677,77 +936,53 @@ if __name__ == '__main__':
             'ipopt.linear_solver': 'ma57'}
 
     solver = solver.Solver.make_solver('ipopt', prb, opts)
+
+    ms = mat_storer.matStorer('refiner_data_100.mat')
+    # ========================================== direct solve ==========================================================
     solver.solve()
-
     prev_solution = solver.getSolutionDict()
-    prev_solution_constraints = solver.getConstraintSolutionDict()
-
+    prev_solution.update(solver.getConstraintSolutionDict())
     n_nodes = prb.getNNodes() - 1
-    prev_tau = prev_solution_constraints['inverse_dynamics']
     prev_dt = solver.getDt().flatten()
-    # ===================================================================================================================
-    # =============
-    # FAKE SOLVE PROBLEM
-    # =============
 
-    # ms = mat_storer.matStorer('../playground/spot/spot_jump.mat')
+    # exit()
+    # ========================================= from stored data =======================================================
     # prev_solution = ms.load()
-    # #
-    # n_nodes = prev_solution['n_nodes'][0][0]
-    # prev_tau = prev_solution['inverse_dynamics']['val'][0][0]
-    # prev_dt = prev_solution['dt'].flatten()
-    # =========================================
-    # =========================================
-    # =========================================
 
+    # ==================================================================================================================
     prev_q = prev_solution['q']
     prev_q_dot = prev_solution['q_dot']
     prev_q_ddot = prev_solution['q_ddot']
     prev_f_list = [prev_solution[f.getName()] for f in f_list]
 
+    # RESAMPLE
+    dt_res = 0.001
+    prev_solution_res, nodes_vec, nodes_vec_res, num_samples = resample(prev_solution, prb, dt_res, contacts_name)
+    #
+    info_dict = dict(n_nodes=prb.getNNodes(), times=nodes_vec, times_res=nodes_vec_res, dt=prev_dt, dt_res=dt_res)
+    ms.store({**prev_solution, **prev_solution_res, **info_dict})
 
+    exit()
     contacts_name = ['lf_foot', 'rf_foot', 'lh_foot', 'rh_foot']
     prev_contact_map = dict(zip(contacts_name, prev_f_list))
 
     joint_names = kindyn.joint_names()
-    if 'universe' in joint_names: joint_names.remove('universe')
-    if 'floating_base_joint' in joint_names: joint_names.remove('floating_base_joint')
+    if 'universe' in joint_names:
+        joint_names.remove('universe')
+    if 'floating_base_joint' in joint_names:
+        joint_names.remove('floating_base_joint')
 
-    dt_res = 0.001
+    tau_res = prev_solution['tau_res']
 
-    q_sym = cs.SX.sym('q', n_q)
-    q_dot_sym = cs.SX.sym('q_dot', n_v)
-    q_ddot_sym = cs.SX.sym('q_ddot', n_v)
-    x, x_dot = utils.double_integrator_with_floating_base(q_sym, q_dot_sym, q_ddot_sym)
+    nodes_vec = prev_solution['times'][0]
+    nodes_vec_res = prev_solution['times_res'][0]
 
-    dae = {'x': x, 'p': q_ddot_sym, 'ode': x_dot, 'quad': 1}
-    q_res, qdot_res, qddot_res, contact_map_res, tau_sol_res = resampler_trajectory.resample_torques(
-        prev_q, prev_q_dot, prev_q_ddot, prev_dt, dt_res, dae, prev_contact_map,
-        kindyn,
-        cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
-
-    f_res_list = list()
-    for f in prev_f_list:
-        f_res_list.append(resampler_trajectory.resample_input(f, prev_dt, dt_res))
-
-    num_samples = tau_sol_res.shape[1]
-
-    nodes_vec = np.zeros([n_nodes + 1])
-    for i in range(1, n_nodes + 1):
-        nodes_vec[i] = nodes_vec[i - 1] + prev_dt[i - 1]
-
-    nodes_vec_res = np.zeros([num_samples + 1])
-    for i in range(1, num_samples + 1):
-        nodes_vec_res[i] = nodes_vec_res[i - 1] + dt_res
-
-    tau_sol_base = tau_sol_res[:6, :]
-
-
+    tau_sol_base = tau_res[:6, :]
 
     threshold = 5
     ## get index of values greater than a given threshold for each dimension of the vector, and remove all the duplicate values (given by the fact that there are more dimensions)
     indices_exceed = np.unique(np.argwhere(np.abs(tau_sol_base) > threshold)[:, 1])
-    # these indices corresponds to some nodes ..
+    # these indices correspond to some nodes
     values_exceed = nodes_vec_res[indices_exceed]
 
     ## search for duplicates and remove them, both in indices_exceed and values_exceed
@@ -765,25 +1000,46 @@ if __name__ == '__main__':
     if plot_tau_base:
         plt.figure()
         for dim in range(6):
-            plt.plot(nodes_vec_res[:-1], np.array(tau_sol_res[dim, :]))
+            plt.plot(nodes_vec_res[:-1], np.array(tau_res[dim, :]))
         for dim in range(6):
-            plt.scatter(nodes_vec[:-1], np.array(prev_tau[dim, :]))
+            plt.scatter(nodes_vec[:-1], np.array(tau[dim, :]))
         plt.title('tau on base')
 
         plt.hlines([threshold], nodes_vec[0], nodes_vec[-1], linestyles='dashed', colors='k', linewidth=0.4)
         plt.hlines([-threshold], nodes_vec[0], nodes_vec[-1], linestyles='dashed', colors='k', linewidth=0.4)
+
+    plt.show()
+
     # ===================================================================================================================
 
 
-    ref = Refiner(prb, nodes_vec_augmented, solver)
+    # get number of new node
+    old_n_nodes = prb.getNNodes()
+    new_n_nodes = nodes_vec_augmented.shape[0]
+    new_dt_vec = np.diff(nodes_vec_augmented)
 
-    # nodes_aug = ref.findExceedingValues(tau_sol_base, threshold)
-    #
-    # if nodes_vec_augmented == nodes_aug:
-    #     print('yes')
-    # else:
-    #     print('not')
-    # exit()
+    # get new indices and old indices in the new array of times
+    old_values = np.in1d(nodes_vec_augmented, nodes_vec)
+    new_indices = np.arange(len(nodes_vec_augmented))[~old_values]
+    base_indices = np.arange(len(nodes_vec_augmented))[old_values]
+
+    # map from base_indices to expanded indices: [0, 1, 2, 3, 4] ---> [0, 1, [2new, 3new, 4new], 2, 3, 4]
+    old_to_new = dict(zip(range(old_n_nodes + 1), base_indices))
+    new_to_old = {v: k for k, v in old_to_new.items()}
+    # group elements (collapses lists to ranges)
+    group_base_indices = group_elements(base_indices)
+    group_new_indices = group_elements(new_indices)
+
+    # each first indices in ranges_base_indices
+    first_indices = [item[-1] for item in group_base_indices[:-1]]
+    indices_to_expand = [new_to_old[elem] for elem in first_indices]
+
+    elem_and_expansion = list(zip(indices_to_expand, group_new_indices))
+    node_map = {node: len(expanded_nodes) for node, expanded_nodes in elem_and_expansion}
+
+    # todo: better to reason with nodes, as the old nodes are required to stay there
+    ref = Refiner(prb, node_map, new_dt_vec, prev_solution)
+
 
     plot_nodes = False
     if plot_nodes:
@@ -796,27 +1052,20 @@ if __name__ == '__main__':
     # ======================================================================================================================
     ref.resetProblem()
     ref.resetFunctions()
-    ref.resetVarBounds()
-    ref.resetInitialGuess()
     ref.addProximalCosts()
     ref.solveProblem()
-    sol_var, sol_cnsrt, sol_dt = ref.getSolution()
-
+    solver = ref.getSolver()
     new_prb = ref.getAugmentedProblem()
 
-    ms = mat_storer.matStorer(f'refiner_spot_jump.mat')
-    sol_cnsrt_dict = dict()
-    for name, item in new_prb.getConstraints().items():
-        lb, ub = item.getBounds()
-        lb_mat = np.reshape(lb, (item.getDim(), len(item.getNodes())), order='F')
-        ub_mat = np.reshape(ub, (item.getDim(), len(item.getNodes())), order='F')
-        sol_cnsrt_dict[name] = dict(val=sol_cnsrt[name], lb=lb_mat, ub=ub_mat, nodes=item.getNodes())
+    solution = solver.getSolutionDict()
+    solution['dt'] = solver.getDt()
+    solution.update(solver.getConstraintSolutionDict())
+    dt_res = 0.001
+    solution_res, nodes_vec, nodes_vec_res, num_samples = resample(solution, new_prb, dt_res)
 
-
-    from horizon.variables import Variable, SingleVariable, Parameter, SingleParameter
-
-    info_dict = dict(n_nodes=new_prb.getNNodes(), times=nodes_vec_augmented, dt=sol_dt)
-    ms.store({**sol_var, **sol_cnsrt_dict, **info_dict})
+    ms = mat_storer.matStorer(f'refiner_data_after.mat')
+    info_dict = dict(n_nodes=new_prb.getNNodes(), times=nodes_vec, times_res=nodes_vec_res, dt=solution['dt'], dt_res=dt_res)
+    ms.store({**solution, **solution_res, **info_dict})
 
 # refine_solution = True
 # if refine_solution:
@@ -898,20 +1147,20 @@ if __name__ == '__main__':
 #     ms.store({**sol_var, **sol_cnsrt_dict, **info_dict})
 
 
-    # def findExceedingValues(vec, threshold):
-    #     indices_exceed = np.unique(np.argwhere(np.abs(vec) > threshold)[:, 1])
-    #     # these indices corresponds to some nodes ..
-    #     values_exceed = cumulative_dt_res[indices_exceed]
-    #
-    #     ## search for duplicates and remove them, both in indices_exceed and values_exceed
-    #     indices_duplicates = np.where(np.in1d(values_exceed, cumulative_dt))
-    #     value_duplicates = values_exceed[indices_duplicates]
-    #
-    #     values_exceed = np.delete(values_exceed, np.where(np.in1d(values_exceed, value_duplicates)))
-    #     indices_exceed = np.delete(indices_exceed, indices_duplicates)
-    #
-    #     ## base vector nodes augmented with new nodes + sort
-    #     cumulative_dt_augmented = np.concatenate((cumulative_dt, values_exceed))
-    #     cumulative_dt_augmented.sort(kind='mergesort')
-    #
-    #     return cumulative_dt_augmented
+# def findExceedingValues(vec, threshold):
+#     indices_exceed = np.unique(np.argwhere(np.abs(vec) > threshold)[:, 1])
+#     # these indices corresponds to some nodes ..
+#     values_exceed = cumulative_dt_res[indices_exceed]
+#
+#     ## search for duplicates and remove them, both in indices_exceed and values_exceed
+#     indices_duplicates = np.where(np.in1d(values_exceed, cumulative_dt))
+#     value_duplicates = values_exceed[indices_duplicates]
+#
+#     values_exceed = np.delete(values_exceed, np.where(np.in1d(values_exceed, value_duplicates)))
+#     indices_exceed = np.delete(indices_exceed, indices_duplicates)
+#
+#     ## base vector nodes augmented with new nodes + sort
+#     cumulative_dt_augmented = np.concatenate((cumulative_dt, values_exceed))
+#     cumulative_dt_augmented.sort(kind='mergesort')
+#
+#     return cumulative_dt_augmented

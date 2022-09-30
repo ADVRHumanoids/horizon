@@ -50,7 +50,7 @@ contact_names = ['Contact1', 'Contact2', 'Contact3', 'Contact4']
 fd = kin_dyn.ForwardDynamics(kindyn, contact_names, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
 frame_force_mapping = {'Contact1': f1, 'Contact2': f2, 'Contact3': f3, 'Contact4': f4}
 qddot = fd.call(q, qdot, tau, frame_force_mapping)
-x, xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
 
 prb.setDynamics(xdot)
 prb.setDt(dt)

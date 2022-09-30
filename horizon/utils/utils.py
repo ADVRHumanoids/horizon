@@ -1,5 +1,6 @@
 import casadi as cs
 from casadi_kin_dyn import pycasadi_kin_dyn as cas_kin_dyn
+import numpy as np
 
 def jac(dict, var_string_list, function_string_list):
     """
@@ -97,12 +98,28 @@ def toRot(q):
 
     return R
 
+def rotationMatrixToQuaterion(R):
+    """
+    Compute quaternion from rotation matrix
+    Args:
+        R: rotation matrix
+
+    Returns:
+        q: quaternion
+
+    """
+    q = np.zeros(4)
+    q[3] = 0.5 * cs.sqrt(1. + R[0, 0] + R[1, 1] + R[2, 2])
+    q[0] = 0.5 * (R[2, 1] - R[1, 2]) / (4. * q[3])
+    q[1] = 0.5 * (R[0, 2] - R[2, 0]) / (4. * q[3])
+    q[2] = 0.5 * (R[1, 0] - R[0, 1]) / (4. * q[3])
+    return q
 
 def double_integrator_with_floating_base(q, qdot, qddot, base_velocity_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
     """
     Construct the floating-base dynamic model:
-                x = [q, ndot]
-                xdot = [qdot, nddot]
+                x = [q, qdot]
+                xdot = [qdot, qddot]
     using quaternion dynamics: quatdot = quat x [omega, 0]
     NOTE: this implementation consider floating-base position and orientation expressed in GLOBAL (world) coordinates while
     if base_velocity_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL
@@ -115,12 +132,10 @@ def double_integrator_with_floating_base(q, qdot, qddot, base_velocity_reference
         qddot_sx: joint space acceleration: nddot = [ax ay ax wdotx wdoty wdotz qddotj]
 
     Returns:
-        x: state x = [q, ndot]
-        xdot: derivative of the state xdot = [qdot, nddot]
+        xdot: derivative of the state xdot = [qdot, qddot]
     """
     if base_velocity_reference_frame != cas_kin_dyn.CasadiKinDyn.LOCAL and base_velocity_reference_frame != cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED:
         raise Exception(f'base_velocity_reference_frame can be only LOCAL or LOCAL_WORLD_ALIGNED!')
-    # q, ndot, nddot
 
     q_sx = cs.SX.sym('q_sx', q.shape[0])
     qdot_sx = cs.SX.sym('ndot_sx', qdot.shape[0])
@@ -144,7 +159,7 @@ def double_integrator_with_floating_base(q, qdot, qddot, base_velocity_reference
     R = toRot([0., 0., 0., 1.])
     if base_velocity_reference_frame == cas_kin_dyn.CasadiKinDyn.LOCAL:
         R = toRot(q_sx[3:7])
-    x = cs.vertcat(q_sx, qdot_sx)
+    # x = cs.vertcat(q_sx, qdot_sx)
 
     if qdot_sx.shape[1] == 1:
         first = cs.mtimes(R, qdot_sx[0:3])
@@ -158,18 +173,52 @@ def double_integrator_with_floating_base(q, qdot, qddot, base_velocity_reference
 
     xdot = cs.vertcat(first, cs.vertcat(*quaterniondot), third, qddot_sx)
 
-    fun_sx = cs.Function('double_integrator_with_floating_base', [q_sx, qdot_sx, qddot_sx], [x, xdot])
+    fun_sx = cs.Function('double_integrator_with_floating_base', [q_sx, qdot_sx, qddot_sx], [xdot])
 
-    x, xdot = fun_sx(q, qdot, qddot)
+    xdot = fun_sx(q, qdot, qddot)
 
-    return x, xdot
+    return xdot
 
+def model_isdkosdkpoadpkas(x, u, kd, degree=2):
 
-def double_integrator(q, qdot, qddot):
-    x = cs.vertcat(q, qdot)
-    xdot = cs.vertcat(qdot, qddot)
-    return x, xdot
+    if degree != 2:
+        raise NotImplementedError('Only degree 2 is implemented')
+
+    q = x[0:kd.nq()]
+    v = x[kd.nq():]
+    a = u[0:kd.nv()]
+
+    if isinstance(x, cs.SX):
+        casadi_type = cs.SX
+    elif isinstance(x, cs.MX):
+        casadi_type = cs.MX
+
+    dt = casadi_type.sym('dt', 1)
+
+    q[3:7] /= cs.norm_2(q[3:7]) 
+    q[10:14] /= cs.norm_2(q[10:14]) 
+    q[17:21] /= cs.norm_2(q[17:21]) 
+
+    vnext = v + a*dt 
+    vmean = (v + vnext)/2.
+    qnext = kd.integrate()(q, vmean*dt)
+    xnext = cs.vertcat(qnext, vnext)
+
+    quad = casadi_type.zeros(1)
+
+    return cs.Function('F_MI', [x, u, dt], [xnext, quad], ['x', 'u', 'dt'], ['f', 'q'])
+
+def double_integrator(q, v, a, kd=None):
+    
+    if kd is None:
+        xdot = cs.vertcat(v, a)
+        return xdot
+
+    qdot_fn = kd.qdot()
+
+    return cs.vertcat(qdot_fn(q, v), a)
+
 
 def barrier(x):
-    return cs.sum1(cs.if_else(x > 0, 0, x ** 2))
+    return cs.if_else(x > 0, 0, x)
 

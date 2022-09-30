@@ -4,29 +4,6 @@ from horizon.rhc.tasks.cartesianTask import CartesianTask, Task
 import rospkg, rospy
 import numpy as np
 
-# class A:
-#     def __init__(self, daniele, age):
-#         self.daniele = daniele
-#         self.age = age
-#
-# class B:
-#     def __init__(self, penis, culo):
-#         self.penis = penis
-#         self.culo = culo
-#
-# class C(A, B):
-#     def __init__(self, diocane, *args, **kwargs):
-#         self.diocane = diocane
-#         A.__init__(self, *args, **kwargs)
-#         B.__init__(self, *args, **kwargs)
-#
-# if __name__ == '__main__':
-#
-#     dict_mine = {'diocane': -10, 'daniele': 1, 'age': 2, 'penis': 3, 'culo': 4}
-#     c = C(**dict_mine)
-#
-#     exit()
-
 urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
 
@@ -70,27 +47,27 @@ ti.model.setContactFrame('arm_1_TCP')
 #           'fun_type': 'cost',
 #           'weight': 1e3}
 
-# cart = {'type': 'Cartesian',
-#         'frame': 'arm_1_TCP',
-#         'name': 'final_base_rz',
-#         'indices': [2],
-#         'nodes': [N],
-#         'fun_type': 'cost',
-#         'weight': 1e3}
+cart = {'type': 'Cartesian',
+        'frame': 'arm_1_TCP',
+        'name': 'final_base_rz',
+        'indices': [2],
+        'nodes': [N],
+        'fun_type': 'cost',
+        'weight': 1e3}
 
-interactive = {'type': 'Force',
-               'frame': 'arm_1_TCP',
-               'name': 'faboulous',
-               'indices': [2],
-               'nodes': [N-1],
-               'fun_type': 'cost',
-               'weight': 1e3}
+# interactive = {'type': 'Force',
+#                'frame': 'arm_1_TCP',
+#                'name': 'faboulous',
+#                'indices': [2],
+#                'nodes': [N-1],
+#                'fun_type': 'cost',
+#                'weight': 1e3}
 
 # cart1 = CartesianTask('arm_1_TCP', prb=ti.prb, kin_dyn=ti.kd, name='daniele', nodes=[N])
 # ti.setTaskFromDict(goalrz)
 # ti.setTaskFromDict(limits)
-# ti.setTaskFromDict(cart)
-ti.setTaskFromDict(interactive)
+ti.setTaskFromDict(cart)
+# ti.setTaskFromDict(interactive)
 
 print(ti.model.getContacts())
 

@@ -28,6 +28,7 @@ class InitialStateOpt(unittest.TestCase):
         p = prob.createStateVariable('p', dim=3)
         v = prob.createStateVariable('v', dim=3)
         fz = prob.createInputVariable('fz', dim=1)
+
         x = prob.getState().getVars()
         g = np.array([0, 0, -10])
         F = cs.vertcat(0, 0, fz)
@@ -116,6 +117,8 @@ def make_problem(solver_type, A11, A13, A21, A32, B21, B32):
     x3 = prob.createStateVariable('x3', dim=2)
     u1 = prob.createInputVariable('u1', dim=2)
     u2 = prob.createInputVariable('u2', dim=2)
+    u3 = prob.createInputVariable('u3', dim=2)
+
     x = prob.getState().getVars()
 
     xdot = cs.vertcat(

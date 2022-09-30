@@ -27,7 +27,7 @@ class Transcriptor(ABC):
         if type == 'multiple_shooting':
             default_integrator = 'RK4'
             integrator = opts.get('integrator', default_integrator)
-            return tm.MultipleShooting(prob=prb, integrator=integrator)
+            return tm.MultipleShooting(prob=prb, integrator=prb.getIntegrator())
         elif type == 'direct_collocation':
             default_degree = 3
             degree = opts.get('degree', default_degree)
@@ -41,7 +41,6 @@ class Transcriptor(ABC):
         self.problem = prb
         self.integrator = None
 
-        self.state_dot = prb.getDynamics()
         self.dt = prb.getDt()
 
         state_list = self.problem.getState()

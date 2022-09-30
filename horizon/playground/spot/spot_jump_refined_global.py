@@ -6,6 +6,7 @@
 # The underlying idea is GLOBALLY refining the trajectory by injecting more nodes so that, when resampling, less errors pop up.
 #to visualize the trajectory use vis_refiner_global.py and to resample + send it to gazebo use send_to_gazebo.py
 ##################
+import cssselect
 
 import horizon.variables
 from horizon import problem
@@ -72,7 +73,7 @@ q_dot_sym = cs.SX.sym('q_dot', n_v)
 q_ddot_sym = cs.SX.sym('q_ddot', n_v)
 x, x_dot = utils.double_integrator_with_floating_base(q_sym, q_dot_sym, q_ddot_sym)
 
-dae = {'x': x, 'p': q_ddot_sym, 'ode': x_dot, 'quad': 1}
+dae = {'x': cs.vertcat(q_sym, q_dot_sym), 'p': q_ddot_sym, 'ode': x_dot, 'quad': 1}
 q_res, qdot_res, qddot_res, contact_map_res, tau_sol_res = resampler_trajectory.resample_torques(
     prev_q, prev_q_dot, prev_q_ddot, prev_dt, dt_res, dae, prev_contact_map,
     kindyn,

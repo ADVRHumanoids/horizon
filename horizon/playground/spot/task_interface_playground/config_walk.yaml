@@ -1,16 +1,10 @@
 solver:
-  type: 'ilqr'
-  max_iter: 200
-  alpha_min: 0.01
-  use_filter: False
-  hxx_reg: 0.0
-  integrator: 'RK4'
-  merit_der_threshold: 1e-6
-  step_length_threshold: 1e-9
-  line_search_accept_ratio: 1e-4
-  kkt_decomp_type: 'qr'
-  constr_decomp_type: 'qr'
-  verbose: True
+  type: ipopt
+  ilqr.max_iter: 200
+  ilqr.alpha_min: 0.01
+  ilqr.step_length_threshold: 1e-9
+  ilqr.line_search_accept_ratio: 1e-4
+  ilqr.verbose: True
 
 # todo add MinVelocity JointVelocity
 #regularization:
@@ -18,155 +12,185 @@ solver:
 #    acceleration: 0.01
 #    force: 0.01
 
-constraints: ['task_base_x', 'contact1', 'contact2', 'contact3', 'contact4', 'final_x', 'zero_velocity_lf_foot', 'zero_velocity_rf_foot', 'zero_velocity_lh_foot', 'zero_velocity_rh_foot', 'foot_contact_lf_foot', 'foot_contact_rf_foot', 'foot_contact_lh_foot', 'foot_contact_rh_foot', 'foot_z_lf_foot', 'foot_z_lr_foot', 'foot_z_lh_foot', 'foot_z_rh_foot', 'foot_xy_lf_foot', 'foot_xy_rf_foot', 'foot_xy_lh_foot', 'foot_xy_rh_foot']
-costs: ['final_base_y', 'min_rot', 'joint_posture', 'joint_regularization', 'final_y']
+constraints: [final_base_x,
+              final_x,
+              foot_contact_lf_foot,
+              foot_contact_rf_foot,
+              foot_contact_lh_foot,
+              foot_contact_rh_foot,
+              foot_z_lf_foot,
+              foot_z_rf_foot,
+              foot_z_lh_foot,
+              foot_z_rh_foot,
+              foot_xy_lf_foot,
+              foot_xy_rf_foot,
+              foot_xy_lh_foot,
+              foot_xy_rh_foot]
+
+costs: [final_base_y, joint_posture, regularization, final_y] # min_rot
 
 # todo to cartesian
-task_base_x:
-  type: 'Postural'
+final_base_x:
+  type: Cartesian
+  distal_link: base_link
   indices: [0]
-  nodes: 'final'
+  nodes: final
   weight: 1000
 #
 final_base_y:
-  type: 'Postural'
+  type: Cartesian
+  distal_link: base_link
   indices: [1]
-  nodes: 'final'
+  nodes: final
   weight: 1000
 #
 min_rot:
-  type: 'Postural'
+  type: Cartesian
+  distal_link: base_link
   indices: [3,4]
-  nodes: 'all'
+  nodes: all
   weight: 0.001
 #
 joint_posture:
-  type: 'Postural'
-  indices: [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] # shitty
-  nodes: 'all'
+  type: Postural
   weight: 1.
+  nodes: all
 
+final_x:
+  type: Cartesian
+  distal_link: base_link
+  indices: [0]
+  nodes: final
+
+final_y:
+  type: Cartesian
+  distal_link: base_link
+  indices: [1]
+  weight: 1000
+  nodes: final
+
+## ==================== required for actionManager =============================
 contact_lf_foot:
-   type: 'Force'
-   frame: 'lf_foot'
+  type: VertexForce
+  frame: lf_foot
+  fn_min: 10.0
+  vertex_frames:
+    - lf_foot
+
+zero_velocity_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [0, 1, 2]
+  cartesian_type: velocity
 
 contact_rf_foot:
-   type: 'Force'
-   frame: 'rf_foot'
+  type: VertexForce
+  frame: rf_foot
+  fn_min: 10.0
+  vertex_frames:
+    - rf_foot
+
+zero_velocity_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [0, 1, 2]
+  cartesian_type: velocity
 
 contact_lh_foot:
-   type: 'Force'
-   frame: 'lh_foot'
+  type: VertexForce
+  frame: lh_foot
+  fn_min: 10.0
+  vertex_frames:
+    - lh_foot
+
+zero_velocity_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [0, 1, 2]
+  cartesian_type: velocity
 
 contact_rh_foot:
-   type: 'Force'
-   frame: 'rh_foot'
+  type: VertexForce
+  frame: rh_foot
+  fn_min: 10.0
+  vertex_frames:
+    - rh_foot
 
-# todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they won't get considered.
-joint_regularization:
-  type: 'Regularization'
-  nodes: 'all'
+zero_velocity_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [0, 1, 2]
+  cartesian_type: velocity
+# ==========================================================================
+foot_contact_lf_foot:
+  type: Contact
+  subtask: [contact_lf_foot, zero_velocity_lf_foot]
+
+foot_contact_rf_foot:
+  type: Contact
+  subtask: [contact_rf_foot, zero_velocity_rf_foot]
+
+foot_contact_lh_foot:
+  type: Contact
+  subtask: [contact_lh_foot, zero_velocity_lh_foot]
+
+foot_contact_rh_foot:
+  type: Contact
+  subtask: [contact_rh_foot, zero_velocity_rh_foot]
+
+foot_z_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_xy_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+# todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they wont get considered.
+regularization:
+  type: Regularization
+  nodes: all
   weight:
 #    velocity: 0.01
     acceleration: 0.01
     force: 0.01 # todo <----- how to do?
-
-final_x:
-  type: "Postural"
-  indices: [0]
-  nodes: 'final'
-
-final_y:
-  type: "Postural"
-  indices: [1]
-  weight: 1000
-  nodes: 'final'
-
-# required for actionManager
-zero_velocity_lf_foot:
-  type: 'Cartesian'
-  frame: 'lf_foot'
-  indices: [0, 1, 2]
-  cartesian_type: 'velocity'
-
-zero_velocity_rf_foot:
-  type: 'Cartesian'
-  frame: 'rf_foot'
-  indices: [0, 1, 2]
-  cartesian_type: 'velocity'
-
-zero_velocity_lh_foot:
-  type: 'Cartesian'
-  frame: 'lh_foot'
-  indices: [0, 1, 2]
-  cartesian_type: 'velocity'
-
-zero_velocity_rh_foot:
-  type: 'Cartesian'
-  frame: 'rh_foot'
-  indices: [0, 1, 2]
-  cartesian_type: 'velocity'
-
-foot_contact_lf_foot:
-  type: 'Contact'
-  subtask: ['contact_lf_foot', 'zero_velocity_lf_foot']
-
-foot_contact_rf_foot:
-  type: 'Contact'
-  subtask: ['contact_rf_foot', 'zero_velocity_rf_foot']
-
-foot_contact_lh_foot:
-  type: 'Contact'
-  subtask: ['contact_lh_foot', 'zero_velocity_lh_foot']
-
-foot_contact_rh_foot:
-  type: 'Contact'
-  subtask: ['contact_rh_foot', 'zero_velocity_rh_foot']
-
-foot_z_lf_foot:
-  type: 'Cartesian'
-  frame: 'lf_foot'
-  indices: [2]
-  cartesian_type: 'position'
-
-foot_z_lr_foot:
-  type: 'Cartesian'
-  frame: 'lr_foot'
-  indices: [2]
-  cartesian_type: 'position'
-
-foot_z_lh_foot:
-  type: 'Cartesian'
-  frame: 'lh_foot'
-  indices: [2]
-  cartesian_type: 'position'
-
-foot_z_rh_foot:
-  type: 'Cartesian'
-  frame: 'rh_foot'
-  indices: [2]
-  cartesian_type: 'position'
-
-foot_xy_lf_foot:
-  type: 'Cartesian'
-  frame: 'lf_foot'
-  indices: [0, 1]
-  cartesian_type: 'position'
-
-foot_xy_rf_foot:
-  type: 'Cartesian'
-  frame: 'rf_foot'
-  indices: [0, 1]
-  cartesian_type: 'position'
-
-foot_xy_lh_foot:
-  type: 'Cartesian'
-  frame: 'lh_foot'
-  indices: [0, 1]
-  cartesian_type: 'position'
-
-foot_xy_rh_foot:
-  type: 'Cartesian'
-  frame: 'rh_foot'
-  indices: [0, 1]
-  cartesian_type: 'position'

@@ -323,7 +323,7 @@ if resampling:
         dt_before_res = dt
 
     dt_res = 0.001
-    dae = {'x': x, 'p': q_ddot, 'ode': x_dot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': q_ddot, 'ode': x_dot, 'quad': 1}
     q_res, qdot_res, qddot_res, contact_map_res, tau_res = resampler_trajectory.resample_torques(
         solution["q"], solution["q_dot"], solution["q_ddot"], dt_before_res, dt_res, dae, contact_map,
         kindyn,

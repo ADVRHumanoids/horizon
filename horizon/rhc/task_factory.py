@@ -39,7 +39,7 @@ def create(args: Dict[str, Any]) -> Task:
     try:
         creation_func = task_creation_funcs[task_type]
     except KeyError:
-        raise ValueError(f'Unknown task type: {task_type}') from None
+        raise ValueError(f'Unknown task type: {task_type}; available types {list(task_creation_funcs.keys())}') from None
 
     return creation_func.from_dict(args_copy)
 

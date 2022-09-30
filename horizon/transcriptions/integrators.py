@@ -43,7 +43,7 @@ def EULER(dae, opts=None, casadi_type=cs.SX):
     X_RK = X_RK + DT_RK * k1
     Q_RK = Q_RK + DT_RK * k1_q
 
-    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x', 'u', 'dt'], ['f', 'qf'])
     return f
 
 def RK2(dae, opts=None, casadi_type=cs.SX):
@@ -89,7 +89,7 @@ def RK2(dae, opts=None, casadi_type=cs.SX):
     X_RK = X_RK + DT_RK * k2
     Q_RK = Q_RK + DT_RK * k2_q
 
-    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x', 'u', 'dt'], ['f', 'qf'])
     return f
 
 def RK4(dae, opts=None, casadi_type=cs.SX):
@@ -137,7 +137,7 @@ def RK4(dae, opts=None, casadi_type=cs.SX):
     X_RK = X_RK + DT_RK / 6. * (k1 + 2. * k2 + 2. * k3 + k4)
     Q_RK = Q_RK + DT_RK / 6. * (k1_q + 2. * k2_q + 2. * k3_q + k4_q)
 
-    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x0', 'p', 'time'], ['xf', 'qf'])
+    f = cs.Function('F_RK', [X0_RK, U_RK, DT_RK], [X_RK, Q_RK], ['x', 'u', 'dt'], ['f', 'qf'])
     return f
 
 
@@ -168,3 +168,6 @@ def LEAPFROG(dae, opts=None, casadi_type=cs.SX):
 
     f = cs.Function('F_RK', [X0_RK, X0_PREV_RK, U_RK, DT_RK], [X_RK, X_PREV_RK, Q_RK], ['x0', 'x0_prev', 'p', 'time'], ['xf', 'xf_prev', 'qf'])
     return f
+
+
+

@@ -155,20 +155,25 @@ struct IterativeLQR::CostEntityBase
     std::vector<int> indices;
 
     /* Quadratized cost */
-    virtual const Eigen::MatrixXd& Q() const { return _Q; }
     virtual VecConstRef q() const { return _q; }
-    virtual const Eigen::MatrixXd& R() const { return _R; }
-    virtual VecConstRef r() const { return _r; }
-    virtual const Eigen::MatrixXd& P() const { return _P; }
 
-    virtual double evaluate(VecConstRef x, VecConstRef u, int k) = 0;
-    virtual void quadratize(VecConstRef x, VecConstRef u, int k) = 0;
+    virtual VecConstRef r() const { return _r; }
+
+    virtual double evaluate(VecConstRef x,
+                            VecConstRef u,
+                            int k) = 0;
+
+    virtual void quadratize(VecConstRef x,
+                            VecConstRef u,
+                            int k,
+                            Eigen::MatrixXd& Q,
+                            Eigen::MatrixXd& R,
+                            Eigen::MatrixXd& P) = 0;
 
     virtual ~CostEntityBase() = default;
 
 protected:
 
-    Eigen::MatrixXd _Q, _R, _P;
     Eigen::VectorXd _q, _r;
 };
 
@@ -184,7 +189,12 @@ struct IterativeLQR::BoundAuglagCostEntity : CostEntityBase
 
     double evaluate(VecConstRef x, VecConstRef u, int k) override;
 
-    void quadratize(VecConstRef x, VecConstRef u, int k) override;
+    void quadratize(VecConstRef x,
+                    VecConstRef u,
+                    int k,
+                    Eigen::MatrixXd& Q,
+                    Eigen::MatrixXd& R,
+                    Eigen::MatrixXd& P) override;
 
     void update_lam(VecConstRef x, VecConstRef u, int k);
 
@@ -216,14 +226,17 @@ struct IterativeLQR::IntermediateCostEntity : CostEntityBase
                  casadi::Function dl,
                  casadi::Function ddl);
 
-    const Eigen::MatrixXd& Q() const override;
     VecConstRef q() const override;
-    const Eigen::MatrixXd& R() const override;
     VecConstRef r() const override;
-    const Eigen::MatrixXd& P() const override;
 
     double evaluate(VecConstRef x, VecConstRef u, int k) override;
-    void quadratize(VecConstRef x, VecConstRef u, int k) override;
+
+    void quadratize(VecConstRef x,
+                    VecConstRef u,
+                    int k,
+                    Eigen::MatrixXd& Q,
+                    Eigen::MatrixXd& R,
+                    Eigen::MatrixXd& P) override;
 
     static casadi::Function Gradient(const casadi::Function& f);
     static casadi::Function Hessian(const casadi::Function& df);
@@ -249,7 +262,12 @@ struct IterativeLQR::IntermediateResidualEntity : CostEntityBase
 
     double evaluate(VecConstRef x, VecConstRef u, int k) override;
 
-    void quadratize(VecConstRef x, VecConstRef u, int k) override;
+    void quadratize(VecConstRef x,
+                    VecConstRef u,
+                    int k,
+                    Eigen::MatrixXd& Q,
+                    Eigen::MatrixXd& R,
+                    Eigen::MatrixXd& P) override;
 
     static casadi::Function Jacobian(const casadi::Function& f);
 

@@ -1,6 +1,65 @@
 #include "ilqr.h"
+#include <unistd.h>
+#include "wrapped_function.h"
 
 int main()
+{
+    bool stop = false;
+
+    auto f = casadi::external("zero_velocity_l_foot_l_sole_vel_task_jac",
+                "/tmp/miao/zero_velocity_l_foot_l_sole_vel_task_jac_generated_8766428903129998207.so");
+
+
+
+
+    auto th_func = [&stop, &f]()
+    {
+        casadi_utils::WrappedFunction fw = f;
+
+        while(!stop)
+        {
+            auto x = Eigen::VectorXd::Random(f.size1_in(0)).eval();
+            auto u = Eigen::VectorXd::Random(f.size1_in(1), 1).eval();
+            auto tgt = Eigen::VectorXd::Random(f.size1_in(2), 1).eval();
+
+            fw.setInput(0, x);
+            fw.setInput(1, u);
+            fw.setInput(2, tgt);
+            fw.call();
+
+        }
+
+//        while(!stop)
+//        {
+//            auto x = casadi::DM::rand(f.size1_in(0), 1);
+//            auto u = casadi::DM::rand(f.size1_in(1), 1);
+//            auto tgt = casadi::DM::rand(f.size1_in(2), 1);
+//            std::vector<casadi::DM> res(f.n_out());
+
+//            f.call({x, u, tgt}, res);
+//        }
+    };
+
+    std::vector<std::thread> th;
+
+    for(int i = 0; i < 8; i++)
+    {
+        th.emplace_back(th_func);
+    }
+
+    sleep(10);
+
+    stop = true;
+
+    for(auto& t : th)
+    {
+        t.join();
+    }
+
+
+}
+
+int not_a_main()
 {
     auto x = casadi::SX::sym("x", 1);
     auto u = casadi::SX::sym("u", 1);

@@ -5,7 +5,6 @@ import numpy as np
 import casadi as cs
 
 def resample_torques(p, v, a, node_time, dt, dae, frame_force_mapping, kindyn, force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
-    
     """
         Resample solution to a different number of nodes, RK4 integrator is used for the resampling
         Args:
@@ -33,33 +32,17 @@ def resample_torques(p, v, a, node_time, dt, dae, frame_force_mapping, kindyn, f
             frame_res_force_mapping: resampled frame_force_mapping
             tau_res: resampled tau
         """
+    p_res, v_res, a_res = second_order_resample_integrator(p, v, a, node_time, dt, dae)
 
-    # converting to np array in case they were not
-    p = np.array(p)
-    v = np.array(v)
-
-    # resampling trajectory
-    res_state = resampler(cs.vertcat(p, v), a, node_time, dt, dae)
-
-    # unwrapping state
-    p_res = res_state[:p.shape[0], :]
-    v_res = res_state[p.shape[0]: , :]
-    a_res = resample_input(a, node_time, dt)
-    
-    # p_res, v_res, a_res = second_order_resample_integrator(p, v, a, node_time, dt, dae)
-
-    # computing resampled torques and contact forces employing the 
-    # inverse dynamics and the resampled state ()
     frame_res_force_mapping = dict()
+
     for frame, wrench in frame_force_mapping.items():
-
         frame_res_force_mapping[frame] = resample_input(wrench, node_time, dt)
-
     tau_res = np.zeros(a_res.shape)
+
     ID = kin_dyn.InverseDynamics(kindyn, frame_force_mapping.keys(), force_reference_frame)
     ni = a_res.shape[1]
     for i in range(ni):
-
         frame_force_map_i = dict()
         for frame, wrench in frame_res_force_mapping.items():
             frame_force_map_i[frame] = wrench[:, i]
@@ -108,13 +91,12 @@ def resample_input(input, node_time, dt):
 
 def second_order_resample_integrator(p, v, u, node_time, dt, dae):
     """
-    DEPRECATED!!!!!
     Resample a solution with the given dt (RK4 integrator is used internally)
     Args:
         p: position
         v: velocity
         u: input
-        node_time: previous node time vector
+        node_time: previous node time
         dt: resampling time
         dae: dynamic model
     Returns:
@@ -191,26 +173,12 @@ def second_order_resample_integrator(p, v, u, node_time, dt, dae):
     return p_res, v_res, u_res
 
 
-def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae):
-
-    """
-    Resample a solution with the given dt (RK4 integrator is used internally)
-    Args:
-        state_vec: state vector
-        input_vec: input vector
-        nodes_dt: 
-        desired_dt: 
-        dae: dynamic model
-    Returns:
-        state_res: resampled state
-
-    """
+def resampler_old(state_vec, input_vec, nodes_dt, desired_dt, dae, f_int=None):
 
     # convert to np if not np already
     states = np.array(state_vec)
     inputs = np.array(input_vec)
-    
-    # getting useful dimensions
+
     state_dim = states.shape[0]
     input_dim = inputs.shape[0]
     n_nodes = states.shape[1]
@@ -218,18 +186,15 @@ def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae):
     # construct array of times for each node (nodes could be of different time lenght)
     node_time_array = np.zeros([n_nodes])
     if hasattr(nodes_dt, "__iter__"):
-
         # if a list of times is passed, construct from this list (used when variable time node)
         for i in range(1, n_nodes):
-
             node_time_array[i] = node_time_array[i - 1] + nodes_dt[i - 1]
     else:
-
         # if a number is passed, construct from this number (used when constant time node)
         for i in range(1, n_nodes):
-
             node_time_array[i] = node_time_array[i - 1] + nodes_dt
-        
+
+
     # number of nodes in resampled trajectory
     n_nodes_res = int(round(node_time_array[-1] / desired_dt)) + 1
 
@@ -238,9 +203,12 @@ def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae):
 
     # L = 1
     # dae = {'x': state_abst, 'p': input_abst, 'ode': state_dot, 'quad': L}
-    F_integrator = integrators.RK4(dae, cs.SX)
+    if f_int is None:
+        F_integrator = integrators.RK4(dae, cs.SX)
+    else:
+        F_integrator = f_int
 
-    # initialize resampled trajectories
+    # initialize resapmpled trajectories
     state_res = np.zeros([state_dim, n_nodes_res]) # state: number of resampled nodes
     input_res = np.zeros([input_dim, n_nodes_res - 1]) # input: number of resampled nodes - 1
 
@@ -251,38 +219,109 @@ def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae):
     i = 0
     node = 0
     while i < input_res.shape[1] - 1:
-
         # integrate the state using the input at the desired node
-        state_res_i = F_integrator(x0 = state_res[:, i], p = inputs[:, node], time = desired_dt)['xf'].toarray().flatten()
+        state_res_i = F_integrator(state_res[:, i], inputs[:, node], desired_dt)[0].toarray().flatten()
 
         t += desired_dt
         i += 1
 
-        # Assigning integrated state to next resampling node
         state_res[:, i] = state_res_i
         input_res[:, i] = inputs[:, node]
 
         # this is required if the current t goes beyond the current node time.
-        # I get new_dt, the exceeding time is (t - node_time_array[node + 1])
+        # I get new_dt, the exceeding time (t-node_time_array[node+1]
         if t > node_time_array[node + 1]:
-
             new_dt = t - node_time_array[node + 1]
-
             node += 1
-            
+
             state_res[:, i] = states[:, node]
 
             if new_dt >= 1e-6:
-
                 # I set the new_dt as the integrator time
                 # integrate from the node i just exceed with the relative input for the exceeding time
-                state_res_i = F_integrator(x0 = states[:, node], p=inputs[:, node], time = new_dt)[
-                    'xf'].toarray().flatten()
+                state_res_i = F_integrator(states[:, node], inputs[:, node], new_dt)[0].toarray().flatten()
                 state_res[:, i] = state_res_i
                 input_res[:, i] = inputs[:, node]
 
     # the last node of the resampled trajectory has the same value as the original trajectory
     state_res[:, -1] = states[:, -1]
+
+    return state_res
+
+def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae, f_int=None):
+
+    # convert to np if not np already
+    states = np.array(state_vec)
+    inputs = np.array(input_vec)
+
+    state_dim = states.shape[0]
+    input_dim = inputs.shape[0]
+    n_nodes = states.shape[1]
+
+    # construct array of times for each node (nodes could be of different time length)
+    node_time_array = np.zeros([n_nodes])
+    if hasattr(nodes_dt, "__iter__"):
+        # if a list of times is passed, construct from this list (used when variable time node)
+        for i in range(1, n_nodes):
+            node_time_array[i] = node_time_array[i - 1] + nodes_dt[i - 1]
+    else:
+        # if a number is passed, construct from this number (used when constant time node)
+        for i in range(1, n_nodes):
+            node_time_array[i] = node_time_array[i - 1] + nodes_dt
+
+    # number of nodes in resampled trajectory
+    n_nodes_res = int(round(node_time_array[-1] / desired_dt)) + 1
+
+    if f_int is None:
+        F_integrator = integrators.RK4(dae, cs.SX)
+    else:
+        F_integrator = f_int
+
+    # initialize resampled trajectories
+    state_res = np.zeros([state_dim, n_nodes_res])  # state: number of resampled nodes
+    input_res = np.zeros([input_dim, n_nodes_res - 1])  # input: number of resampled nodes - 1
+
+    # the first node of the resampled trajectory has the same value as the original trajectory
+    state_res[:, 0] = states[:, 0]
+    # input_res[:, 0] = inputs[:, 0]
+
+    t = 0.
+    node = 0
+
+    # first state/input is the initial state/input
+    for i in range(1, input_res.shape[1] + 1):
+
+        # advance t with desired dt
+        t += desired_dt
+
+        # use previous state and constant input to compute following state
+        state_prev = state_res[:, i-1]
+        input_prev = inputs[:, node]
+        dt = desired_dt
+
+        # if t exceed current node, recompute from new node
+        while t > node_time_array[node + 1] and t < node_time_array[-1]:
+
+            # compute exceeding time
+            new_dt = t - node_time_array[node + 1]
+            # forward node
+            node += 1
+
+            # integrate from the node just exceed with the relative input for the exceeding time
+            state_prev = states[:, node]
+            input_prev = inputs[:, node]
+            dt = new_dt
+
+        # integrate the state using the input at the desired node
+        state_int = F_integrator(state_prev, input_prev, dt)[0].toarray().flatten()
+
+        state_res[:, i] = state_int
+        # input_res[:, i] = inputs[:, node]
+
+        # if last resampled value is beyond or last original node, use last original value
+        if t >= node_time_array[-1]:
+            state_res[:, i] = states[:, -1]
+            break
 
     return state_res
 
@@ -309,6 +348,8 @@ if __name__ == '__main__':
     v[0, -1] = 0 * v[0, -1]
     v[1, -1] = 0 * v[1, -1]
 
+
+
     print(p)
     print(v)
 
@@ -317,34 +358,26 @@ if __name__ == '__main__':
     print(inputs.shape)
     states = cs.vertcat(p, v)
 
-    # nodes_dt = [0.01, 0.02, 0.01, 0.01, 0.02, 0.03, 0.02, 0.01, 0.01, 0.01]
 
-    state = cs.SX.sym('state', 2)
+    # nodes_dt = [0.01, 0.02, 0.01, 0.01, 0.02, 0.03, 0.02, 0.01, 0.01, 0.01]
+    # nodes_dt = [0.01, 0.02, 0.01, 0.01, 0.02, 0.03, 0.02, 0.01, 0.01, 0.01]
+    state_res = resampler(states, inputs, nodes_dt, new_nodes_dt)
+
+    print('state_res.shape', state_res.shape)
+    print(state_res[0,:])
+    # ===============================================================
+    print(' ==================== other method ========================')
+    state = cs.SX.sym('state', 4)
     input = cs.SX.sym('input', 2)
     state_dot = cs.vertcat(state[2:], input)
 
     a = inputs
     L = 1
     dae = {'x': state, 'p': input, 'ode': state_dot, 'quad': L}
+    p_res, v_res, a_res = second_order_resample_integrator(p, v, a, nodes_dt, new_nodes_dt, dae)
 
-    state_res = resampler(states, inputs, nodes_dt, new_nodes_dt, dae)
+    print('p_res.shape', p_res.shape)
+    print('a_res.shape', a_res.shape)
 
-    print('state_res.shape', state_res.shape)
-    print(state_res[0,:])
-
-    # # ===============================================================
-    # print(' ==================== other method ========================')
-    # state = cs.SX.sym('state', 4)
-    # input = cs.SX.sym('input', 2)
-    # state_dot = cs.vertcat(state[2:], input)
-
-    # a = inputs
-    # L = 1
-    # dae = {'x': state, 'p': input, 'ode': state_dot, 'quad': L}
-    # p_res, v_res, a_res = second_order_resample_integrator(p, v, a, nodes_dt, new_nodes_dt, dae)
-
-    # print('p_res.shape', p_res.shape)
-    # print('a_res.shape', a_res.shape)
-
-    # print(p_res[0, :])
+    print(p_res[0, :])
 

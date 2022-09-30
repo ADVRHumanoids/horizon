@@ -1,6 +1,9 @@
 #include "wrapped_function.h"
+#include "profiling.h"
 
 using namespace casadi_utils;
+
+extern horizon::utils::Timer::TocCallback on_timer_toc;
 
 
 WrappedFunction::WrappedFunction(casadi::Function f)
@@ -16,12 +19,6 @@ WrappedFunction &WrappedFunction::operator=(casadi::Function f)
     }
 
     _f = f;
-
-//    if(f.sz_arg() != f.n_in() ||
-//            f.sz_res() != f.n_out())
-//    {
-//        throw std::runtime_error("f.sz_arg() != f.n_in() || f.sz_res() != f.n_out() => contact the developers!!!");
-//    }
 
     // resize work vectors
     _iw.assign(_f.sz_iw(), 0);
@@ -74,6 +71,14 @@ void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
         throw std::invalid_argument(_f.name() + ": input size mismatch");
     }
 
+    if(xi.hasNaN() || !xi.allFinite())
+    {
+        std::ostringstream oss;
+        oss << _f.name() << " input " << i << " contains invalid values: \n" <<
+               xi.transpose().format(3);
+        throw std::runtime_error(oss.str());
+    }
+
     _in_buf[i] = xi.data();
 }
 
@@ -91,8 +96,8 @@ void WrappedFunction::call(bool sparse)
         {
             csc_to_sparse_matrix(_f.sparsity_out(i),
                                  _rows[i], _cols[i],
-                                         _out_data[i],
-                                         _out_matrix_sparse[i]);
+                                 _out_data[i],
+                                 _out_matrix_sparse[i]);
         }
         else
         {
@@ -100,6 +105,21 @@ void WrappedFunction::call(bool sparse)
                           _rows[i], _cols[i],
                           _out_data[i],
                           _out_matrix[i]);
+
+            if(_out_matrix[i].hasNaN() || !_out_matrix[i].allFinite())
+            {
+                std::ostringstream oss;
+                oss << _f.name() << " output " << i << " contains invalid values: \n";
+                oss << _out_matrix[i].format(3) << "\n";
+                for(int j = 0; j < _f.n_in(); j++)
+                {
+                    auto u = Eigen::VectorXd::Map(_in_buf[j],
+                                                  _f.size1_in(j));
+                    oss << _f.name() << " input " << j <<
+                           " = " << u.transpose().format(3) << "\n";
+                }
+                throw std::runtime_error(oss.str());
+            }
         }
 
     }
@@ -108,8 +128,52 @@ void WrappedFunction::call(bool sparse)
     _f.release(mem);
 }
 
+void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &out)
+{
+    // call function (allocation-free)
+    casadi_int mem = _f.checkout();
+
+    {
+
+#ifdef HORIZON_PROFILING
+        horizon::utils::Timer tm("call_accumulate_" + _f.name() + "_inner",
+                                 on_timer_toc);
+#endif
+
+        _f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem);
+    }
+
+#ifdef HORIZON_PROFILING
+    horizon::utils::Timer tm("csc_to_matrix_accu_" + _f.name() + "_inner",
+                             on_timer_toc);
+#endif
+
+    // sum all outputs to out matrices
+    for(int i = 0; i < _f.n_out(); ++i)
+    {
+        csc_to_matrix_accu(_f.sparsity_out(i),
+                           _rows[i], _cols[i],
+                           _out_data[i],
+                           out[i]);
+    }
+
+    // release mem (?)
+    _f.release(mem);
+}
+
 const Eigen::MatrixXd& WrappedFunction::getOutput(int i) const
 {
+    if(_out_matrix[i].hasNaN() || !_out_matrix[i].allFinite())
+    {
+        std::cout << "invalid value in output of " << _f.name() << "\n";
+        std::cout << "output #" << i << ": \n" << _out_matrix[i].format(3) << "\n";
+        for(int j = 0; j < _f.n_in(); j++)
+        {
+            auto in = Eigen::VectorXd::Map(_in_buf[j], _f.size1_in(j));
+            std::cout << "input #" << j << ": \n" << in.transpose().format(3) << "\n";
+        }
+    }
+
     return _out_matrix[i];
 }
 
@@ -165,6 +229,7 @@ void WrappedFunction::csc_to_matrix(const casadi::Sparsity& sp,
         matrix = Eigen::MatrixXd::Map(data.data(),
                                       matrix.rows(),
                                       matrix.cols());
+
         return;
     }
 
@@ -177,6 +242,35 @@ void WrappedFunction::csc_to_matrix(const casadi::Sparsity& sp,
 
         // copy data
         matrix(row_i, col_j) =  data[k];
+    }
+}
+
+void WrappedFunction::csc_to_matrix_accu(const casadi::Sparsity &sp,
+                                         const std::vector<casadi_int> &sp_rows,
+                                         const std::vector<casadi_int> &sp_cols,
+                                         const std::vector<double> &data,
+                                         Eigen::Ref<Eigen::MatrixXd> matrix)
+{
+    // if dense output, do copy assignment which should be
+    // faster
+    if(sp.is_dense())
+    {
+        matrix += Eigen::MatrixXd::Map(data.data(),
+                                       matrix.rows(),
+                                       matrix.cols());
+
+        return;
+    }
+
+
+    for(int k = 0; k < sp.nnz(); k++)
+    {
+        // current elem row index
+        int row_i = sp_rows[k];
+        int col_j = sp_cols[k];
+
+        // copy data
+        matrix(row_i, col_j) +=  data[k];
     }
 }
 

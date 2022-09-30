@@ -27,41 +27,51 @@ class SolverILQR(Solver):
         # init base class
         super().__init__(prb, filtered_opts)
 
+        # get type of abstract variables in horizon problem (SX or MX)
+        abstract_casadi_type = self.prb.default_abstract_casadi_type
+
         # save max iter if any
         self.max_iter = self.opts.get('ilqr.max_iter', 100)
         
         # num shooting interval
         self.N = prb.getNNodes() - 1  
 
-        # get integrator and compute discrete dynamics in the form (x, u, p) -> f
-        integrator_name = self.opts.get('ilqr.integrator', 'RK4')
-        dae = {'ode': self.xdot, 'x': self.x, 'p': self.u, 'quad': 0}
+        # # get integrator and compute discrete dynamics in the form (x, u, p) -> f
+        # integrator_name = self.opts.get('ilqr.integrator', 'RK4')
+        # dae = {'ode': self.xdot, 'x': self.x, 'p': self.u, 'quad': 0}
 
-        # handle parametric time
-        integrator_opt = {}
+        # # handle parametric time
+        # integrator_opt = {}
 
-        self.int = integrators.__dict__[integrator_name](dae, integrator_opt)
-        if isinstance(self.dt, float):
-            # integrator_opt['tf'] = self.dt
-            x_int = self.int(self.x, self.u, self.dt)[0]
-            dt_name = 'dt'
-            time = self.prb.default_casadi_type.sym(dt_name, 0)
+        # self.int = integrators.__dict__[integrator_name](dae, integrator_opt, self.prb.default_casadi_type)
+        # if isinstance(self.dt, float):
+        #     # integrator_opt['tf'] = self.dt
+        #     x_int = self.int(self.x, self.u, self.dt)[0]
+        #     dt_name = 'dt'
+        #     time = abstract_casadi_type.sym(dt_name, 0)
 
-        elif isinstance(self.dt, Parameter):
-            time = self.prb.default_casadi_type.sym(self.dt.getName(), 1)
-            x_int = self.int(self.x, self.u, time)[0]
-            dt_name = self.dt.getName()
-            pass
-        else:
-            raise TypeError('ilqr supports only float and Parameter dt')
+        # elif isinstance(self.dt, Parameter):
+        #     time = abstract_casadi_type.sym(self.dt.getName(), 1)
+        #     x_int = self.int(self.x, self.u, time)[0]
+        #     dt_name = self.dt.getName()
+        #     pass
+        # else:
+        #     raise TypeError('ilqr supports only float and Parameter dt')
 
-        self.dyn = cs.Function('f', 
-                               {'x': self.x, 'u': self.u, dt_name: time, 'f': x_int},
-                               ['x', 'u', dt_name], ['f']
-                               )
+        # all_params = self.prb.getParameters()
+        # depend_params = {}
+        # for pname, p in all_params.items():
+        #     if cs.depends_on(x_int, p):
+        #         depend_params[pname] = p
+        
+
+        # self.dyn = cs.Function('f', 
+        #                        {'x': self.x, 'u': self.u, dt_name: time, 'f': x_int, **depend_params},
+        #                        ['x', 'u', dt_name] + list(depend_params.keys()), ['f']
+        #                        )
 
         # create ilqr solver
-        self.ilqr = IterativeLQR(self.dyn, self.N, self.opts)
+        self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
 
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
@@ -81,6 +91,9 @@ class SolverILQR(Solver):
 
         # empty solution dict
         self.solution_dict = dict()
+
+        # print iteration statistics
+        self.set_iteration_callback()
 
     def save(self):
         data = self.prb.save()
@@ -172,6 +185,10 @@ class SolverILQR(Solver):
 
         prof_info = self.ilqr.getProfilingInfo()
 
+        # max string length
+        keys = prof_info.timings.keys()
+        max_len = max([len(k) for k in keys])
+
         if len(prof_info.timings) == 0:
             return
         
@@ -179,7 +196,7 @@ class SolverILQR(Solver):
         for k, v in prof_info.timings.items():
             if '_inner' not in k:
                 continue
-            print(f'{k[:-6]:30}{np.mean(v)} us')
+            print(f'{k[:-6]:{max_len}}{np.mean(v)} us')
 
         print('\ntimings (iter):')
         for k, v in prof_info.timings.items():
@@ -274,6 +291,8 @@ class SolverILQR(Solver):
             p_vals[:] = np.nan
             p_vals[:, p.getNodes()] = p_vals_temp
             self.ilqr.setParameterValue(p.getName(), p_vals)
+
+        self.ilqr.setParameterValue('dt', np.full((1, self.N+1), self.prb.getDt()))
 
     
     def _iter_callback(self, fpres):

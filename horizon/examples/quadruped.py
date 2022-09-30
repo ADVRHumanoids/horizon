@@ -71,12 +71,12 @@ def main(args):
 
     dt_list = (lift_node) * [dt_const] + (touch_down_node - lift_node) * [dt] + (n_nodes - touch_down_node) * [dt_const]
 
-    x, xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
+    xdot = utils.double_integrator_with_floating_base(q, qdot, qddot)
 
     prb.setDynamics(xdot)
     prb.setDt(dt_list)
     # Formulate discrete time dynamics
-    dae = {'x': x, 'p': qddot, 'ode': xdot, 'quad': 1}
+    dae = {'x': prb.getState().getVars(), 'p': qddot, 'ode': xdot, 'quad': 1}
 
     # Limits
     q_min = kindyn.q_min()

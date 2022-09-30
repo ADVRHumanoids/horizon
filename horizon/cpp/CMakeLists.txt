@@ -39,7 +39,7 @@ add_library(sqp STATIC
 )
 
 
-target_link_libraries(ilqr Eigen3::Eigen casadi)
+target_link_libraries(ilqr Eigen3::Eigen casadi pthread)
 target_link_libraries(sqp Eigen3::Eigen casadi ilqr)
 
 install(TARGETS horizon ilqr sqp

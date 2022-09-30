@@ -611,7 +611,11 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
         if(std::fabs(hinf[j]) < 1e-9 &&
                 Cinf.row(j).lpNorm<Eigen::Infinity>() < 1e-9)
         {
-            std::cout << "warn at k = " << i << ": removing linearly dependent constraint \n";
+            if(_verbose)
+            {
+                std::cout << "warn at k = " << i <<
+                             ": removing linearly dependent constraint \n";
+            }
             continue;
         }
 

@@ -5,6 +5,10 @@
 #include <Eigen/Dense>
 #include <memory>
 #include <variant>
+#include <thread>
+#include <condition_variable>
+#include <mutex>
+#include <atomic>
 
 #include "profiling.h"
 #include "iterate_filter.h"
@@ -192,9 +196,17 @@ private:
     typedef std::map<std::string, std::shared_ptr<ConstraintEntity>>
         ConstraintPtrMap;
 
+    void init_thread_pool(int pool_size);
+
     void add_param_to_map(const casadi::Function& f);
 
     void linearize_quadratize();
+
+    void linearize_quadratize_inner(int i);
+
+    void linearize_quadratize_mt();
+
+    void linearize_quadratize_thread_main(int istart, int iend);
 
     void report_result(const ForwardPassResult& fpres);
 
@@ -326,6 +338,15 @@ private:
     Eigen::MatrixXd _lam_bound_u;
 
     std::vector<Temporaries> _tmp;
+
+    std::vector<std::thread> _th_pool;
+    std::condition_variable _th_work_avail_cond;
+    std::mutex _th_work_avail_mtx;
+    std::condition_variable _th_work_done_cond;
+    std::mutex _th_work_done_mtx;
+    int _th_done_flag;
+    int _th_work_available_flag;
+    std::atomic<bool> _th_exit;
 
     CallbackType _iter_cb;
     utils::ProfilingInfo _prof_info;

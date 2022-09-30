@@ -4,6 +4,7 @@ from horizon.problem import Problem
 import numpy as np
 from horizon.utils.utils import barrier as barrier_fun
 
+
 # todo set only minimum or maximum individually
 
 class JointLimitsTask(Task):
@@ -33,7 +34,6 @@ class JointLimitsTask(Task):
         with np.errstate(invalid='ignore'):
             q_max_bound = 0.5 * (q_min + q_max) + 0.5 * (q_max - q_min) * self._bound_scaling
         return q_max_bound
-
 
     def _initialize_bounds(self):
 
@@ -121,3 +121,56 @@ class VelocityLimitsTask(Task):
 
     def setNodes(self, nodes):
         pass
+
+
+class TorqueLimitsTask(Task):
+    def __init__(self, var, bound_scaling=None, *args, **kwargs):  # bound_scaling, fun_type, *args, **kwargs
+
+        self.tau = var
+        self._bound_scaling = 1.0 if bound_scaling is None else bound_scaling
+
+        super().__init__(*args, **kwargs)
+
+        # if self.fun_type == 'constraint':
+        #     self._initialize_bounds()
+        # elif self.fun_type == 'cost':
+        #     self._initialize_cost()
+
+    def _getTauMin(self):
+        pass
+
+    def _getTauMax(self):
+        pass
+
+    def _initialize_bounds(self):
+        pass
+        # self.var.setBounds()
+
+    def _initialize_cost(self):
+        pass
+        # self.prb.createCost(f'j_lim_min', self.weight * self.q_min_cost)
+        # self.prb.createCost(f'j_lim_max', self.weight * self.q_max_cost)
+
+    def setRef(self, var_min, var_max):
+
+        if self.fun_type == 'constraint':
+            self.tau.setBounds(var_min, var_max, self.nodes)
+        # elif self.fun_type == 'cost':
+        #     self.q_min_cost.setBounds(self.q_min, self.q_max, self.nodes)
+        #     self.q_max_cost.setBounds(self.q_min, self.q_max, self.nodes)
+
+    def setNodes(self, nodes):
+        pass
+        # super().setNodes(nodes)
+        #
+        # if not nodes:
+        #     self.nodes = []
+        #
+        # self.nodes = nodes
+        #
+        # if self.fun_type == 'constraint':
+        #     self.tau.setBounds(var_min, var_max, self.nodes)
+        #
+        # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
+        # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
+        # print('===================================')

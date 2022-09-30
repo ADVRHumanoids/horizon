@@ -17,12 +17,15 @@ struct Timer
 
     Timer(const char* name, TocCallback& cb);
 
+    Timer(std::string name, TocCallback& cb);
+
     void toc();
 
     ~Timer();
 
 private:
 
+    std::string _name_str;
     const char * _name;
     hrc::time_point _t0;
     bool _done;

@@ -16,7 +16,8 @@ ms = mat_storer.matStorer(f'{os.path.splitext(os.path.basename(__file__))[0]}.ma
 transcription_method = 'direct_collocation' # 'multiple_shooting'  # direct_collocation
 transcription_opts = dict(integrator='RK4')
 
-urdffile = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../urdf', 'spot.urdf')
+path_to_examples = os.path.abspath(os.path.dirname(__file__) + "/../../examples")
+urdffile = os.path.join(path_to_examples, 'urdf', 'spot.urdf')
 urdf = open(urdffile, 'r').read()
 kindyn = cas_kin_dyn.CasadiKinDyn(urdf)
 
@@ -65,7 +66,7 @@ if load_initial_guess:
 # dt = prb.createInputVariable("dt", 1)  # variable dt as input
 dt = 0.01
 # Computing dynamics
-x, x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
+x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
 prb.setDynamics(x_dot)
 prb.setDt(dt)
 
@@ -162,12 +163,12 @@ R = np.identity(3, dtype=float)  # environment rotation wrt inertial frame
 # intial_rf = FK(q=q_init)['ee_pos']
 
 for frame, f in contact_map.items():
-    FK = cs.Function.deserialize(kindyn.fk(frame))
+    FK = kindyn.fk(frame)
     p = FK(q=q)['ee_pos']
     p_start = FK(q=q_init)['ee_pos']
     p_goal = p_start + [0., 0., 0.3]
 
-    DFK = cs.Function.deserialize(kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED))
+    DFK = kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
     v = DFK(q=q, qdot=q_dot)['ee_vel_linear']
     # velocity of active end effector must be zero
     if frame not in active_leg:
