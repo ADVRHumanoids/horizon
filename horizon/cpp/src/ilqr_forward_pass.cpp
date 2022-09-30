@@ -88,18 +88,27 @@ void IterativeLQR::forward_pass_iter(int i, double alpha)
 
 }
 
-double IterativeLQR::compute_merit_slope(double mu_f, double mu_c,
-                                         double defect_norm, double constr_viol)
+double IterativeLQR::compute_merit_slope(double cost_slope,
+                                         double mu_f,
+                                         double mu_c,
+                                         double defect_norm,
+                                         double constr_viol)
 {
-    TIC(compute_merit_slope);
-
     // see Nocedal and Wright, Theorem 18.2, pg. 541
     // available online http://www.apmath.spbu.ru/cnsa/pdf/monograf/Numerical_Optimization2006.pdf
+
+    return cost_slope - mu_f*defect_norm - mu_c*constr_viol;
+
+}
+
+double IterativeLQR::compute_cost_slope()
+{
+    TIC(compute_cost_slope);
 
     double der = 0.;
 
     Eigen::VectorXd dx, du;
-    dx.setZero(_nx);  // dx[0] = 0
+    dx = _bp_res[0].dx;
 
     for(int i = 0; i < _N; i++)
     {
@@ -108,8 +117,7 @@ double IterativeLQR::compute_merit_slope(double mu_f, double mu_c,
         dx = _dyn[i].A()*dx + _dyn[i].B()*du + _dyn[i].d;
     }
 
-    return der - mu_f*defect_norm - mu_c*constr_viol;
-
+    return der;
 }
 
 double IterativeLQR::compute_merit_value(double mu_f,
@@ -133,7 +141,10 @@ double IterativeLQR::compute_merit_value(double mu_f,
 }
 
 
-std::pair<double, double> IterativeLQR::compute_merit_weights()
+std::pair<double, double> IterativeLQR::compute_merit_weights(
+        double cost_der,
+        double defect_norm,
+        double constr_viol)
 {
     TIC(compute_merit_weights);
 
@@ -163,6 +174,11 @@ std::pair<double, double> IterativeLQR::compute_merit_weights()
     const double merit_safety_factor = 2.0;
     double mu_f = lam_x_max * merit_safety_factor;
     double mu_c = std::max(lam_g_max * merit_safety_factor, 0.0);
+
+//    double g = defect_norm + mu_c/mu_f*constr_viol;
+//    double rho = 0.5;
+//    double mu = 2.0 * cost_der / ((1 - rho)*g);
+//    mu = std::max(mu, 0.0);
 
     return {mu_f, mu_c};
 
@@ -280,7 +296,11 @@ bool IterativeLQR::line_search(int iter)
 
 
     // compute merit function weights
-    auto [mu_f, mu_c] = compute_merit_weights();
+    double cost_der = compute_cost_slope();
+    auto [mu_f, mu_c] = compute_merit_weights(
+            cost_der,
+            _fp_res->defect_norm,
+            _fp_res->constraint_violation);
 
     _fp_res->mu_f = mu_f;
     _fp_res->mu_c = mu_c;
@@ -293,21 +313,19 @@ bool IterativeLQR::line_search(int iter)
             _fp_res->constraint_violation);
 
     // compute merit function directional derivative
-    double merit_der = compute_merit_slope(mu_f, mu_c,
+
+    double merit_der = compute_merit_slope(cost_der,
+            mu_f, mu_c,
             _fp_res->defect_norm,
             _fp_res->constraint_violation);
 
+    _fp_res->f_der = cost_der;
     _fp_res->merit_der = merit_der;
 
     if(iter == 0)
     {
-        IterateFilter::Pair test_pair;
-        test_pair.f = std::numeric_limits<double>::lowest();
-        test_pair.h = _fp_res->defect_norm + _fp_res->constraint_violation;
-        test_pair.h = std::max(10.0*test_pair.h, 1e3);
-        _fp_res->accepted = _it_filt.add(test_pair);
-
-
+        reset_iterate_filter();
+        _fp_res->accepted = true;
     }
 
     _fp_res->alpha = 0;
@@ -334,7 +352,6 @@ bool IterativeLQR::line_search(int iter)
             test_pair.f = _fp_res->cost;
             test_pair.h = _fp_res->defect_norm + _fp_res->constraint_violation;
             _fp_res->accepted = _it_filt.add(test_pair);
-            if(_fp_res->accepted && _verbose) _it_filt.print();
         }
         else
         {
@@ -398,6 +415,15 @@ bool IterativeLQR::line_search(int iter)
     return true;
 }
 
+void IterativeLQR::reset_iterate_filter()
+{
+    _it_filt.clear();
+    IterateFilter::Pair test_pair;
+    test_pair.f = std::numeric_limits<double>::lowest();
+    test_pair.h = _fp_res->defect_norm + _fp_res->constraint_violation;
+    test_pair.h = std::max(1e2*test_pair.h, 1e3);
+}
+
 bool IterativeLQR::should_stop()
 {
 
@@ -430,7 +456,7 @@ bool IterativeLQR::should_stop()
 
     // exit if merit function directional derivative (normalized)
     // is too close to zero
-    if(std::fabs(_fp_res->merit_der) < merit_der_threshold*(1 + _fp_res->merit))
+    if(std::fabs(_fp_res->f_der) < merit_der_threshold*(1 + _fp_res->cost))
     {
         std::cout << "exiting due to small merit derivative \n";
         return true;

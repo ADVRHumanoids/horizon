@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <dlfcn.h>
 
 namespace
 {
@@ -27,7 +28,7 @@ private:
 }
 
 casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string dir)
-{
+{    
     // save cwd
     RestoreCwd rcwd = get_current_dir_name();
 
@@ -48,14 +49,46 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     std::string fname = f.name() + "_generated_" + std::to_string(hash);
     if(access((fname + ".so").c_str(), F_OK) == 0)
     {
+        std::cout << "loading " << fname << "... \n";
+
+        auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
+
+        if(!handle)
+        {
+            std::cout << "failed to load generated function " << fname <<
+                         ": " << dlerror() << "\n";
+            return f;
+        }
+
         return casadi::external(f.name(),
                                 "./" + fname + ".so");
     }
 
     // else, generate and compile
     f.generate(fname + ".c");
-    system(("clang -fPIC -shared -O2 " + fname + ".c -o " + fname + ".so").c_str());
-    return  casadi::external(f.name(),
-                             "./" + fname + ".so");
+
+    std::cout << "compiling " << fname << "... \n";
+
+    int ret = system(("clang -fPIC -shared -O2 " + fname + ".c -o " + fname + ".so").c_str());
+
+    if(ret != 0)
+    {
+        std::cout << "failed to compile generated function " << fname << "\n";
+        return f;
+    }
+
+    std::cout << "loading " << fname << "... \n";
+
+    auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
+
+    if(!handle)
+    {
+        std::cout << "failed to load generated function " << fname <<
+                     ": " << dlerror() << "\n";
+        return f;
+    }
+
+    return casadi::external(f.name(),
+                            "./" + fname + ".so");
 
 }

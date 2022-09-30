@@ -45,10 +45,10 @@ class SolverILQR(Solver):
             # integrator_opt['tf'] = self.dt
             x_int = self.int(self.x, self.u, self.dt)[0]
             dt_name = 'dt'
-            time = cs.SX.sym(dt_name, 0)
+            time = self.prb.default_casadi_type.sym(dt_name, 0)
 
         elif isinstance(self.dt, Parameter):
-            time = cs.SX.sym(self.dt.getName(), 1)
+            time = self.prb.default_casadi_type.sym(self.dt.getName(), 1)
             x_int = self.int(self.x, self.u, time)[0]
             dt_name = self.dt.getName()
             pass

@@ -423,6 +423,11 @@ bool IterativeLQR::auglag_update()
         return false;
     }
 
+    if(_verbose)
+    {
+        std::cout << "[ilqr] performing auglag update \n";
+    }
+
     // grow rho
     _rho *= _rho_growth_factor;
 
@@ -443,7 +448,7 @@ bool IterativeLQR::auglag_update()
 
     _fp_res->mu_b = _lam_bound_u.lpNorm<1>() + _lam_bound_x.lpNorm<1>();
 
-    std::cout << "[ilqr] performing auglag update \n";
+    _fp_res->cost = compute_cost(_fp_res->xtrj, _fp_res->utrj);
 
     return true;
 }
@@ -600,308 +605,22 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
 
     _constraint_to_go->clear();
 
-    for(int i = 0; i < hinf.size(); i++)
+    for(int j = 0; j < hinf.size(); j++)
     {
         // i-th infeasible constraint is in the form 0x = 0
-        if(std::fabs(hinf[i]) < 1e-9 &&
-                Cinf.row(i).lpNorm<Eigen::Infinity>() < 1e-9)
+        if(std::fabs(hinf[j]) < 1e-9 &&
+                Cinf.row(j).lpNorm<Eigen::Infinity>() < 1e-9)
         {
             std::cout << "warn at k = " << i << ": removing linearly dependent constraint \n";
             continue;
         }
 
-        _constraint_to_go->add(Cinf.row(i),
-                               hinf.row(i));
+        _constraint_to_go->add(Cinf.row(j),
+                               hinf.row(j));
     }
 
     return FeasibleConstraint{Cf, Df, hf};
 
 }
-
-void IterativeLQR::compute_constrained_input(Temporaries& tmp, BackwardPassResult& res)
-{
-#if false
-    if(_decomp_type == Qr)
-    {
-        TIC(compute_constrained_input_qr_inner);
-        compute_constrained_input_qr(tmp, res);
-    }
-    else if(_decomp_type == Svd)
-    {
-        TIC(compute_constrained_input_svd_inner);
-        compute_constrained_input_svd(tmp, res);
-    }
-    else
-    {
-        throw std::invalid_argument("invalid decomposition");
-    }
-#endif
-}
-
-void IterativeLQR::compute_constrained_input_svd(Temporaries& tmp, BackwardPassResult& res)
-{
-#if false
-    auto C = _constraint_to_go->C();
-    auto D = _constraint_to_go->D();
-    auto h = _constraint_to_go->h();
-
-    // some shorthands
-    auto& svd = tmp.svd;
-    auto& rotC = tmp.rotC;
-    auto& roth = tmp.roth;
-    auto& lc = tmp.lc;
-    auto& Lc = tmp.Lc;
-    auto& Bz = tmp.Bz;
-
-    // svd of input matrix
-    const double sv_ratio_thr = _svd_threshold;
-    THROW_NAN(D);
-    TIC(constraint_svd_inner);
-    svd.compute(D, Eigen::ComputeFullU|Eigen::ComputeFullV);
-    TOC(constraint_svd_inner);
-    const auto& U = svd.matrixU();
-    const auto& V = svd.matrixV();
-    const auto& sv = svd.singularValues();
-    THROW_NAN(svd.singularValues());
-    THROW_NAN(svd.matrixU());
-    THROW_NAN(svd.matrixV());
-    svd.setThreshold(sv[0]*sv_ratio_thr);
-    int rank = svd.rank();
-    int ns_dim = _nu - rank;
-
-    // rotate constraints
-    rotC.noalias() = U.transpose()*C;
-    roth.noalias() = U.transpose()*h;
-
-    // compute component of control input due to constraints,
-    // i.e. uc = Lc*x + +Lz*z + lc, where:
-    //  *) lc = -V[:, 0:r]*sigma^-1*rot_h
-    //  *) Lz = V[:, r:]
-    //  *) Lc = -V[:, 0:r]*sigma^-1*rot_C
-    TIC(constraint_input_inner);
-    lc.noalias() = -V.leftCols(rank) * roth.head(rank).cwiseQuotient(sv.head(rank));
-    Lc.noalias() = -V.leftCols(rank) * sv.head(rank).cwiseInverse().asDiagonal() * rotC.topRows(rank);
-    Bz.noalias() = V.rightCols(ns_dim);
-    TOC(constraint_input_inner);
-
-    // compute lagrangian multipliers corresponding to the
-    // satisfied component of the constraints, i.e.
-    // lam = Gu*u + Gx*x + g, where:
-    //  *) Gu = -U[:, :r]*sigma^-1*V[:, :r]'*Huu
-    //  *) Gx = -U[:, :r]*sigma^-1*V[:, :r]'*Hux
-    //  *) g = -U[:, :r]*sigma^-1*V[:, :r]'*hu
-    // note: we only compute the g and Gu term (assume dx = 0)
-    TIC(constraint_lagmul_inner);
-    tmp.UrSinvVrT.noalias() = U.leftCols(rank)*sv.head(rank).cwiseInverse().asDiagonal()*V.leftCols(rank).transpose();
-    res.glam = -tmp.UrSinvVrT*tmp.huf;
-    res.Gu = -tmp.UrSinvVrT*tmp.Huuf;
-    // res.Gx = -tmp.UrSinvVrT*tmp.Huxf;
-    TOC(constraint_lagmul_inner);
-
-    // remove satisfied constraints from constraint to go
-    int nc = _constraint_to_go->dim();
-    _constraint_to_go->set(rotC.bottomRows(nc - rank),
-                           roth.tail(nc - rank));
-#endif
-}
-
-
-void IterativeLQR::compute_constrained_input_qr(Temporaries &tmp, BackwardPassResult &res)
-{
-#if false
-    auto C = _constraint_to_go->C();
-    auto D = _constraint_to_go->D();
-    auto h = _constraint_to_go->h();
-
-    THROW_NAN(C);
-    THROW_NAN(D);
-    THROW_NAN(h);
-
-    auto& qr = tmp.qr;
-    auto& lc = tmp.lc;
-    auto& Lc = tmp.Lc;
-    auto& Bz = tmp.Bz;
-
-    // D is fat (we can satisfy all constraints unless rank deficient, and there is
-    // a nullspace control input to further minimize the cost)
-    if(D.rows() < D.cols())
-    {
-        // D' = QR
-        TIC(constraint_qr_inner);
-        qr.compute(D.transpose());
-        TOC(constraint_qr_inner);
-        Eigen::MatrixXd r = qr.matrixQR().triangularView<Eigen::Upper>();
-        THROW_NAN(r);
-
-        // rank estimate
-        int rank = D.rows();
-
-        for(int i = D.rows()-1; i >= 0; --i)
-        {
-            if(std::fabs(r(i, i)) < 1e-9)
-            {
-                --rank;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        // rank deficient case?
-        int rank_def = D.rows() - rank;
-
-        // nullspace left after constraint
-        int ns_dim = D.cols() - rank;
-
-        // r = [r1; 0] =  [r11, r12; 0]
-        Eigen::MatrixXd r1 = r.topRows(rank);
-        Eigen::MatrixXd r11 = r1.leftCols(rank);
-        Eigen::MatrixXd r12 = r1.rightCols(rank_def);
-
-        // q = [q1, q2]
-        TIC(constraint_qr_get_q_inner);
-        Eigen::MatrixXd q = qr.householderQ();
-        TOC(constraint_qr_get_q_inner);
-        Eigen::MatrixXd q1 = q.leftCols(rank);
-        Eigen::MatrixXd q2 = q.rightCols(ns_dim);
-        THROW_NAN(q);
-
-        // we must permute C and h in order to comply
-        // with the qr column-pivoting
-        Eigen::MatrixXd Cp = qr.colsPermutation().transpose()*C;
-        Eigen::VectorXd hp = qr.colsPermutation().transpose()*h;
-
-        // C = [C1; C2], h = [h1; h2]
-        auto C1 = Cp.topRows(rank);
-        auto C2 = Cp.bottomRows(rank_def);
-        auto h1 = hp.head(rank);
-        auto h2 = hp.tail(rank_def);
-
-        // r11^-T
-        TIC(constraint_r11_inv_T_inner);
-        Eigen::MatrixXd r11_t_inv;
-        r11_t_inv.setIdentity(rank, rank);
-        r11.triangularView<Eigen::Upper>().solveInPlace(r11_t_inv);
-        r11_t_inv.transposeInPlace();
-        TOC(constraint_r11_inv_T_inner);
-        THROW_NAN(r11_t_inv);
-
-        // q1*r1^-T
-        TIC(constraint_input_inner);
-        Eigen::MatrixXd q1_r11_t_inv;
-        q1_r11_t_inv.noalias() = q1*r11_t_inv;
-
-        // compute input
-        lc.noalias() = -q1_r11_t_inv*h1;
-        Lc.noalias() = -q1_r11_t_inv*C1;
-        Bz = q2;
-        TOC(constraint_input_inner);
-
-        // compute lag mul
-        TIC(constraint_lagmul_inner);
-        res.Gu.noalias() = -q1_r11_t_inv.transpose()*tmp.Huuf;
-        res.glam.noalias() = -q1_r11_t_inv.transpose()*tmp.huf;
-        TOC(constraint_lagmul_inner);
-
-        // compute unsatisfied constraint portion
-        Eigen::MatrixXd Cu, r12_t_r11_t_inv;
-        Eigen::VectorXd hu;
-        r12_t_r11_t_inv.noalias() = r12.transpose()*r11_t_inv;
-        Cu.noalias() = C2 - r12_t_r11_t_inv*C1;
-        hu.noalias() = h2 - r12_t_r11_t_inv*h1;
-
-        // set unsatisfied constraints to current constraint to go
-        _constraint_to_go->set(Cu, hu);
-    }
-    // D is tall, we can satisfy at most $rank constraints and the rest
-    // must be propagated backwards in time
-    else
-    {
-        // D = QR = Q1*R1
-        TIC(constraint_qr_inner);
-        qr.compute(D);
-        TOC(constraint_qr_inner);
-
-        // rank estimate
-        int rank = D.cols();
-        Eigen::MatrixXd  r = qr.matrixQR().triangularView<Eigen::Upper>();
-        THROW_NAN(r);
-
-        for(int i = D.cols()-1; i >= 0; --i)
-        {
-            if(std::fabs(r(i, i)) < 1e-9)
-            {
-                --rank;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        // rank deficient case creates a nullspace
-        int ns_dim = D.cols() - rank;
-
-        // unsatisfied constraints
-        int nc_left = D.rows() - rank;
-
-        // r = [r1; 0]
-        Eigen::MatrixXd r1 = r.topRows(rank);
-        Eigen::MatrixXd r11 = r1.leftCols(rank);
-        Eigen::MatrixXd r12 = r1.rightCols(ns_dim);
-
-        // q = [q1, q2]
-        TIC(constraint_qr_get_q_inner);
-        Eigen::MatrixXd q = qr.householderQ();
-        TOC(constraint_qr_get_q_inner);
-        Eigen::MatrixXd q1 = q.leftCols(rank);
-        Eigen::MatrixXd q2 = q.rightCols(nc_left);
-        THROW_NAN(q);
-
-        // r1^-1
-        TIC(constraint_r11_inv_inner);
-        Eigen::MatrixXd r11_inv;
-        r11_inv.setIdentity(rank, rank);
-        r11.triangularView<Eigen::Upper>().solveInPlace(r11_inv);
-        TOC(constraint_r11_inv_inner);
-        THROW_NAN(r11_inv);
-
-        // r1^-1*q1^T
-        TIC(constraint_input_inner);
-        Eigen::MatrixXd r11_inv_q1_t;
-        r11_inv_q1_t.noalias() = r11_inv*q1.transpose();
-
-        // compute input
-        lc.resize(_nu);
-        lc.head(rank).noalias() = -r11_inv_q1_t*h;
-        lc.array().tail(ns_dim) = 0;
-        Lc.resize(_nu, _nx);
-        Lc.topRows(rank).noalias() = -r11_inv_q1_t*C;
-        Lc.array().bottomRows(ns_dim) = 0;
-        Bz.resize(_nu, ns_dim);
-        Bz.topRows(rank).noalias() = -r11_inv*r12;
-        Bz.bottomRows(ns_dim).setIdentity(ns_dim, ns_dim);
-
-        // apply permutation to input in order to comply
-        // with qr column pivoting
-        lc = qr.colsPermutation()*lc;
-        Lc = qr.colsPermutation()*Lc;
-        Bz = qr.colsPermutation()*Bz;
-        TOC(constraint_input_inner);
-
-        // compute lagrangian multiplier
-        TIC(constraint_lagmul_inner);
-        res.Gu.noalias() = -r11_inv.transpose()*tmp.Huuf.topRows(rank);
-        res.glam.noalias() = -r11_inv.transpose()*tmp.huf.head(rank);
-        TOC(constraint_lagmul_inner);
-
-        // set unsatisfied constraints to current constraint to go
-        _constraint_to_go->set(q2.transpose()*C, q2.transpose()*h);
-
-    }
-#endif
-}
-
 
 

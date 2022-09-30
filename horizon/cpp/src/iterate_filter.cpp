@@ -25,6 +25,14 @@ bool IterateFilter::is_acceptable(const IterateFilter::Pair &test_pair) const
 
 bool IterateFilter::add(const IterateFilter::Pair &new_pair)
 {
+    for(auto& pair : _entries)
+    {
+        if(pair.dominates(new_pair))
+        {
+            return false;
+        }
+    }
+
     if(!is_acceptable(new_pair))
     {
         return false;

@@ -249,7 +249,7 @@ class Problem:
             print('EXPERIMENTAL: you are setting a vector of dt. Be careful!')
             if len(dt) != self.getNNodes() - 1:
                 raise Exception('Wrong dimension of dt vector.')
-        elif isinstance(dt, (cs.SX, int, float)):
+        elif isinstance(dt, (cs.SX, cs.MX, int, float)):
             pass
         else:
             raise ValueError(f'dt of type: {type(dt)} is not supported.')

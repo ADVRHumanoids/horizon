@@ -1151,8 +1151,8 @@ IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int nu, int N):
 
 void IterativeLQR::ForwardPassResult::print() const
 {
-    printf("%2.2d al=%.3e  reg=%.1e  rho=%.1e  m=%.3e  dm=%.3e  mu_f=%.1e  mu_c=%.1e  mu_b=%.1e  cost=%.3e  du=%.3e  con=%.3e  bound=%.3e  gap=%.3e \n",
-           iter, alpha, hxx_reg, rho, merit, merit_der, mu_f, mu_c, mu_b, cost, step_length, constraint_violation, bound_violation, defect_norm);
+    printf("%2.2d al=%.1e  reg=%.1e  rho=%.1e  m=%.3e  f=%.3e  df=%.3e  mu_f=%.1e  mu_c=%.1e  mu_b=%.1e  du=%.3e  con=%.3e  bound=%.3e  gap=%.3e \n",
+           iter, alpha, hxx_reg, rho, merit, cost, f_der, mu_f, mu_c, mu_b, step_length, constraint_violation, bound_violation, defect_norm);
 }
 
 IterativeLQR::ConstraintToGo::ConstraintToGo(int nx, int nu):

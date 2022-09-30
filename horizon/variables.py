@@ -22,7 +22,7 @@ Formerly
 
 # todo create function checker to check if nodes are in self.nodes and if everything is ok with the input (no dict, no letters...)
 
-class AbstractVariable(ABC, cs.SX):
+class AbstractVariable(ABC):
     """
     Abstract Variable of Horizon Problem.
 
@@ -30,7 +30,7 @@ class AbstractVariable(ABC, cs.SX):
           Horizon allows the user to work only with abstract variables. Internally, these variables are projected over the horizon nodes.
     """
 
-    def __init__(self, tag: str, dim: int):
+    def __init__(self, tag: str, dim: int, casadi_type=cs.SX):
         """
         Initialize the Abstract Variable. Inherits from the symbolic CASADI varaible SX.
 
@@ -38,10 +38,25 @@ class AbstractVariable(ABC, cs.SX):
             tag: name of the variable
             dim: dimension of the variable
         """
-        super().__init__(cs.SX.sym(tag, dim))
 
+        # dynamically add casadi_type as base class 
+        class AVClass(self.__class__, casadi_type):
+            pass
+        
+        self.__class__ = AVClass
+
+        # save the cs type
+        self.casadi_type = casadi_type
+
+        # initialize base class
+        super().__init__(casadi_type.sym(tag, dim))
+
+        # human readable name
         self._tag = tag
+
+        # size (same as self.size1())
         self._dim = dim
+
         # offset of a variable is used to point to the desired previous/next implemented
         # Example:
             # offset 1 of variable x --> refers to implemented variable x at the next node
@@ -74,11 +89,22 @@ class AbstractVariable(ABC, cs.SX):
     #     view = AbstractVariableView(self, item)
     #     return view
 
-class AbstractVariableView(cs.SX):
+class AbstractVariableView:
     def __init__(self, parent: AbstractVariable, var_slice, indices):
+
+        # dynamically add casadi_type as base class
+        class AVVClass(self.__class__, parent.casadi_type):
+            pass
+        
+        self.__class__ = AVVClass
+
+        # initialize base class
         super().__init__(var_slice)
+
+        # save parent and view's indices
         self._parent = parent
         self._indices = indices
+
         # todo debug
         if isinstance(self._indices, slice):
             self._dim = len(range(*self._indices.indices(self._parent.shape[0])))
@@ -99,8 +125,8 @@ class AbstractVariableView(cs.SX):
         return view
 
 
-class OffsetTemplate(AbstractVariable):
-    def __init__(self, parent_name, tag, dim, offset, nodes_array, impl):
+class OffsetTemplate(AbstractVariable):  # note parametrize casadi type!!!
+    def __init__(self, parent_name, tag, dim, offset, nodes_array, impl, casadi_type=cs.SX):
         """
         Initialize the Offset Variable.
 
@@ -113,7 +139,7 @@ class OffsetTemplate(AbstractVariable):
         """
         self._tag = tag
         self._dim = dim
-        super().__init__(tag, dim)
+        super().__init__(tag, dim, casadi_type)
 
         self.parent_name = parent_name
         self._offset = offset
@@ -189,7 +215,7 @@ class SingleParameter(AbstractVariable):
             dim: dimension of the parameter
             dummy_nodes: useless input, used to simplify the framework mechanics
         """
-        super(SingleParameter, self).__init__(tag, dim)
+        super().__init__(tag, dim, casadi_type)
 
         self._casadi_type = casadi_type
         self._nodes_array = nodes_array
@@ -340,7 +366,7 @@ class Parameter(AbstractVariable):
             dim: dimension of the parameter
             nodes: nodes the parameter is implemented at
         """
-        super(Parameter, self).__init__(tag, dim)
+        super().__init__(tag, dim, casadi_type)
 
         self._casadi_type = casadi_type
 
@@ -523,7 +549,7 @@ class Parameter(AbstractVariable):
             createTag = lambda name, node: name + str(node) if node is not None else name
 
             new_tag = createTag(self._tag, node)
-            par = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl)
+            par = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl, self.casadi_type)
 
             self._par_offset[node] = par
         return par
@@ -597,7 +623,7 @@ class SingleVariable(AbstractVariable):
             dim: dimension of the variable
             nodes_array: binary array specifying which node is active
         """
-        super(SingleVariable, self).__init__(tag, dim)
+        super().__init__(tag, dim, casadi_type)
 
         self._casadi_type = casadi_type
         self._nodes_array = nodes_array
@@ -877,7 +903,7 @@ class Variable(AbstractVariable):
             dim: dimension of the variable
             nodes_array: binary array specifying the variable is defined on
         """
-        super(Variable, self).__init__(tag, dim)
+        super().__init__(tag, dim, casadi_type)
 
         self._casadi_type = casadi_type
         self._nodes_array = np.array(nodes_array)
@@ -991,7 +1017,7 @@ class Variable(AbstractVariable):
             createTag = lambda name, node: name + str(node) if node is not None else name
 
             new_tag = createTag(self._tag, node)
-            var = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl)
+            var = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl, self.casadi_type)
 
             self.var_offset[node] = var
         return var

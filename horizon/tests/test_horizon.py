@@ -67,7 +67,7 @@ def test_singleVariable():
     u = prb.createSingleVariable('u', 2)
     prb.setDynamics(x)
     prb.setDt(dt)
-    constr1 = prb.createIntermediateConstraint('constr', x[2] ** 2 + u[1:3])
+    constr1 = prb.createIntermediateConstraint('constr', x[2] ** 2 + u[1:2])
 
     constr1.setBounds(1, 1)
 

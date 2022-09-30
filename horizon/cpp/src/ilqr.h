@@ -140,6 +140,7 @@ public:
         double mu_f;
         double mu_c;
         double mu_b;
+        double f_der;
         double merit_der;
         double step_length;
         double constraint_violation;
@@ -192,32 +193,70 @@ private:
         ConstraintPtrMap;
 
     void add_param_to_map(const casadi::Function& f);
+
     void linearize_quadratize();
+
     void report_result(const ForwardPassResult& fpres);
+
     void backward_pass();
+
     void backward_pass_iter(int i);
+
     void optimize_initial_state();
+
     void increase_regularization();
+
     void reduce_regularization();
+
     FeasibleConstraint handle_constraints(int i);
+
     void add_bound_constraint(int k);
+
     bool auglag_update();
-    void compute_constrained_input(Temporaries& tmp, BackwardPassResult& res);
-    void compute_constrained_input_svd(Temporaries& tmp, BackwardPassResult& res);
-    void compute_constrained_input_qr(Temporaries& tmp, BackwardPassResult& res);
-    double compute_merit_value(double mu_f, double mu_c, double cost, double defect_norm, double constr_viol);
-    double compute_merit_slope(double mu_f, double mu_c, double defect_norm, double constr_viol);
-    std::pair<double, double> compute_merit_weights();
-    double compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj);
-    double compute_bound_penalty(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj);
-    double compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj);
-    double compute_defect(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj);
+
+    double compute_merit_value(double mu_f,
+                               double mu_c,
+                               double cost,
+                               double defect_norm,
+                               double constr_viol);
+
+    double compute_merit_slope(double cost_slope,
+                               double mu_f,
+                               double mu_c,
+                               double defect_norm,
+                               double constr_viol);
+
+    double compute_cost_slope();
+
+    std::pair<double, double> compute_merit_weights(double cost_der, double defect_norm, double constr_viol);
+
+    double compute_cost(const Eigen::MatrixXd& xtrj,
+                        const Eigen::MatrixXd& utrj);
+
+    double compute_bound_penalty(const Eigen::MatrixXd& xtrj,
+                                 const Eigen::MatrixXd& utrj);
+
+    double compute_constr(const Eigen::MatrixXd& xtrj,
+                          const Eigen::MatrixXd& utrj);
+
+    double compute_defect(const Eigen::MatrixXd& xtrj,
+                          const Eigen::MatrixXd& utrj);
+
     bool forward_pass(double alpha);
+
     void forward_pass_iter(int i, double alpha);
+
     bool line_search(int iter);
+
+    void reset_iterate_filter();
+
     bool should_stop();
+
     void set_default_cost();
+
     bool fixed_initial_state();
+
+
 
     enum DecompositionType
     {
