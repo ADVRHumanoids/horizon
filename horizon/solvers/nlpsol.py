@@ -188,7 +188,7 @@ class NlpsolSolver(Solver):
 
         # build dt_solution as an array
         self._createDtSol()
-
+        
         return self.solver.stats()['success']
 
     def getSolutionDict(self):
