@@ -183,7 +183,7 @@ class ForwardDynamics():
         self.fd = kindyn.aba()
         self.contact_jacobians = dict()
         for frame in contact_frames:
-            self.contact_jacobians[frame] = cs.Function.deserialize(kindyn.jacobian(frame, force_reference_frame))
+            self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
     def call(self, q, qdot, tau, frame_force_mapping=dict(), eval_num=False):
         """
