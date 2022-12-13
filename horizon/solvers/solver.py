@@ -49,7 +49,6 @@ class Solver(ABC):
             if opts is not None:
                 if 'gnsqp.qp_solver' in opts:
                     qp_solver = opts['gnsqp.qp_solver']
-                    del opts['gnsqp.qp_solver']
             ret = sqp.GNSQPSolver(prb, opts, qp_solver)
         else:
             raise KeyError(f'unsupperted solver type "{type}"')

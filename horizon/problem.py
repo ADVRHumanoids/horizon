@@ -84,7 +84,7 @@ class Problem:
             raise RuntimeError('createStateVariable must be called *before* setDynamics')
 
         # binary array to select which nodes are "active" for the variable. In this case, all of them
-        nodes_array = np.ones(self.nodes)
+        nodes_array = np.ones(self.nodes).astype(int)
 
         var = self.var_container.setStateVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         self.state_aggr.addVariable(var)
@@ -105,7 +105,7 @@ class Problem:
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
         # binary array to select which nodes are "active" for the variable. In this case, all of them
-        nodes_array = np.ones(self.nodes)
+        nodes_array = np.ones(self.nodes).astype(int)
         nodes_array[-1] = 0
 
         var = self.var_container.setInputVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
@@ -127,7 +127,7 @@ class Problem:
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        nodes_array = np.ones(self.nodes)  # dummy, cause it is the same on all the nodes
+        nodes_array = np.ones(self.nodes).astype(int)  # dummy, cause it is the same on all the nodes
 
         var = self.var_container.setSingleVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return var
@@ -153,8 +153,8 @@ class Problem:
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        nodes_array = np.ones(self.nodes) if nodes is None else \
-            misc.getBinaryFromNodes(self.nodes, misc.checkNodes(nodes, np.ones(self.nodes))[0])
+        nodes_array = np.ones(self.nodes).astype(int) if nodes is None else \
+            misc.getBinaryFromNodes(self.nodes, misc.checkNodes(nodes, np.ones(self.nodes))).astype(int)
 
         var = self.var_container.setVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return var
@@ -178,7 +178,8 @@ class Problem:
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        nodes_array = np.zeros(self.nodes)
+
+        nodes_array = np.zeros(self.nodes).astype(int)
         nodes_array[nodes] = 1
 
         par = self.var_container.setParameter(name, dim, nodes_array, casadi_type, abstract_casadi_type)
@@ -201,7 +202,7 @@ class Problem:
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        nodes_array = np.ones(self.nodes)
+        nodes_array = np.ones(self.nodes).astype(int)
         par = self.var_container.setSingleParameter(name, dim, nodes_array, casadi_type, abstract_casadi_type)
         return par
 
@@ -424,9 +425,9 @@ class Problem:
         #   createConstraint(nodes) calls _createFun(nodes) that insides calls fc.Constraint or fc.Cost with array nodes
         if nodes is None:
             # all the nodes
-            active_nodes_array = np.ones(self.nodes)
+            active_nodes_array = np.ones(self.nodes).astype(int)
         else:
-            active_nodes_array = misc.getBinaryFromNodes(self.nodes, nodes)
+            active_nodes_array = misc.getBinaryFromNodes(self.nodes, nodes).astype(int)
 
             # nodes = misc.checkNodes(nodes, range(self.nodes))
 
@@ -501,9 +502,9 @@ class Problem:
         """
         # todo add guards
         if nodes is None:
-            nodes_array = np.ones(self.nodes)
+            nodes_array = np.ones(self.nodes).astype(int)
         else:
-            nodes_array = misc.getBinaryFromNodes(self.nodes, nodes)
+            nodes_array = misc.getBinaryFromNodes(self.nodes, nodes).astype(int)
             # nodes = misc.checkNodes(nodes, range(self.nodes))
 
         used_var = self._getUsedVar(j)
@@ -578,9 +579,9 @@ class Problem:
         """
         # todo add guards
         if nodes is None:
-            nodes_array = np.ones(self.nodes)
+            nodes_array = np.ones(self.nodes).astype(int)
         else:
-            nodes_array = misc.getBinaryFromNodes(self.nodes, nodes)
+            nodes_array = misc.getBinaryFromNodes(self.nodes, nodes).astype(int)
 
         used_var = self._getUsedVar(j)
         used_par = self._getUsedPar(j)
@@ -866,7 +867,7 @@ class Problem:
             var_name = var.getName()
             # careful about ordering
             # todo this is very ugly, but what can I do (wanted to do it without the if)
-            if isinstance(var, sv.SingleVariable):
+            if True or isinstance(var, sv.SingleVariable):
                 all_vars.append(solution[var_name])
             else:
                 # this is required because:
@@ -884,7 +885,7 @@ class Problem:
         for par in fun.getParameters():
             # careful about ordering
             # todo this is very ugly, but what can I do (wanted to do it without the if)
-            if isinstance(par, sv.SingleParameter):
+            if True or isinstance(par, sv.SingleParameter):
                 all_pars.append(par.getValues())
             else:
                 par_matrix = np.reshape(par.getValues(), (par.getDim(), len(par.getNodes())), order='F')

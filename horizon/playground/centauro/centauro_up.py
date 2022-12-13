@@ -102,11 +102,10 @@ urdf = urdf.replace('continuous', 'revolute')
 
 kd = pycasadi_kin_dyn.CasadiKinDyn(urdf, fixed_joints=fixed_joint_map)
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
-joint_names = kd.joint_names()[2:]
 q_init = {k: v for k, v in q_init.items() if k not in fixed_joint_map.keys()}
 
 # set up problem
-N = 1000
+N = 100
 tf = 10.0
 dt = tf / N
 
@@ -138,7 +137,7 @@ init_force = ti.getTask('joint_regularization')
 # init_force.setRef(2, f0)
 
 final_base_x = ti.getTask('final_base_xy')
-final_base_x.setRef([1, 0, 0, 0, 0, 0, 1])
+final_base_x.setRef([.6, 0, 0, 0, 0, 0, 1])
 
 
 # final_base_y = ti.getTask('base_posture')
@@ -146,9 +145,13 @@ final_base_x.setRef([1, 0, 0, 0, 0, 0, 1])
 
 opts = dict()
 am = ActionManager(ti, opts)
+goal_step = [0.0, 0.0, 0.3]
+n_start_step = 30
+n_goal_step = 35
+
 # am._walk([10, 40], [0, 3])
-am._step(Step(frame='contact_1', k_start=30, k_goal=35, goal=[0, 0, 0.1]))
-am._step(Step(frame='contact_2', k_start=30, k_goal=35, goal=[0, 0, 0.1]))
+am._step(Step(frame='contact_1', k_start=n_start_step, k_goal=n_goal_step, goal=goal_step))
+am._step(Step(frame='contact_2', k_start=n_start_step, k_goal=n_goal_step, goal=goal_step))
 
 # contact_1 = ti.getTask('foot_contact_contact_1')
 # contact_1.setNodes(list(range(5)) + list(range(15, 50)))
@@ -176,6 +179,12 @@ a = ti.prb.getVariables('a')
 # h_lin, h_ang, dh_lin, dh_ang = cd_fun(q, v, a)
 # ti.prb.createIntermediateResidual('min_angular_mom', 0.1 * dh_ang)
 
+# continuity of forces
+continuity_force_w = 5e-2
+for f_name, f_var in model.fmap.items():
+    f_var_prev = f_var.getVarOffset(-1)
+    prb.createIntermediateResidual(f'continuity_force_{f_name}', continuity_force_w * (f_var - f_var_prev), range(1, prb.getNNodes() - 2))
+
 q.setBounds(ti.model.q0, ti.model.q0, nodes=0)
 v.setBounds(ti.model.v0, ti.model.v0, nodes=0)
 
@@ -201,9 +210,9 @@ ti.finalize()
 ti.bootstrap()
 solution = ti.solution
 ti.resample(0.001)
-ti.save_solution('/tmp/dioboy.mat')
-# ti.replay_trajectory()
-
+ti.save_solution('centauro_up.mat')
+ti.replay_trajectory()
+exit()
 
 n_nodes = ti.prb.getNNodes()
 nodes_vec = np.zeros([n_nodes])

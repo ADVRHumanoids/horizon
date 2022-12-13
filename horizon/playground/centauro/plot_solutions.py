@@ -10,7 +10,7 @@ from horizon.ros.replay_trajectory import *
 import os
 import matplotlib.pyplot as plt
 
-ms = mat_storer.matStorer('/tmp/dioboy.mat')
+ms = mat_storer.matStorer('centauro_up.mat')
 solution = ms.load()
 
 n_q = solution['q'].shape[0]
@@ -45,11 +45,9 @@ for i in range(1, num_samples_res):
 plt.figure()
 for dim in range(a.shape[0]):
     plt.plot(t_nodes[:-1], a[dim, :])
-
 plt.title('a')
 
-plt.show()
-exit()
+plt.figure()
 for dim in range(q.shape[0]):
     plt.scatter(t_nodes, q[dim, :])
 
@@ -62,18 +60,19 @@ plt.figure()
 for dim in range(tau[:6].shape[0]):
     plt.scatter(t_nodes[:-1], tau[dim, :])
 
-for dim in range(tau_res[:6].shape[0]):
+for dim in range(tau[:6].shape[0]):
     plt.plot(t_nodes_res[:-1], tau_res[dim, :])
 plt.title('tau_base')
 
 # plot tau
 plt.figure()
-for dim in range(tau.shape[0]):
+for dim in range(6, tau.shape[0]):
+    print(dim)
     plt.scatter(t_nodes[:-1], tau[dim, :])
 
-for dim in range(tau_res.shape[0]):
+for dim in range(6, tau_res[6:].shape[0]):
     plt.plot(t_nodes_res[:-1], tau_res[dim, :])
-plt.title('tau')
+plt.title('tau_joints')
 
 plt.show()
 

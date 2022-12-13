@@ -84,9 +84,23 @@ void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
 
 void WrappedFunction::call(bool sparse)
 {
-    // call function (allocation-free)
     casadi_int mem = _f.checkout();
-    _f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem);
+
+    {
+#ifdef HORIZON_PROFILING
+        horizon::utils::Timer tm("call_" + _f.name() + "_inner",
+                                 on_timer_toc);
+#endif
+
+        // call function (allocation-free)
+
+        _f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem);
+    }
+
+#ifdef HORIZON_PROFILING
+    horizon::utils::Timer tm("csc_to_matrix_" + _f.name() + "_inner",
+                             on_timer_toc);
+#endif
 
     // copy all outputs to dense matrices
     for(int i = 0; i < _f.n_out(); ++i)

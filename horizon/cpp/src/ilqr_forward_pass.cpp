@@ -322,16 +322,18 @@ bool IterativeLQR::line_search(int iter)
     _fp_res->f_der = cost_der;
     _fp_res->merit_der = merit_der;
 
-    if(iter == 0)
+    if(iter == 0 && !_rti)
     {
         reset_iterate_filter();
         _fp_res->accepted = true;
+
+        _fp_res->alpha = 0;
+        _fp_res->accepted = iter == 0;
+        _fp_res->merit = merit;
+        report_result(*_fp_res);
     }
 
-    _fp_res->alpha = 0;
-    _fp_res->accepted = iter == 0;
-    _fp_res->merit = merit;
-    report_result(*_fp_res);
+
 
     // run line search
     while(alpha >= alpha_min)
@@ -408,6 +410,9 @@ bool IterativeLQR::line_search(int iter)
 
     _xtrj = _fp_res->xtrj;
     _utrj = _fp_res->utrj;
+
+    // save result in history
+    _fp_res_history.push_back(*_fp_res);
 
     // note: we should update the lag mult at the solution
     // by including the dx part

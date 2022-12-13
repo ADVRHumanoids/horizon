@@ -12,6 +12,7 @@ np.set_printoptions(precision=3, suppress=True)
 class FullModelInverseDynamics:
     
     def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, **kwargs):
+        # todo: adding contact dict
 
         if fixed_joint_map is None:
             fixed_joint_map = {}
@@ -92,7 +93,9 @@ class FullModelInverseDynamics:
         return force
 
     def _make_vertex_contact(self, contact_frame, contact_params):
-        
+
+        # todo WARNING: contact_params['vertex_frames'] must be a list!!!!!!!!!!!!!!!!!
+
         vertex_frames = contact_params['vertex_frames']  # todo improve error
 
         # create inputs (todo: support degree > 0)
@@ -122,7 +125,7 @@ class FullModelInverseDynamics:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 
     def getContacts(self):
-        return self.cmap.keys()
+        return list(self.cmap.keys())
 
     # def getInput(self):
     #     return self.a
@@ -212,7 +215,7 @@ class SingleRigidBodyDynamicsModel:
         if self.use_kinodynamic:
             # note: base acceleration computation is postponed to setDynamics.
             # when we'll know the forces
-            self.aj =  self.prb.createInputVariable('aj', self.nv - 6)
+            self.aj = self.prb.createInputVariable('aj', self.nv - 6)
         else:
             self.a = self.prb.createInputVariable('a', self.nv)
 

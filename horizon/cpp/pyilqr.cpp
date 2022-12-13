@@ -3,7 +3,7 @@
 PYBIND11_MODULE(pyilqr, m) {
 
     py::class_<IterativeLQR::ForwardPassResult>(m, "ForwardPassResult")
-            .def("print", &IterativeLQR::ForwardPassResult::print)
+            .def("print", &IterativeLQR::ForwardPassResult::print, py::arg("N") = 1)
             .def_readonly("xtrj", &IterativeLQR::ForwardPassResult::xtrj)
             .def_readonly("utrj", &IterativeLQR::ForwardPassResult::utrj)
             .def_readonly("accepted", &IterativeLQR::ForwardPassResult::accepted)
@@ -44,6 +44,7 @@ PYBIND11_MODULE(pyilqr, m) {
             .def("input", &IterativeLQR::input)
             .def("gain", &IterativeLQR::gain)
             .def("getProfilingInfo", &IterativeLQR::getProfilingInfo)
+            .def("getIterationHistory", &IterativeLQR::getIterationHistory)
             .def("setIterationCallback", &IterativeLQR::setIterationCallback)
             .def("getStateTrajectory", &IterativeLQR::getStateTrajectory)
             .def("getInputTrajectory", &IterativeLQR::getInputTrajectory)

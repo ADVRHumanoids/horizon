@@ -146,7 +146,7 @@ class replay_trajectory:
         '''
         self.slow_down_rate = 1./slow_down_factor
 
-    def publish_joints(self, qk, is_floating_base=True, base_link='base_link'):
+    def publish_joints(self, qk, is_floating_base=True, base_link='base_link', skip_tf=False):
 
         joint_state_pub = JointState()
         joint_state_pub.header = Header()
@@ -156,6 +156,9 @@ class replay_trajectory:
         nq = len(qk)
 
         for iq, (parent, child) in zip(self.iq_floating, self.parent_child_floating):
+
+            if skip_tf:
+                break
 
             q = normalize_quaternion(qk[iq:iq+7])
 

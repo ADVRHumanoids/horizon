@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 
-utils::Timer::TocCallback on_timer_toc;
+utils::Timer::TocCallback on_timer_toc = [](const char*, double){};
 
 template<class V>
 std::type_info const& var_type(V const& v){
@@ -69,8 +69,8 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _svd_threshold(1e-6),
     _constraint_violation_threshold(1e-6),
     _defect_norm_threshold(1e-6),
-    _merit_der_threshold(1e-6),
-    _step_length_threshold(1e-6),
+    _merit_der_threshold(1e-3),
+    _step_length_threshold(1e-9),
     _cost(N+1, IntermediateCost(_nx, _nu)),
     _constraint(N+1, Constraint(_nx, _nu)),
     _value(N+1, ValueFunction(_nx)),
@@ -85,6 +85,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     // set options _hxx_reg_base
     _verbose = value_or(opt, "ilqr.verbose", 0);
     _log = value_or(opt, "ilqr.log", 0);
+    _rti = value_or(opt, "ilqr.rti", 0);
     _step_length = value_or(opt, "ilqr.step_length", 1.0);
 
     _rho_base = value_or(opt, "ilqr.rho_base", 0.0);
@@ -102,8 +103,8 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _svd_threshold = value_or(opt, "ilqr.svd_threshold", 1e-6);
     _constraint_violation_threshold = value_or(opt, "ilqr.constraint_violation_threshold", 1e-6);
     _defect_norm_threshold = value_or(opt, "ilqr.defect_norm_threshold", 1e-6);
-    _merit_der_threshold = value_or(opt, "ilqr.merit_der_threshold", 1e-6);
-    _step_length_threshold = value_or(opt, "ilqr.step_length_threshold", 1e-6);
+    _merit_der_threshold = value_or(opt, "ilqr.merit_der_threshold", 1e-3);
+    _step_length_threshold = value_or(opt, "ilqr.step_length_threshold", 1e-9);
     _closed_loop_forward_pass = value_or(opt, "ilqr.closed_loop_forward_pass", 1);
     _codegen_workdir = value_or<std::string>(opt, "ilqr.codegen_workdir", "/tmp");
     _codegen_enabled = value_or(opt, "ilqr.codegen_enabled", 0);
@@ -174,10 +175,11 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     // add auglag cost
     for(int i = 0; i < _N+1; i++)
     {
+        int ui = std::min(i, _N-1);
         auto al = std::make_shared<BoundAuglagCostEntity>(
                     _N,
                     _x_lb.col(i), _x_ub.col(i),
-                    _u_lb.col(i), _u_ub.col(i));
+                    _u_lb.col(ui), _u_ub.col(ui));
 
         al->setRho(_rho);
 
@@ -282,7 +284,7 @@ void IterativeLQR::setResidual(std::vector<int> indices,
     add_param_to_map(residual);
 
     // create cost entity
-    auto c = std::make_shared<IntermediateResidualEntity>();
+    auto c = std::make_shared<IntermediateCostEntity>();
 
     // add to map
     _cost_map[residual.name()] = c;
@@ -294,17 +296,61 @@ void IterativeLQR::setResidual(std::vector<int> indices,
     c->indices = indices;
 
     // set cost and derivatives
-    auto cost = residual;
-    auto jac = IntermediateResidualEntity::Jacobian(cost);
+    auto res = residual;
+    auto jac = IntermediateResidualEntity::Jacobian(res);
 
     // codegen if required (we skip it for quadratic costs)
     if(_codegen_enabled)
     {
-        cost = utils::codegen(cost, _codegen_workdir);
+        res = utils::codegen(res, _codegen_workdir);
         jac = utils::codegen(jac, _codegen_workdir);
     }
 
-    c->setResidual(cost, jac);
+    // local syms to evaluate residual and jacobian
+    auto x_mx = casadi::MX::sym("x", _nx);
+    auto u_mx = casadi::MX::sym("u", _nu);
+    std::vector<casadi::MX> vars = {x_mx, u_mx};
+    std::vector<std::string> var_names = {"x", "u"};
+
+    for(int i = 2; i < residual.n_in(); i++)
+    {
+        vars.push_back(casadi::MX::sym(residual.name_in(i),
+                                       residual.size1_in(i)));
+
+        var_names.push_back(residual.name_in(i));
+    }
+
+    // compute res, Jx, Ju
+    auto r = res(vars)[0];
+    auto J = jac(vars);
+    auto& Jx = J[0];
+    auto& Ju = J[1];
+
+    // functions
+    auto mul = [](auto a, auto b)
+    {
+        return casadi::MX::mtimes(a, b);
+    };
+
+    auto cost_fn = casadi::Function(residual.name() + "_cost",
+                                    vars,
+                                    {0.5 * casadi::MX::sumsqr(r)},
+                                    var_names, {"f"});
+
+    auto grad_fn = casadi::Function(residual.name() + "_grad",
+                                    vars,
+                                    {mul(Jx.T(), r), mul(Ju.T(), r)},
+                                    var_names,
+                                    {"grad_x", "grad_u"});
+
+    auto hess_fn = casadi::Function(residual.name() + "_gn_hess",
+                                    vars,
+                                    {mul(Jx.T(), Jx), mul(Ju.T(), Ju), mul(Ju.T(), Jx)},
+                                    var_names,
+                                    {"hess_x_x", "hess_u_u", "hess_u_x"});
+
+    c->setCost(cost_fn, grad_fn, hess_fn);
+
 
     if(_verbose) std::cout << "adding residual '" << residual << "' at k = ";
 
@@ -542,6 +588,11 @@ const Eigen::MatrixXd &IterativeLQR::getInputTrajectory() const
 const utils::ProfilingInfo& IterativeLQR::getProfilingInfo() const
 {
     return _prof_info;
+}
+
+const std::vector<IterativeLQR::ForwardPassResult>& IterativeLQR::getIterationHistory() const
+{
+    return _fp_res_history;
 }
 
 bool IterativeLQR::solve(int max_iter)
@@ -1251,10 +1302,10 @@ IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int nu, int N):
     mu_b = 0;
 }
 
-void IterativeLQR::ForwardPassResult::print() const
+void IterativeLQR::ForwardPassResult::print(int N) const
 {
     printf("%2.2d al=%.1e  reg=%.1e  rho=%.1e  m=%.3e  f=%.3e  df=%.3e  mu_f=%.1e  mu_c=%.1e  mu_b=%.1e  du=%.3e  con=%.3e  bound=%.3e  gap=%.3e \n",
-           iter, alpha, hxx_reg, rho, merit, cost, f_der, mu_f, mu_c, mu_b, step_length, constraint_violation, bound_violation, defect_norm);
+           iter, alpha, hxx_reg, rho, merit/N, cost/N, f_der/N, mu_f, mu_c, mu_b, step_length, constraint_violation/N, bound_violation, defect_norm/N);
 }
 
 IterativeLQR::ConstraintToGo::ConstraintToGo(int nx, int nu):

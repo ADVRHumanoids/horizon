@@ -1,0 +1,222 @@
+solver:
+  type: ilqr
+#  print_time: 0
+#  ipopt.print_level: 0
+#  ipopt.sb: "yes"
+  ipopt.linear_solver: ma57
+#  ipopt.tol: 1e-3
+#  ipopt.constr_viol_tol: 1e-3
+#  ipopt.max_iter: 200
+#  ipopt.hessian_approximation: limited-memory
+  ilqr.verbose: false
+  ilqr.codegen_enabled: true
+  ilqr.codegen_workdir: /tmp/miao
+  ilqr.enable_gn: true
+  ilqr.max_iter: 200
+  ilqr.hxx_reg_base: 0.0
+  ilqr.n_threads: 0
+
+
+constraints:
+ - foot_contact_lf_foot        # required from the ActionManager
+ - foot_contact_lh_foot        # required from the ActionManager
+ - foot_contact_rf_foot        # required from the ActionManager
+ - foot_contact_rh_foot        # required from the ActionManager
+ - foot_z_lf_foot         # required from the ActionManager
+ - foot_z_lh_foot         # required from the ActionManager
+ - foot_z_rf_foot         # required from the ActionManager
+ - foot_z_rh_foot         # required from the ActionManager
+ - foot_xy_lf_foot        # required from the ActionManager
+ - foot_xy_lh_foot        # required from the ActionManager
+ - foot_xy_rf_foot        # required from the ActionManager
+ - foot_xy_rh_foot        # required from the ActionManager
+ -
+costs:
+  - final_arm_ee          # required to set xy-target for the walk
+  - joint_posture_dog
+  - joint_posture_arm
+#  - joint_posture_ankles
+  - joint_regularization
+  # - final_posture
+#  - base_posture
+
+#
+#final_base_xy:
+#  type: Cartesian
+#  distal_link: base_link
+#  indices: [0, 1]
+#  nodes: 50
+#  weight: 50
+
+final_arm_ee:
+  type: Cartesian
+  distal_link: teleop2_link6
+  indices: [0, 1, 2]
+  nodes: ${range(10, 20)}
+  weight: 1e2
+
+# ===============================
+# point contact
+force_lf_foot:
+  type: VertexForce
+  frame: lf_foot
+  fn_min: 10.0
+  vertex_frames:
+    - lf_foot
+
+force_lh_foot:
+  type: VertexForce
+  frame: lh_foot
+  fn_min: 10.0
+  vertex_frames:
+    - lh_foot
+
+force_rf_foot:
+  type: VertexForce
+  frame: rf_foot
+  fn_min: 10.0
+  vertex_frames:
+    - rf_foot
+
+force_rh_foot:
+  type: VertexForce
+  frame: rh_foot
+  fn_min: 10.0
+  vertex_frames:
+    - rh_foot
+
+# ====================================
+
+zero_velocity_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+
+zero_velocity_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+
+zero_velocity_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+
+zero_velocity_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [0, 1, 2]
+  nodes: all
+  cartesian_type: velocity
+
+
+  # ====================================
+
+foot_contact_lf_foot:
+  type: Contact
+  subtask: [force_lf_foot, zero_velocity_lf_foot]
+
+foot_contact_lh_foot:
+  type: Contact
+  subtask: [force_lh_foot, zero_velocity_lh_foot]
+
+foot_contact_rf_foot:
+  type: Contact
+  subtask: [force_rf_foot, zero_velocity_rf_foot]
+
+foot_contact_rh_foot:
+  type: Contact
+  subtask: [force_rh_foot, zero_velocity_rh_foot]
+
+joint_posture_dog:
+  type: Postural
+  weight: 2 # 10
+  nodes: all
+  indices: ${range(6, 18)}
+
+joint_posture_arm:
+  type: Postural
+  weight: 2 # 10
+  indices: ${range(0, 6)}
+  nodes: all
+
+#base_posture:
+#  type: Cartesian
+#  indices: [0, 1, 2, 3, 4]
+#  weight: 10
+#  distal_link: pelvis
+#  nodes: all
+
+#final_posture:
+#  type: Postural
+#  weight: 50. # 10
+#  nodes: final
+
+
+# todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they wont get considered.
+joint_regularization:
+  type: Regularization
+  nodes: all
+  weight:
+#    velocity: 0.5
+    acceleration: 0.1 # 0.01
+    force: 0.01 # todo <----- how to do? if there are more forces...
+
+
+foot_z_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [2]
+  cartesian_type: position
+
+foot_z_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [2]
+  cartesian_type: position
+
+
+foot_xy_lf_foot:
+  type: Cartesian
+  distal_link: lf_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_lh_foot:
+  type: Cartesian
+  distal_link: lh_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_rf_foot:
+  type: Cartesian
+  distal_link: rf_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+foot_xy_rh_foot:
+  type: Cartesian
+  distal_link: rh_foot
+  indices: [0, 1]
+  cartesian_type: position
+
+
+

@@ -101,6 +101,12 @@ public:
         _hessian_computation_time.reserve(_max_iter);
         _qp_computation_time.reserve(_max_iter);
         _line_search_time.reserve(_max_iter);
+
+        _fpr.bound_violation = NAN;
+        _fpr.defect_norm = NAN;
+        _fpr.mu_b = NAN;
+        _fpr.mu_f = NAN;
+        _fpr.rho = NAN;
     }
 
     /**
@@ -153,6 +159,7 @@ public:
         if(_qp_opts.count("eps_regularization"))
         {
             _eps_regularization = _qp_opts.at("eps_regularization");
+            _eps_regularization_base = _eps_regularization;
             _qp_opts.erase("eps_regularization");
         }
 
@@ -262,7 +269,7 @@ public:
 
     bool lineSearch(Eigen::VectorXd& x, const Eigen::VectorXd& dx, const Eigen::VectorXd& lam_x, const Eigen::VectorXd& lam_a,
                     const casadi::DM& lbg, const casadi::DM& ubg,
-                    const casadi::DM& lbx, const casadi::DM& ubx);
+                    const casadi::DM& lbx, const casadi::DM& ubx, int iter);
 
     void f(const CASADI_TYPE& f, const CASADI_TYPE& x, bool reinitialize_qp_solver = true)
     {
@@ -506,6 +513,7 @@ private:
     double _merit_derivative_tolerance;
 
     double _eps_regularization = 0.0;
+    double _eps_regularization_base = 0.0;
 
     bool _use_gr;
 

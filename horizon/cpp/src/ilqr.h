@@ -122,6 +122,8 @@ public:
 
     const utils::ProfilingInfo& getProfilingInfo() const;
 
+    const std::vector<ForwardPassResult>& getIterationHistory() const;
+
     VecConstRef state(int i) const;
 
     VecConstRef input(int i) const;
@@ -156,7 +158,8 @@ public:
         Eigen::MatrixXd defect_values;
 
         ForwardPassResult(int nx, int nu, int N);
-        void print() const;
+
+        void print(int N = 1) const;
     };
 
 
@@ -272,13 +275,14 @@ private:
 
     enum DecompositionType
     {
-        Ldlt, Qr, Lu, Cod, Svd
+        Ldlt, Qr, Lu, Cod, Svd, ReducedHessian
     };
 
     static DecompositionType str_to_decomp_type(const std::string& dt_str);
 
     bool _verbose;
     bool _log;
+    bool _rti;
 
     const int _nx;
     const int _nu;
@@ -350,6 +354,8 @@ private:
 
     CallbackType _iter_cb;
     utils::ProfilingInfo _prof_info;
+
+    std::vector<ForwardPassResult> _fp_res_history;
 };
 
 

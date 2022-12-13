@@ -1,6 +1,6 @@
 import numpy as np
 import warnings
-
+import time
 def unravelElements(elements):
     if isinstance(elements, int):
         unraveled_elem = [elements]
@@ -19,6 +19,36 @@ def unravelElements(elements):
 
     return unraveled_elem
 
+def index_finder(lst, item):
+    """A generator function, if you might not need all the indices"""
+    start = 0
+    while True:
+        try:
+            start = lst.index(item, start)
+            yield start
+            start += 1
+        except ValueError:
+            break
+
+def index_find_all(lst, item, results=None):
+    """ If you want all the indices.
+    Pass results=[] if you explicitly need a list,
+    or anything that can .append(..)
+    """
+    if results is None:
+        length = len(lst)
+        results = (array.array('B') if length <= 2**8 else
+                   array.array('H') if length <= 2**16 else
+                   array.array('L') if length <= 2**32 else
+                   array.array('Q'))
+    start = 0
+    while True:
+        try:
+            start = lst.index(item, start)
+            results.append(start)
+            start += 1
+        except ValueError:
+            return results
 
 def listOfListFLOATtoINT(listOfList):
     # transform every element to INT
@@ -33,27 +63,31 @@ def listOfListFLOATtoINT(listOfList):
 
 def checkNodes(nodes, nodes_array=None):
 
-    nodes_vec = np.array(nodes).astype(int)
+    # nodes_vec = np.array(nodes).astype(int)
+    nodes_vec = nodes if hasattr(nodes, '__iter__') else [nodes]
     # todo check for repeated nodes
     if nodes_array is None:
         checked_nodes = nodes_vec
-        discarded_nodes = np.array([])
     else:
         # get from nodes only the nodes active in nodes_array
-        # example: nodes_array = [0 0 1 0 1 1 0 0]
-        #                nodes = [2, 3, 4]
-        #       1. get from nodes array only the elements at position [2, 3, 4]  --> [1 0 1]
-        #       2. mask 'nodes' with [1 0 1] --> [2, 4]
-        checked_nodes = np.ma.masked_array(nodes_vec, mask=np.logical_not(nodes_array[nodes_vec])).compressed()
-        discarded_nodes = np.ma.masked_array(nodes_vec, mask=nodes_array[nodes_vec]).compressed()
+        checked_nodes = [node for node in nodes_vec if nodes_array[node] == 1]
+        # slower:
+        # checked_nodes = [node for node in nodes_vec if nodes_array[node] == 1]
+        # discarded_nodes = [node for node in nodes_vec if nodes_array[node] == 0]
+        # slowest:
+        # checked_nodes = np.ma.masked_array(nodes_vec, mask=np.logical_not(nodes_array[nodes_vec])).compressed()
+        # discarded_nodes = np.ma.masked_array(nodes_vec, mask=nodes_array[nodes_vec]).compressed()
 
-        # todo: this sucks, as it does not tells you which item calls this
-        if checked_nodes.size != nodes_vec.size:
-            warnings.warn(f'Element requested is not defined/active on node: {discarded_nodes}.')
 
-    return checked_nodes, discarded_nodes
+        # todo: this sucks, as it does not tells you which item calls this ALSO SLOW STUFF DOWN
+        # if checked_nodes.size != nodes_vec.size:
+            # warnings.warn(f'Element requested is not defined/active on node: {discarded_nodes}.')
+
+    # return np.array(checked_nodes), np.array(discarded_nodes)
+    return checked_nodes
 
 def checkValueEntry(val):
+    # todo: if the array is monodimensional, it should be considered as column or row?
     if isinstance(val, (int, float)):
         val = np.array([val])
     else:
@@ -69,10 +103,31 @@ def checkValueEntry(val):
 
     return val
 
-def convertNodestoPos(nodes, nodes_array):
+def convertNodestoPosNumpy(nodes, nodes_array):
     # todo add guards
     nodes_to_pos = np.nonzero(np.in1d(np.where(nodes_array == 1), nodes))[0]
+
     return nodes_to_pos
+def convertNodestoPos(nodes, nodes_array):
+    # todo add guards
+    # nodes_to_pos = np.nonzero(np.in1d(np.where(nodes_array == 1), nodes))[0]
+    nodes_to_pos = []
+    index = 0
+    for i in range(len(nodes_array)):
+        val = nodes_array[i]
+        if val == 1 and i in nodes:
+            nodes_to_pos.append(index)
+        index += val
+
+    return nodes_to_pos
+    # start = nodes[0]
+    # for i in range(len(nodes)):
+    #     try:
+    #         start = nodes_array.index(1, start)
+    #         yield start
+    #         start += 1
+    #     except ValueError:
+    #         break
 
 def getBinaryFromNodes(total_nodes: int, active_nodes: list):
     # add guards
@@ -106,4 +161,15 @@ def shift_array(arr, num, fill_value=np.nan):
 
 if __name__ == '__main__':
 
-    print(checkNodes([3,3,4,5,6], np.array([0, 0, 1, 1, 1, 0, 0, 1, 0])))
+    # tic = time.time()
+    # print(checkNodes([3, 4, 7], np.array([0, 0, 1, 1, 1, 0, 0, 1, 0])))
+    # print(time.time() - tic)
+
+    tic = time.time()
+    print(convertNodestoPosNumpy([2, 4], np.array([0, 1, 0, 1, 1])))
+    print(time.time() - tic)
+    tic = time.time()
+    print(*convertNodestoPos([2, 3, 8], [0, 1, 0, 1, 1]))
+    print(time.time() - tic)
+
+

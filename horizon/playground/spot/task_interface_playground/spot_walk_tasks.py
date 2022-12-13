@@ -1,7 +1,9 @@
 import os
+import time
+
 import numpy as np
 from horizon.rhc.taskInterface import TaskInterface
-from horizon.utils.actionManager import ActionManager
+from horizon.utils.actionManager import ActionManager, Step
 from horizon.problem import Problem
 from horizon.rhc.model_description import FullModelInverseDynamics
 from casadi_kin_dyn import pycasadi_kin_dyn
@@ -65,11 +67,11 @@ final_base_y.setRef([0, model.q0[1], 0, 0, 0, 0, 1])
 # min_rot = ti.getTask('min_rot')
 # min_rot.setRef(ti.q0[3:5])
 
-final_x = ti.getTask('final_x')
-final_x.setRef([model.q0[0], 0, 0, 0, 0, 0, 1])
-
-final_y = ti.getTask('final_y')
-final_y.setRef([0, model.q0[1], 0, 0, 0, 0, 1])
+# final_x = ti.getTask('final_x')
+# final_x.setRef([model.q0[0], 0, 0, 0, 0, 0, 1])
+#
+# final_y = ti.getTask('final_y')
+# final_y.setRef([0, model.q0[1], 0, 0, 0, 0, 1])
 
 f0 = np.array([0, 0, 55])
 reg = ti.getTask('regularization')
@@ -81,7 +83,14 @@ reg.setRef(4, f0)
 opts = dict()
 
 am = ActionManager(ti, opts)
-am._walk([10, 200], [0, 2, 1, 3])
+
+# step_frame = 'lf_foot'
+# FK = kd.fk(step_frame)
+# p0 = FK(q=model.q0)['ee_pos']
+# one_step = Step(step_frame, 10, 20, p0, p0, 0.1)
+# am.setStep(one_step)
+am._trot([10, 200])
+# am._walk([10, 200], [0, 2, 1, 3])
 
 
 # ===============================================================
@@ -111,7 +120,7 @@ from horizon.ros import replay_trajectory
 
 # todo
 
-final_base_x.setRef([0.5, 0, 0, 0, 0, 0, 1])
+# final_base_x.setRef([0.5, 0, 0, 0, 0, 0, 1])
 # ptgt.assign(ptgt_final, nodes=ns)
 
 ti.finalize()
@@ -119,9 +128,9 @@ ti.bootstrap()
 solution = ti.solution
 
 
-os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
-subprocess.Popen(["roslaunch", path_to_examples + "/replay/launch/launcher.launch", 'robot:=spot'])
-rospy.loginfo("'spot' visualization started.")
+# os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
+# subprocess.Popen(["roslaunch", path_to_examples + "/replay/launch/launcher.launch", 'robot:=spot'])
+# rospy.loginfo("'spot' visualization started.")
 
 # single replay
 # q_sol = solution['q']
@@ -136,18 +145,23 @@ iteration = 0
 
 # solver_rti.solution_dict['x_opt'] = solver_bs.getSolutionState()
 # solver_rti.solution_dict['u_opt'] = solver_bs.getSolutionInput()
-
+rate = rospy.Rate(1 / dt)
 flag_action = 1
 forces = [ti.prb.getVariables('f_' + c) for c in contacts]
 nc = 4
+
 while True:
     iteration = iteration + 1
     print(iteration)
-    #
-    am.execute(ti.solution)
+
+    tic = time.time()
+    am.execute(solution)
+
     ti.solver_rti.solve()
     solution = ti.solver_rti.getSolutionDict()
-
-    repl.frame_force_mapping = {contacts[i]: solution[forces[i].getName()][:, 0:1] for i in range(nc)}
+    print('cycle:', time.time() - tic)
+    repl.frame_force_mapping = {cname: solution[f.getName()] for cname, f in ti.model.fmap.items()}
     repl.publish_joints(solution['q'][:, 0])
     repl.publishContactForces(rospy.Time.now(), solution['q'][:, 0], 0)
+    rate.sleep()
+

@@ -2,6 +2,7 @@
 
 using namespace horizon;
 
+
 template<class CASADI_TYPE>
 const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
         const casadi::DM& initial_guess_x,
@@ -29,6 +30,8 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
     // do the same on g and A (i.e., dg)
     _g_dict.input[_g.name_in(1)] = p;
     _A_dict.input[_g.name_in(1)] = p;
+
+
 
     for(unsigned int k = 0; k < _max_iter; ++k) ///BREAK CRITERIA #1
     {
@@ -110,7 +113,7 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
 
         casadi_utils::toEigen(x0_, _sol);
         tic = std::chrono::high_resolution_clock::now();
-        bool success = lineSearch(_sol, _dx, _lam_x, _lam_a, lbg, ubg, lbx, ubx);
+        bool success = lineSearch(_sol, _dx, _lam_x, _lam_a, lbg, ubg, lbx, ubx, k);
         toc = std::chrono::high_resolution_clock::now();
         _line_search_time.push_back((toc-tic).count()*1E-9);
         if(success)
@@ -119,28 +122,16 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
             // store trajectory
             _variable_trj[k+1] = x0_;
 
-            _iteration_to_solve++;
-            _fpr.iter = _iteration_to_solve;
+            // decrease regularization on success
+            _eps_regularization = std::max(_eps_regularization*1e-3,
+                                           _eps_regularization_base);
         }
         else
         {
-            _sol += _dx;
+            _eps_regularization = std::max(_eps_regularization*1e3,
+                                           1.0);
 
-            casadi_utils::toCasadiMatrix(_sol, x0_);
-            // store trajectory
-            _variable_trj[k+1] = x0_;
-
-            _iteration_to_solve++;
-            _fpr.iter = _iteration_to_solve;
-
-
-            //throw std::runtime_error("Linesearch failed, unable to solve");
-            std::cout<<"Linesearch failed, taking full step"<<std::endl;
-        }
-
-        if(_iter_cb)
-        {
-            _iter_cb(_fpr);
+            std::cout << "Linesearch failed, increasing regularization" << std::endl;
         }
 
         ///BREAK CRITERIA #2
@@ -172,7 +163,8 @@ bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
         const casadi::DM &lbg,
         const casadi::DM &ubg,
         const casadi::DM &lbx,
-        const casadi::DM &ubx)
+        const casadi::DM &ubx,
+        int iter)
 {
     casadi_utils::toEigen(lbg, _lbg_);
     casadi_utils::toEigen(ubg, _ubg_);
@@ -196,6 +188,27 @@ bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
     double merit_der = cost_derr - norminf_lam * constraint_violation;
     double initial_merit = initial_cost + norminf_lam*constraint_violation;
 
+    // report initial value (only if iter == 0)
+    if(iter == 0)
+    {
+        _fpr.iter = iter;
+        _fpr.alpha = 0;
+        _fpr.cost = initial_cost;
+        _fpr.constraint_violation = constraint_violation;
+        _fpr.merit = initial_merit;
+        _fpr.step_length = _alpha * dx.norm();
+        _fpr.accepted = true;
+        _fpr.hxx_reg = _eps_regularization;
+        _fpr.merit_der = merit_der;
+        _fpr.mu_c = norminf_lam;
+
+        if(_iter_cb)
+        {
+            _iter_cb(_fpr);
+        }
+    }
+
+
     _alpha = 1.0;
     bool accepted = false;
     while( _alpha > _alpha_min)
@@ -215,18 +228,17 @@ bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
         // evaluate Armijo's condition
         accepted = candidate_merit < (initial_merit + _beta*_alpha*merit_der);
 
+        _fpr.iter = iter;
         _fpr.alpha = _alpha;
         _fpr.cost = candidate_cost;
         _fpr.constraint_violation = candidate_constraint_violation;
         _fpr.merit = candidate_merit;
-        //            _fpr.armijo_merit = initial_merit + _beta*_alpha*merit_der;
         _fpr.step_length = _alpha * dx.norm();
         _fpr.accepted = accepted;
-        _fpr.defect_norm = NAN;
-        _fpr.hxx_reg = 0.0;
+        _fpr.hxx_reg = _eps_regularization;
         _fpr.merit_der = merit_der;
+        _fpr.f_der = cost_derr;
         _fpr.mu_c = norminf_lam;
-        _fpr.mu_f = NAN;
 
         if(_iter_cb)
         {

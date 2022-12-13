@@ -81,7 +81,6 @@ class SolverILQR(Solver):
         self._set_cost()
         self._set_bounds()
         
-
         # set a default iteration callback
         self.plot_iter = False
         self.xax = None 
@@ -127,6 +126,7 @@ class SolverILQR(Solver):
         # update initial guess
         self.ilqr.setStateInitialGuess(xinit)
         self.ilqr.setInputInitialGuess(uinit)
+
         # self.ilqr.setIterationCallback(self._iter_callback)
         
         # update parameters
@@ -204,6 +204,31 @@ class SolverILQR(Solver):
                 continue
             print(f'{k:30}{np.mean(v)*1e-3} ms')
 
+    def save_iterations(self, matfile='/tmp/ilqr_data.mat'):
+        from scipy.io import savemat
+        
+        hist_vector = self.ilqr.getIterationHistory()
+        savemat(matfile, 
+        {
+            'constraint_violation': [h.constraint_violation for h in hist_vector],
+            'alpha': [h.alpha for h in hist_vector],
+            'defect_norm': [h.defect_norm for h in hist_vector],
+            'cost': [h.cost for h in hist_vector],
+            'merit': [h.merit for h in hist_vector],
+            'merit_der': [h.merit_der for h in hist_vector],
+            'mu_f': [h.mu_f for h in hist_vector],
+            'mu_c': [h.mu_c for h in hist_vector],
+            'step_length': [h.step_length for h in hist_vector],
+            'hxx_reg': [h.hxx_reg for h in hist_vector],
+            'xtrj': [h.xtrj for h in hist_vector],
+            'utrj': [h.utrj for h in hist_vector],
+            'constraint_values': [h.constraint_values for h in hist_vector],
+            'profiling':  self.ilqr.getProfilingInfo().timings,
+            'x_opt': self.x_opt,
+            'u_opt': self.u_opt,
+        }, long_field_names=True)
+
+
     def _update_nodes(self):
 
         for fname, f in self.prb.function_container.getCost().items():
@@ -258,10 +283,8 @@ class SolverILQR(Solver):
             if isinstance(f, (Residual, RecedingResidual)) and self.use_gn:
                 outname_actual = 'res'
                 set_to_ilqr_actual = self.ilqr.setIntermediateResidual
-                print('got residual')
             elif isinstance(f, (Residual, RecedingResidual)) and not self.use_gn:
                 value = cs.sumsqr(value)
-                print('got residual disables')
                 
             # wrap function
             l = cs.Function(fname, 
@@ -304,6 +327,7 @@ class SolverILQR(Solver):
             print('*', end='', flush=True)
             
         fpres.print()
+        # print(f'il male è {fpres.constraint_values[0]} + {np.linalg.norm(fpres.defect_values[:, 0])}')
 
         if self.plot_iter:
 
@@ -313,7 +337,7 @@ class SolverILQR(Solver):
                 self.hax.set_yscale('log')
                 
                 plt.sca(self.dax)
-                self.dline = plt.plot(np.linalg.norm(fpres.defect_values, axis=1))[0]
+                self.dline = plt.plot(np.linalg.norm(fpres.defect_values, axis=0), '-o')[0]
                 plt.grid()
                 plt.title(f'Dynamics gaps (iter {fpres.iter})')
                 plt.xlabel('Node [-]')
@@ -321,17 +345,17 @@ class SolverILQR(Solver):
                 plt.legend([f'd{i}' for i in range(self.nx)])
                 
                 plt.sca(self.hax)
-                self.hline = plt.plot(fpres.constraint_values)[0]
+                self.hline = plt.plot(fpres.constraint_values, '-o')[0]
                 plt.grid()
                 plt.title(f'Constraint violation (iter {fpres.iter})')
                 plt.xlabel('Node [-]')
                 plt.ylabel('Constraint 1-norm')
-                
+                plt.tight_layout()
                 plt.ion()
                 plt.show()
 
-            
-            self.dline.set_ydata(np.linalg.norm(fpres.defect_values, axis=1))
+
+            self.dline.set_ydata(np.linalg.norm(fpres.defect_values, axis=0))
             self.hline.set_ydata(fpres.constraint_values)
             self.dax.relim()
             self.hax.relim()

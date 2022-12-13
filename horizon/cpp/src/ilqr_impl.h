@@ -327,6 +327,7 @@ struct IterativeLQR::Temporaries
     Eigen::ColPivHouseholderQR<Eigen::MatrixXd> cqr;
     Eigen::BDCSVD<Eigen::MatrixXd> csvd;
     Eigen::MatrixXd codQ;
+    Eigen::PermutationMatrix<Eigen::Dynamic> codP;
 
     // quadratized value function
     Eigen::MatrixXd Huu;
@@ -347,14 +348,10 @@ struct IterativeLQR::Temporaries
     // kkt solution
     Eigen::MatrixXd u_lam;
 
-    // linearized constraint to go (C*x + D*u + h = 0)
-    Eigen::MatrixXd C;
-    Eigen::MatrixXd D;
-    Eigen::VectorXd h;
-
-    // rotated constraint according to left singular vectors of D
-    Eigen::MatrixXd rotC;
-    Eigen::VectorXd roth;
+    // infeasible component of constraint
+    Eigen::MatrixXd Cinf;
+    Eigen::MatrixXd Dinf;
+    Eigen::VectorXd hinf;
 
     // optimal state computation
     // (note: only for initial state x[0])

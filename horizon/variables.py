@@ -164,7 +164,7 @@ class OffsetTemplate(AbstractVariable):  # note parametrize casadi type!!!
         nodes_array = np.array(nodes)
         # offset the node of self.offset
         offset_nodes = nodes_array + self._offset
-        offset_nodes, _ = misc.checkNodes(offset_nodes, self._nodes_array)
+        offset_nodes = misc.checkNodes(offset_nodes, self._nodes_array)
 
         var_impl = self._impl['var'][:, offset_nodes]
 
@@ -447,7 +447,7 @@ class Parameter(AbstractVariable):
         if nodes is None:
             nodes = misc.getNodesFromBinary(self._nodes_array)
         else:
-            nodes, _ = misc.checkNodes(nodes, self._nodes_array)
+            nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
 
@@ -510,7 +510,7 @@ class Parameter(AbstractVariable):
         if nodes is None:
             nodes = misc.getNodesFromBinary(self._nodes_array)
         else:
-            nodes, _ = misc.checkNodes(nodes, self._nodes_array)
+            nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
 
@@ -941,7 +941,7 @@ class Variable(AbstractVariable):
         if nodes is None:
             nodes = misc.getNodesFromBinary(self._nodes_array)
         else:
-            nodes, _ = misc.checkNodes(nodes, self._nodes_array)
+            nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
 
@@ -1120,27 +1120,35 @@ class Variable(AbstractVariable):
         Returns:
             value/s of the desired argument
         """
-        not_impl_nodes = np.array([])
         if nodes is None:
-            checked_nodes = misc.getNodesFromBinary(self._nodes_array)
+            checked_nodes = misc.getNodesFromBinary(self._nodes_array).tolist()
         else:
-            checked_nodes, not_impl_nodes = misc.checkNodes(nodes, self._nodes_array)
+            checked_nodes = misc.checkNodes(nodes, self._nodes_array)
+            # checked_nodes_array = [self._nodes_array[i] for i in nodes]
+            # checked_nodes = [node for node in enumerate(nodes) if self._nodes_array[node] == 1]
+            # checked_nodes = []
+            # pos_in_vec = []
+            # i = 0
+            # for node in nodes:
+            #     if self._nodes_array[node] == 1:
+            #         checked_nodes.append(node)
+                    # pos_in_vec.append(i)
+                # i += 1
+            # checked_nodes, not_impl_nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(checked_nodes, self._nodes_array)
 
         # todo: hack to return matrix with nan values where the variable is not active/implemented
-        if val_type == 'var':
-            vals = self._casadi_type(self.getDim(), len(checked_nodes) + len(not_impl_nodes))
-            vals[:] = np.nan
-        else:
-            vals = np.nan * np.ones([self.getDim(), len(checked_nodes) + len(not_impl_nodes)])
-
-        node_pos_converter = dict(zip(checked_nodes.tolist() + not_impl_nodes.tolist(), range(vals.shape[1])))
-
-        vals[:, [node_pos_converter[elem] for elem in pos_nodes.tolist()]] = self._impl[val_type][:, pos_nodes]
-
+        # if val_type == 'var':
+        #     vals = self._casadi_type(self.getDim(), len(nodes))
+        #     vals[:] = np.nan
+        # else:
+        #     vals = np.nan * np.ones([self.getDim(), len(nodes)])
+        #
+        # vals[:, pos_in_vec] = self._impl[val_type][:, pos_nodes]
         # TODO: before was like this:
-        # vals = self._impl[val_type][:, pos_nodes]
+        vals = self._impl[val_type][:, pos_nodes]
+
 
         return vals
 
