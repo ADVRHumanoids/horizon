@@ -713,7 +713,7 @@ class SingleVariable(AbstractVariable):
         if nodes is None:
             val_impl = self._impl[val_type]
         else:
-            nodes, _ = misc.checkNodes(nodes, self._nodes_array)
+            nodes = misc.checkNodes(nodes, self._nodes_array)
             num_nodes = int(np.sum(self._nodes_array[nodes]))
             val_impl = cs.repmat(self._impl[val_type], 1, num_nodes)
 
