@@ -2,6 +2,8 @@ from scipy.io import savemat, loadmat
 import numpy as np
 import argparse
 
+import h5py
+
 """
 setInitialGuess assign initial guesses given a solution guess
 Args:
@@ -77,9 +79,6 @@ class matStorer:
 
     def load(self):
         return loadmat(self.file_name)
-
-
-
 
 if __name__ == '__main__':
     a = np.ones([1,5])
