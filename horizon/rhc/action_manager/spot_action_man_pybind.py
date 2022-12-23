@@ -11,6 +11,8 @@ from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.transcriptions.transcriptor import Transcriptor
 import casadi as cs
 import time
+import phase_manager.pyphase as pyphase
+import phase_manager.pymanager as pymanager
 
 
 def barrier(x):
@@ -92,7 +94,6 @@ model.setContactFrame('rh_foot', 'vertex', dict(vertex_frames=['rh_foot']))
 model.setContactFrame('lf_foot', 'vertex', dict(vertex_frames=['lf_foot']))
 model.setContactFrame('rf_foot', 'vertex', dict(vertex_frames=['rf_foot']))
 
-
 model.q.setBounds(model.q0, model.q0, 0)
 model.v.setBounds(np.zeros(model.nv), np.zeros(model.nv), 0)
 
@@ -117,7 +118,6 @@ for i, frame in enumerate(contacts):
 
     # kinematic contact
     contact = prb.createConstraint(f"{frame}_vel", v, nodes=[])
-
     # unilateral forces
     fcost = barrier(model.fmap[frame][2] - 10.0)  # fz > 10
     unil = prb.createIntermediateCost(f'{frame}_unil', 1e1 * fcost, nodes=[])
@@ -127,7 +127,6 @@ for i, frame in enumerate(contacts):
     z_des = prb.createParameter(f'{frame}_z_des', 1)
 
     clea = prb.createConstraint(f"{frame}_clea", p[2] - z_des, nodes=[])
-
 
 # final_base_x
 prb.createFinalConstraint(f'min_q0', model.q[0] - model.q0[0])
@@ -141,42 +140,43 @@ prb.createIntermediateResidual("min_q_ddot", 0.01 * model.a)
 for f_name, f_var in model.fmap.items():
     prb.createIntermediateResidual(f"min_{f_var.getName()}", 0.01 * f_var)
 
+cplusplus = True  # without set nodes: 6.5*10-5 (c++) vs 9*10-4 (python)
+
 opts =dict()
-opts['logging_level']=logging.DEBUG
-pm = PhaseManager(nodes=ns, opts=opts)
+# opts['logging_level']=logging.DEBUG
+if cplusplus:
+    pm = pymanager.PhaseManager(ns)
+else:
+    pm = PhaseManager(nodes=ns, opts=opts)
 
 c_phases = dict()
 for c in contacts:
-    c_phases[c] = pm.addTimeline(f'{c}_timeline')
-
+     c_phases[c] = pm.addTimeline(f'{c}_timeline')
+#
 i = 0
 for c in contacts:
     # stance phase
     stance_duration = 5
-    stance_phase = Phase(f'stance_{c}', stance_duration)
+    if cplusplus:
+        stance_phase = pyphase.Phase(stance_duration, f"stance_{c}")
+    else:
+        stance_phase = Phase(f'stance_{c}', stance_duration)
     stance_phase.addConstraint(prb.getConstraints(f'{c}_vel'))
     stance_phase.addCost(prb.getCosts(f'{c}_unil'))
     c_phases[c].registerPhase(stance_phase)
-
-    # flight phase
+#
+#     # flight phase
     flight_duration = 5
-    flight_phase = Phase(f'flight_{c}', flight_duration)
+    if cplusplus:
+        flight_phase = pyphase.Phase(flight_duration, f"flight_{c}")
+    else:
+        flight_phase = Phase(f'flight_{c}', flight_duration)
     flight_phase.addVariableBounds(prb.getVariables(f'f_{c}'),  np.array([[0, 0, 0]] * flight_duration).T, np.array([[0, 0, 0]] * flight_duration).T)
     flight_phase.addConstraint(prb.getConstraints(f'{c}_clea'))
 
     z_trj = np.atleast_2d(compute_polynomial_trajectory(0, range(flight_duration), flight_duration, contact_pos[c], contact_pos[c], 0.03, dim=2))
     flight_phase.addParameterValues(prb.getParameters(f'{c}_z_des'), z_trj)
     c_phases[c].registerPhase(flight_phase)
-
-for name, timeline in c_phases.items():
-    print('timeline:', timeline.name)
-
-    for phase in timeline.registered_phases:
-        print('    registered_phases', phase)
-
-    for phase in timeline.phases:
-        print('    phase', phase)
-
 
 for c in contacts:
     stance = c_phases[c].getRegisteredPhase(f'stance_{c}')
@@ -185,6 +185,7 @@ for c in contacts:
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
+    c_phases[c].addPhase(flight)
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
@@ -193,48 +194,52 @@ for c in contacts:
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
     c_phases[c].addPhase(stance)
-    c_phases[c].addPhase(stance)
-    c_phases[c].addPhase(stance)
-    c_phases[c].addPhase(stance)
-    c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
-    # c_phases[c].addPhase(stance)
+
+
+range_trot_1 = range(4, 16, 2)
+range_trot_2 = range(5, 17, 2)
 
 lift_contact = 'lh_foot'
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 4)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 6)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 8)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 10)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 12)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 14)
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
 lift_contact = 'rh_foot'
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 5)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 7)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 9)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 11)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 13)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 15)
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
 lift_contact = 'lf_foot'
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 5)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 7)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 9)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 11)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 13)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 15)
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
 lift_contact = 'rf_foot'
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 4)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 6)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 8)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 10)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 12)
-c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), 14)
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+
+# for name, timeline in c_phases.items():
+    # print('timeline:', timeline.getName())
+#
+#     for phase in timeline.registered_phases:
+#         print('    registered_phases', phase.getName())
+# #
+#     for phase in timeline.phases:
+#         print('    phase', phase)
+
+
+    # print(prb.getConstraints(f'{c}_vel').getName(), ":")
+    # print(" nodes:", prb.getConstraints(f'{c}_vel').getNodes())
+    # print(" bounds:", prb.getConstraints(f'{c}_vel').getLowerBounds())
+    # print(prb.getCosts(f'{c}_unil').getName(), ":")
+    # print(" nodes:", prb.getCosts(f'{c}_unil').getNodes())
+
+# for c_name, c_item in prb.getConstraints().items():
+#     print(c_item.getName())
+#     print(c_item.getNodes())
+# print("=========================")
+# for c_name, c_item in prb.getCosts().items():
+#     print(c_item.getName())
+#     print(c_item.getNodes())
+# for c_name, c_item in prb.getVariables().items():
+#     print(c_item.getName())
+#     print(c_item.getNodes())
+#     print(c_item.getLowerBounds())
+# exit()
 
 model.setDynamics()
 
@@ -286,8 +291,9 @@ forces = [prb.getVariables('f_' + c) for c in contacts]
 nc = 4
 
 elapsed_time_list = []
+elapsed_time_solution_list = []
 
-while iteration < 200:
+while iteration < 100:
     iteration = iteration + 1
     print(iteration)
 
@@ -316,10 +322,12 @@ while iteration < 200:
     print('cycle:', elapsed_time)
     elapsed_time_list.append(elapsed_time)
 
+    tic_solve = time.time()
     solver_rti.solve()
+    elapsed_time_solving = time.time() - tic_solve
+    print('solve:', elapsed_time_solving)
+    elapsed_time_solution_list.append(elapsed_time_solving)
     solution = solver_rti.getSolutionDict()
-
-
 
     repl.frame_force_mapping = {cname: solution[f.getName()] for cname, f in model.fmap.items()}
     repl.publish_joints(solution['q'][:, 0])
@@ -327,4 +335,8 @@ while iteration < 200:
     rate.sleep()
 
 
-print(sum(elapsed_time_list) / len(elapsed_time_list))
+print("elapsed time resetting nodes:", sum(elapsed_time_list) / len(elapsed_time_list))
+print("elapsed time solving:", sum(elapsed_time_solution_list) / len(elapsed_time_solution_list))
+
+
+

@@ -108,6 +108,9 @@ def convertNodestoPosNumpy(nodes, nodes_array):
     nodes_to_pos = np.nonzero(np.in1d(np.where(nodes_array == 1), nodes))[0]
 
     return nodes_to_pos
+
+# todo this is probably slowing down everything. Better to have a complete array always with all the nodes instead of having only
+# the active ones
 def convertNodestoPos(nodes, nodes_array):
     # todo add guards
     # nodes_to_pos = np.nonzero(np.in1d(np.where(nodes_array == 1), nodes))[0]
@@ -139,6 +142,7 @@ def getBinaryFromNodes(total_nodes: int, active_nodes: list):
 
     return nodes_array
 
+# todo also this should be used as little as possible
 def getNodesFromBinary(nodes_array):
     # add guards
     # if not isinstance(nodes_array, list):

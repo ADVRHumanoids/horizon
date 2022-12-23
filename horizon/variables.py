@@ -376,6 +376,7 @@ class Parameter(AbstractVariable):
         self._impl = OrderedDict()
 
         self._nodes_array = nodes_array
+        self._nodes = misc.getNodesFromBinary(nodes_array)
         self._project()
 
     def _project(self):
@@ -449,6 +450,7 @@ class Parameter(AbstractVariable):
         else:
             nodes = misc.checkNodes(nodes, self._nodes_array)
 
+        # todo: this can be removed in recedingFunctions
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
 
         val = misc.checkValueEntry(val)
@@ -1393,6 +1395,40 @@ class RecedingVariable(Variable):
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         super().__init__(tag, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
 
+        self._nodes = misc.getNodesFromBinary(self._nodes_array)
+        self._all_indices = np.array(range(self._dim)).astype(int)
+
+    def _setVals(self, val_type, val, nodes=None, indices=None):
+        """
+        Generic setter.
+
+        Args:
+            val_type: desired values to set
+            val: values
+            nodes: which nodes the values are applied on
+            indices: which indices the values are applied on
+        """
+        # nodes
+        if nodes is None:
+            nodes = self._nodes
+        else:
+            nodes = misc.checkNodes(nodes, self._nodes_array)
+
+        # pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+
+        # indices
+        if indices is None:
+            indices_vec = self._all_indices
+        else:
+            indices_vec = np.array(indices).astype(int)
+
+        val_checked = misc.checkValueEntry(val)
+
+        if val_checked.shape[0] != indices_vec.size:
+            raise Exception(f'Wrong dimension of variable values inserted: {val_checked.shape[0]} instead of {indices_vec.size}')
+
+        self._impl[val_type][np.ix_(np.atleast_1d(indices_vec), nodes)] = val_checked
+
     def shift(self):
 
         print(f'============= VARIABLE ================')
@@ -1416,6 +1452,44 @@ class RecedingVariable(Variable):
 class RecedingParameter(Parameter):
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         super().__init__(tag, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+
+    def assign(self, val, nodes=None, indices=None):
+        """
+       Assign a value to the parameter at a desired node. Can be assigned also after the problem is built, before solving the problem.
+       If not assigned, its default value is zero.
+
+       Args:
+           val: value of the parameter
+           nodes: nodes at which the parameter is assigned
+       """
+        # nodes
+
+        if nodes is None:
+            nodes = self._nodes
+            # nodes = misc.getNodesFromBinary(self._nodes_array)
+        else:
+            nodes = misc.checkNodes(nodes, self._nodes_array)
+
+        # pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+        val_checked = misc.checkValueEntry(val)
+
+        # indices
+        if indices is None:
+            indices_vec = np.array(range(self._dim)).astype(int)
+        else:
+            indices_vec = np.atleast_1d(np.array(indices).astype(int))
+
+        if val_checked.shape[0] != indices_vec.size:
+            raise Exception(f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
+
+        # if a matrix of values is being provided, check cols match len(nodes)
+        multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
+
+        if multiple_vals and val_checked.shape[1] != len(nodes):
+            raise Exception(f'Wrong dimension of parameter inserted.')
+        # todo this is because what I receive as val is 1-dimensional array which cannot be assigned to a matrix
+        self._impl['val'][np.ix_(indices_vec, nodes)] = val_checked
+
 
     def shift(self):
 

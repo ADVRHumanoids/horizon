@@ -191,7 +191,6 @@ class AbstractFunction:
             fun_eval = self._fun_map(*all_vars)
             self._fun_impl = fun_eval
 
-        # exit()
 
     def _getUsedElemImpl(self, elem_container):
         # todo there should be an option to specify which nodes i'm querying (right now it's searching all the feaasible nodes)
@@ -367,7 +366,7 @@ class Function(AbstractFunction):
 class RecedingFunction(AbstractFunction):
 
     def __init__(self, name: str, f: Union[cs.SX, cs.MX], used_vars: list, used_pars: list, active_nodes_array: np.ndarray, thread_map_num=None):
-
+        # TODO: probably everything breaks if there are variables only defined on specific nodes
         super().__init__(name, f, used_vars, used_pars, active_nodes_array)
 
         if thread_map_num is None:
@@ -452,10 +451,17 @@ class RecedingFunction(AbstractFunction):
             erasing: choose if the inserted nodes overrides the previous active nodes of the function. 'False' if not specified.
         """
         # todo check for repetition in setted nodes?
-        super().setNodes(nodes, erasing)
+        # super().setNodes(nodes, erasing)
+
+        if erasing:
+            self._active_nodes_array[:] = 0
+
+        self._active_nodes_array[nodes] = 1
+
         # usually the number of nodes stays the same, while the active nodes of a function may change.
         # If the number of nodes changes, also the variables change. That is when this reprojection is required.
-        self._project()
+        # todo: if the function is receding, it is already defined on ALL the nodes. So, the reprojection is useless, I believe.
+        # self._project()
 
 class AbstractBounds:
     """
@@ -723,8 +729,8 @@ class RecedingConstraint(RecedingFunction, AbstractBounds):
         temp_ub = np.inf * np.ones([f.shape[0], num_nodes])
 
         # this is zero only on the nodes where the function is ACTIVE (which are generally different from the nodes where the function EXISTS)
-        active_nodes = np.where(self._active_nodes_array == 1)[0]
-        pos_nodes = misc.convertNodestoPos(active_nodes, self._feas_nodes_array)
+        self._active_nodes = misc.getNodesFromBinary(self._active_nodes_array)
+        pos_nodes = misc.convertNodestoPos(self._active_nodes, self._feas_nodes_array)
 
         temp_lb[:, pos_nodes] = 0.
         temp_ub[:, pos_nodes] = 0.
@@ -736,30 +742,34 @@ class RecedingConstraint(RecedingFunction, AbstractBounds):
         AbstractBounds.__init__(self, f.shape[0], init_bounds)
         self._set_initial_bounds(bounds)
 
-    def _checkActiveNodes(self):
+    def _checkActiveNodes(self, nodes):
 
         # useful to deactivate nodes if lb and ub are -inf/inf
-        active_nodes = misc.getNodesFromBinary(self._active_nodes_array)
-        pos_nodes = misc.convertNodestoPos(active_nodes, self._feas_nodes_array)
+        # pos_nodes = misc.convertNodestoPos(self._active_nodes, self._feas_nodes_array)
 
-        for node in pos_nodes:
+        for node in nodes:
             if np.isinf(self.bounds['lb'][:, node]).all() and np.isinf(self.bounds['ub'][:, node]).all():
                 self._active_nodes_array[node] = 0
+            else:
+                self._active_nodes_array[node] = 1
+
+        self._active_nodes = misc.getNodesFromBinary(self._active_nodes_array)
+
 
     def _setVals(self, val_type, val, nodes=None):
 
         if nodes is None:
-            nodes = misc.getNodesFromBinary(self._active_nodes_array)
+            nodes = self._active_nodes
         else:
             # todo: I BELIEVE THIS SHOULD BE self._feas_nodes_array
-            nodes = misc.checkNodes(nodes, self._active_nodes_array)
+            nodes = misc.checkNodes(nodes, self._feas_nodes_array)
 
-        pos_nodes = misc.convertNodestoPos(nodes, self._feas_nodes_array)
+        # pos_nodes = misc.convertNodestoPos(nodes, self._feas_nodes_array)
 
-        super()._setVals(val_type, val, pos_nodes)
+        super()._setVals(val_type, val, nodes)
         # todo put it also in normal constraint
         # todo if setting bounds DEACTIVATE a node, maybe it should be able to ACTIVATE it too
-        self._checkActiveNodes()
+        self._checkActiveNodes(nodes)
 
     def _getVals(self, val_type, nodes=None):
         # todo return the bounds on all nodes always??
@@ -786,8 +796,8 @@ class RecedingConstraint(RecedingFunction, AbstractBounds):
         # todo check for repetition in setted nodes?
         RecedingFunction.setNodes(self, nodes, erasing)
 
-        pos_nodes = misc.convertNodestoPos(nodes, self._feas_nodes_array)
-        AbstractBounds.setNodes(self, pos_nodes, erasing)
+        # pos_nodes = misc.convertNodestoPos(nodes, self._feas_nodes_array)
+        AbstractBounds.setNodes(self, nodes, erasing)
 
         # print('=======================')
         # print('name:', self.getName())
@@ -903,6 +913,7 @@ class RecedingCost(RecedingFunction):
         all_input = self.vars + self.pars
         all_names = [i.getName() for i in all_input]
         self._fun = cs.Function(self.getName(), self.vars + self.pars, [self._f], all_names, ['f'])
+        self._zero_nodes_mask = np.zeros([self.weight_mask.getDim(), np.sum(self._feas_nodes_array).astype(int)])
 
         self.setNodes(misc.getNodesFromBinary(self._active_nodes_array), erasing=True)
 
@@ -912,7 +923,8 @@ class RecedingCost(RecedingFunction):
     def setNodes(self, nodes, erasing=True):
         super().setNodes(nodes, erasing)
         # eliminate/enable cost functions by setting their weight
-        nodes_mask = np.zeros([self.weight_mask.getDim(), np.sum(self._feas_nodes_array).astype(int)])
+        nodes_mask = self._zero_nodes_mask.copy()
+        # nodes_mask = np.zeros([self.weight_mask.getDim(), np.sum(self._feas_nodes_array).astype(int)])
         nodes_mask[:, nodes] = 1
         self.weight_mask.assign(nodes_mask)
 
