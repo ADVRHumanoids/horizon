@@ -11,7 +11,7 @@ np.set_printoptions(precision=3, suppress=True)
 
 class FullModelInverseDynamics:
     
-    def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, **kwargs):
+    def __init__(self, problem, kd, q_init, params=0, base_init=None, floating_base=True, fixed_joint_map=None, **kwargs):
         # todo: adding contact dict
 
         if fixed_joint_map is None:
@@ -53,6 +53,8 @@ class FullModelInverseDynamics:
         # parse contacts
         self.fmap = dict()
         self.cmap = dict()
+
+        self.params = params
 
     def fk(self, frame) -> Tuple[Union[cs.SX, cs.MX]]:
         """
@@ -107,7 +109,6 @@ class FullModelInverseDynamics:
 
         self.cmap[contact_frame] = vertex_forces
 
-        # do we need to reconstruct the total wrench?
         return vertex_forces
 
     def setDynamics(self):
@@ -119,10 +120,13 @@ class FullModelInverseDynamics:
         # underactuation constraints
         if self.fmap:
             id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
-            self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
+            self.tau = id_fn.call(self.q, self.v, self.a, self.fmap, params=self.params)
             self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
-        # else:
-        #     id_fn = kin_dyn.InverseDynamics(self.kd)
+        else:
+            id_fn = kin_dyn.InverseDynamics(self.kd)
+            self.tau = id_fn.call(self.q, self.v, self.a, params=self.params)
+            self.dynamic_constraint = self.prb.createIntermediateConstraint('dynamics', self.tau)
+            self.dynamic_constraint.setBounds([-10.0, -10.0], [10.0, 10.0])
 
     def getContacts(self):
         return list(self.cmap.keys())

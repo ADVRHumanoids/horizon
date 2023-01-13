@@ -185,7 +185,7 @@ class ForwardDynamics():
         for frame in contact_frames:
             self.contact_jacobians[frame] = cs.Function.deserialize(kindyn.jacobian(frame, force_reference_frame))
 
-    def call(self, q, qdot, tau, frame_force_mapping=dict()):
+    def call(self, q, qdot, tau, frame_force_mapping=dict(), params = 0):
         """
                 Computes generalized accelerations:
                 Args:
@@ -200,7 +200,7 @@ class ForwardDynamics():
         JtF_sum = 0
 
         for frame, wrench in frame_force_mapping.items():
-            J = self.contact_jacobians[frame](q=q)['J']
+            J = self.contact_jacobians[frame](q=q, p=params)['J']
 
             if wrench.shape[0] == 3:  # point contact
                 JtF = cs.mtimes(J[0:3, :].T, wrench)
@@ -231,7 +231,7 @@ class InverseDynamics():
         for frame in contact_frames:
             self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
-    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0):
+    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0, params=0):
         """
         Computes generalized torques:
         Args:
@@ -246,14 +246,14 @@ class InverseDynamics():
         """
         JtF_sum = 0
         for frame, wrench in frame_force_mapping.items():
-            J = self.contact_jacobians[frame](q=q)['J']
+            J = self.contact_jacobians[frame](q=q, p=params)['J']
             if wrench.shape[0] == 3:  # point contact
                 JtF = cs.mtimes(J[0:3, :].T, wrench)
             else:  # surface contact
                 JtF = cs.mtimes(J.T, wrench)
             JtF_sum += JtF
 
-        tau = self.id(q=q, v=qdot, a=qddot)['tau'] - JtF_sum - tau_ext
+        tau = self.id(q=q, v=qdot, a=qddot, p=params)['tau'] - JtF_sum - tau_ext
         return tau
 
 
@@ -291,7 +291,7 @@ class InverseDynamicsMap():
             self.contact_jacobians[frame] = cs.Function.deserialize(kindyn.jacobian(frame, force_reference_frame))
             self.contact_jacobians[frame] = self.contact_jacobians[frame].map(N, 'thread', 15)
 
-    def call(self, q, qdot, qddot, frame_force_mapping = dict()):
+    def call(self, q, qdot, qddot, frame_force_mapping = dict(), params = 0):
         """
         Computes generalized torques:
         Args:
@@ -307,7 +307,7 @@ class InverseDynamicsMap():
 
         for frame, wrench in frame_force_mapping.items():
             # matrices are aggregated horizontally
-            J = self.contact_jacobians[frame](q=q)['J']
+            J = self.contact_jacobians[frame](q=q, p=params)['J']
 
             if wrench.shape[0] == 3:  # point contact
                 JtF = self.JtF_fun_point(J[0:3, :], wrench)
@@ -316,7 +316,7 @@ class InverseDynamicsMap():
             JtF_sum += JtF
 
 
-        tau = self.id(q=q, v=qdot, a=qddot)['tau'] - JtF_sum
+        tau = self.id(q=q, v=qdot, a=qddot, p=params)['tau'] - JtF_sum
         return tau
 
 
