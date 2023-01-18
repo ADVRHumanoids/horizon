@@ -66,13 +66,13 @@ contacts = ['ball_1', 'ball_2', 'ball_3', 'ball_4']
 
 base_init = np.array([0.0, 0.0, 0.505, 0.0, 0.0, 0.0, 1.0])
 
-q_init = {'j_shoulder_yaw_1': 0.0,
-          'j_pitch_1_1': 0.93,
-          'j_pitch_2_1': 1.68,
+q_init = {'shoulder_yaw_1': 0.0,
+          'shoulder_pitch_1': 0.93,
+          'elbow_pitch_1': 1.68,
 
-          'j_shoulder_yaw_2': 0.0,
-          'j_pitch_1_2': 0.93,
-          'j_pitch_2_2': 1.68,
+          'shoulder_yaw_2': 0.0,
+          'shoulder_pitch_2': 0.93,
+          'elbow_pitch_2': 1.68,
 
           'hip_roll_1': 0.0,
           'hip_pitch_1': 0.9,
@@ -112,6 +112,7 @@ model.q.setInitialGuess(model.q0)
 for f_name, f_var in model.fmap.items():
     f_var.setInitialGuess([0, 0, kd.mass()/4 * 9.8])
 
+
 if solver_type != 'ilqr':
     Transcriptor.make_method(transcription_method, prb, transcription_opts)
 
@@ -138,9 +139,10 @@ for i, frame in enumerate(contacts):
 
     clea = prb.createConstraint(f"{frame}_clea", p[2] - z_des, nodes=[])
 
+# prb.createFinalConstraint('final_v', model.v)
 # final_base_x
 # prb.createFinalResidual(f'min_q0', 3 * (model.q[0]))
-prb.createFinalResidual(f'min_q0', 3 * (model.v[0] - 0.3))
+prb.createFinalResidual(f'min_q0', 3 * (model.q[0] - 1.)) #-0.5
 # final_base_y
 # prb.createFinalResidual(f'min_q1', 3 * (model.q[1] - model.q0[1]))
 # joint posture
@@ -167,7 +169,7 @@ for c in contacts:
 i = 0
 for c in contacts:
     # stance phase
-    stance_duration = 6
+    stance_duration = 5
     if cplusplus:
         stance_phase = pyphase.Phase(stance_duration, f"stance_{c}")
     else:
@@ -177,7 +179,7 @@ for c in contacts:
     c_phases[c].registerPhase(stance_phase)
     #
     #     # flight phase
-    flight_duration = 6
+    flight_duration = 5
     if cplusplus:
         flight_phase = pyphase.Phase(flight_duration, f"flight_{c}")
     else:
@@ -185,7 +187,7 @@ for c in contacts:
     flight_phase.addVariableBounds(prb.getVariables(f'f_{c}'),  np.array([[0, 0, 0]] * flight_duration).T, np.array([[0, 0, 0]] * flight_duration).T)
     flight_phase.addConstraint(prb.getConstraints(f'{c}_clea'))
 
-    z_trj = np.atleast_2d(compute_polynomial_trajectory(0, range(flight_duration), flight_duration, contact_pos[c], contact_pos[c], 0.05, dim=2))
+    z_trj = np.atleast_2d(compute_polynomial_trajectory(0, range(flight_duration), flight_duration, contact_pos[c], contact_pos[c], 0.03, dim=2))
     flight_phase.addParameterValues(prb.getParameters(f'{c}_z_des'), z_trj)
     c_phases[c].registerPhase(flight_phase)
 
@@ -215,26 +217,26 @@ initial_phase = 2
 # todo
 lift_contacts = ['ball_1', 'ball_4', 'ball_2', 'ball_3']
 
-for i in range(n_cycle):
-    for pos, step in enumerate(lift_contacts):
-        c_phases[step].addPhase(c_phases[step].getRegisteredPhase(f'flight_{step}'), initial_phase + pos)
-    initial_phase += pos + 1
+# for i in range(n_cycle):
+#     for pos, step in enumerate(lift_contacts):
+#         c_phases[step].addPhase(c_phases[step].getRegisteredPhase(f'flight_{step}'), initial_phase + pos)
+#     initial_phase += pos + 1
 
-# range_trot_1 = range(4, 18, 2)
-# range_trot_2 = range(5, 19, 2)
+range_trot_1 = range(4, 18, 2)
+range_trot_2 = range(5, 19, 2)
 #
-# lift_contact = 'ball_1'
-# for i in range_trot_1:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'ball_3'
-# for i in range_trot_2:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'ball_2'
-# for i in range_trot_2:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'ball_4'
-# for i in range_trot_1:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'ball_1'
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'ball_3'
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'ball_2'
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'ball_4'
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
 
 model.setDynamics()
 

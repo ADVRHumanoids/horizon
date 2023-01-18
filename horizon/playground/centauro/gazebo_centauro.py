@@ -9,7 +9,8 @@ from horizon.utils import utils, kin_dyn, resampler_trajectory, plotter, mat_sto
 from horizon.ros.replay_trajectory import *
 import os
 
-# run ~/iit-centauro-ros-pkg/centauro_gazebo/launch/centauro_world.launch
+# run mon launch ~/iit-centauro-ros-pkg/centauro_gazebo/launch/centauro_world.launch
+# check if get_xbot2_config --> ~/iit-centauro-ros-pkg/centauro_config/centauro_basic.yaml
 # run xbot2-core
 # run this script
 ## ==================
@@ -27,63 +28,6 @@ rospy.set_param('/robot_description', urdf)
 ms = mat_storer.matStorer('centauro_up_nice2.mat')
 solution = ms.load()
 
-var_q = 'q_res'
-dt_res = 0.001
-joint_names = solution['joint_names']
-q_res = solution[var_q]
-
-n_q = solution[var_q].shape[0]
-num_samples = solution[var_q].shape[1]
-
-contacts = ['contact_1', 'contact_2', 'contact_3', 'contact_4']
-
-contact_map_res = {c: solution[f'f_{c}'] for c in contacts}
-
-## PREPARE ROBOT
-
-rospy.init_node('centauro')
-opt = xbot_opt.ConfigOptions()
-
-urdf = rospy.get_param('/xbotcore/robot_description')
-srdf = rospy.get_param('/xbotcore/robot_description_semantic')
-
-opt.set_urdf(urdf)
-opt.set_srdf(srdf)
-opt.generate_jidmap()
-opt.set_bool_parameter('is_model_floating_base', True)
-opt.set_string_parameter('model_type', 'RBDL')
-opt.set_string_parameter('framework', 'ROS')
-model = xbot.ModelInterface(opt)
-robot = xbot.RobotInterface(opt)
-
-robot_state = np.zeros(n_q-7)
-robot_state = robot.getJointPosition()
-
-q_robot = q_res[7:, :]
-# q_dot_robot = qdot_res[6:, :]
-# tau_robot = tau_res[6:, :]
-
-
-q_homing = q_robot[:, 0]
-
-robot.sense()
-rate = rospy.Rate(1./dt_res)
-
-for i in range(100):
-    robot.setPositionReference(q_homing)
-    # robot.setStiffness(4 *[200, 200, 100]) #[200, 200, 100]
-    # robot.setDamping(4 * [50, 50, 30])  # [200, 200, 100]
-    robot.move()
-
-# crude homing
-
-input('press a button to replay')
-
-for i in range(num_samples):
-    robot.setPositionReference(q_robot[:, i])
-    # robot.setVelocityReference(q_dot_robot[:, i])
-    # robot.setEffortReference(tau_robot[:, i])
-    robot.move()
-    rate.sleep()
-
-print("done, if you didn't notice")
+from horizon.utils.xbot_handler import XBotHandler
+xbh = XBotHandler()
+xbh.replay(solution, var_names=['q_res'])
