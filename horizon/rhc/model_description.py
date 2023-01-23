@@ -50,6 +50,10 @@ class FullModelInverseDynamics:
         self.v = self.prb.createStateVariable('v', self.nv)
         self.a = self.prb.createInputVariable('a', self.nv)
 
+        # velocity limits
+        vel_lims = kd.velocityLimits()
+        self.v.setBounds(-vel_lims, vel_lims)
+
         # parse contacts
         self.fmap = dict()
         self.cmap = dict()
@@ -121,12 +125,16 @@ class FullModelInverseDynamics:
         if self.fmap:
             id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
             self.tau = id_fn.call(self.q, self.v, self.a, self.fmap, params=self.params)
-            self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
+            self.dynamic_constraint = self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
+
+            # torque limits
+            # torque_lims = self.kd.effortLimits()
+            # self.dynamic_constraint.setBounds([0., 0., 0., 0., 0., 0.] + (-1*torque_lims[6:]).tolist(), [0., 0., 0., 0., 0., 0.] + torque_lims[6:].tolist())
+
         else:
             id_fn = kin_dyn.InverseDynamics(self.kd)
             self.tau = id_fn.call(self.q, self.v, self.a, params=self.params)
             self.dynamic_constraint = self.prb.createIntermediateConstraint('dynamics', self.tau)
-            self.dynamic_constraint.setBounds([-10.0, -10.0], [10.0, 10.0])
 
     def getContacts(self):
         return list(self.cmap.keys())
