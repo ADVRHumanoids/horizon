@@ -62,7 +62,7 @@ class XBotHandler:
             var_names = ['q']
 
         var_q = var_names[0]
-        dt = solution['dt_res'] #0.001
+        dt = solution['dt'] #0.001
         q = solution[var_q]
         num_samples = solution[var_q].shape[1]
 
