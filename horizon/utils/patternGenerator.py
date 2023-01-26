@@ -1,13 +1,15 @@
 class PatternGenerator():
-    def __init__(self, ns):
+    def __init__(self, ns, contacts):
         self.n_nodes = ns
+        self.contacts = contacts
 
-    def generatePattern(self, gait_matrix, contacts, cycle_nodes, duty_cycle=1., opts=None):
+
+    def generateCycle(self, gait_matrix, cycle_nodes, duty_cycle=1.):
         stance_nodes = dict()
         swing_nodes = dict()
 
         # prepare stance and swing nodes
-        for contact in contacts:
+        for contact in self.contacts:
             stance_nodes[contact] = []
             swing_nodes[contact] = []
 
@@ -19,21 +21,30 @@ class PatternGenerator():
             j = 0
             for n_cycle in range(gait_matrix.shape[1]):
                 swing_chunk = [n + j for n in range(phase_nodes) if n < flight_duration]
-                swing_nodes[contacts[n_contact]].extend(swing_chunk if gait_matrix[n_contact, n_cycle] else [])
+                swing_nodes[self.contacts[n_contact]].extend(swing_chunk if gait_matrix[n_contact, n_cycle] else [])
                 j += phase_nodes
 
         for name, value in stance_nodes.items():
             stance_nodes[name].extend([n for n in range(cycle_nodes) if n not in swing_nodes[name]])
 
+
+        return swing_nodes, stance_nodes
+
+    def generatePattern(self, gait_matrix, cycle_nodes, duty_cycle=1., opts=None):
+
+        swing_nodes, stance_nodes = self.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
+
         # repeat patter through nodes
         n_cycles = int(self.n_nodes / cycle_nodes) + 1
 
+        # prepare the pattern containers
         stance_nodes_rep = dict()
         swing_nodes_rep = dict()
-        for contact in contacts:
+        for contact in self.contacts:
             stance_nodes_rep[contact] = []
             swing_nodes_rep[contact] = []
 
+        # repeat pattern for n cycles
         for n in range(0, n_cycles):
             for name, value in swing_nodes.items():
                 swing_nodes_rep[name].extend([elem + n * cycle_nodes for elem in value])
@@ -42,6 +53,7 @@ class PatternGenerator():
             for name, value in stance_nodes.items():
                 stance_nodes_rep[name].extend([elem + n * cycle_nodes for elem in value])
 
+        # remove nodes if they are outside range
         for name, value in swing_nodes_rep.items():
             swing_nodes_rep[name] = [x for x in value if x < self.n_nodes]
 
@@ -51,7 +63,18 @@ class PatternGenerator():
         return stance_nodes_rep, swing_nodes_rep
 
 
+if __name__ == '__main__':
 
+    import numpy as np
+    pg = PatternGenerator(50)
+
+    gait_matrix = np.array([[0, 0, 0, 1],
+                            [0, 1, 0, 0],
+                            [1, 0, 0, 0],
+                            [0, 0, 1, 0]]).astype(int)
+
+    #  gait_matrix, contacts, cycle_nodes, duty_cycle=1., opts=None):
+    pg.generatePattern(gait_matrix, ['a', 'b', 'c', 'd'], 20, 1.)
 # class PatternGenerator:
 #     def __init__(self, pattern, duty_cycle, t_init, stride_time, step_n_min=3):
 #
