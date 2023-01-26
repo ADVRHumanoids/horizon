@@ -857,7 +857,7 @@ class Problem:
 
         return fun
 
-    def evalFun(self, fun: fc.Function, solution):
+    def evalFun(self, fun: fc.Function, solution, nodes=None):
         """
         Evaluates a given function over the solution found.
 
@@ -867,13 +867,19 @@ class Problem:
         Returns:
             fun evaluated at all nodes using the solution of horizon problem
         """
+
+        if nodes is None:
+            nodes = fun.getNodes()
+
         fun_to_evaluate = fun.getFunction()
+
         all_vars = list()
         for var in fun.getVariables():
             var_name = var.getName()
             # careful about ordering
             # todo this is very ugly, but what can I do (wanted to do it without the if)
-            if True or isinstance(var, sv.SingleVariable):
+            if isinstance(var, sv.SingleVariable):
+                # todo possible bug with SingleVariable
                 all_vars.append(solution[var_name])
             else:
                 # this is required because:
@@ -884,14 +890,15 @@ class Problem:
                 # suppose a variable is defined only on nodes [3, 4, 5, 6].
                 #   its solution will be [a, b, c, d]. I'm interested in the values at position [0, 1, 2, 3], which corresponds to nodes [3, 4, 5, 6]
                 node_index = [i for i in range(len(var.getNodes())) if
-                              var.getNodes()[i] in np.array(fun.getNodes()) + var.getOffset()]
+                              var.getNodes()[i] in np.array(nodes) + var.getOffset()]
                 all_vars.append(solution[var_name][:, node_index])
 
         all_pars = list()
         for par in fun.getParameters():
             # careful about ordering
             # todo this is very ugly, but what can I do (wanted to do it without the if)
-            if True or isinstance(par, sv.SingleParameter):
+            if isinstance(par, sv.SingleParameter):
+                # todo possible bug with SingleVariable
                 all_pars.append(par.getValues())
             else:
                 par_matrix = np.reshape(par.getValues(), (par.getDim(), len(par.getNodes())), order='F')
@@ -1120,28 +1127,7 @@ def pickleable(obj):
 
 if __name__ == '__main__':
 
-    import pickle
-    from transcriptions import transcriptor
-    from horizon.solvers import Solver
-    from horizon.utils import plotter
-    import matplotlib.pyplot as plt
 
-    N = 10
-    nodes_vec = np.array(range(N + 1))  # nodes = 10
-    dt = 0.01
-    prb = Problem(N, receding=True, casadi_type=cs.SX)
-    x = prb.createStateVariable('x', 2)
-    y = prb.createInputVariable('y', 2)
-    mimmo = prb.createIntermediateConstraint('cost_y', y - x)
-
-    print(mimmo.getNodes())
-    mimmo.setBounds([-np.inf, -np.inf], [np.inf, np.inf], nodes=4)
-    mimmo.setBounds([0, 1], [0, 1], nodes=4)
-
-    print(mimmo.getNodes())
-    print(mimmo.getBounds())
-
-    exit()
     # ============================================================
     # ============================================================
     # ============================================================
@@ -1151,25 +1137,14 @@ if __name__ == '__main__':
     dt = 0.01
     prb = Problem(N, receding=True, casadi_type=cs.SX)
     x = prb.createStateVariable('x', 2)
-    y = prb.createInputVariable('y', 2)
-    dan = prb.createParameter('dan', 2)
+    y = prb.createSingleVariable('y', 2)
     x.setBounds([-2, -2], [2, 2])
     y.setBounds([-5, -5], [5, 5])
     prb.createCost('cost_x', x)
-    mimmo = prb.createIntermediateConstraint('cost_y', y - dan)
+    mimmo = prb.createIntermediateConstraint('cost_y', y - x)
 
-    print(mimmo.getUpperBounds())
-    print(mimmo.getLowerBounds())
-    exit()
-
-    print(dan.getValues())
-    print(dan.getNodes())
-    dan.assign([[2, 3, 4]], [])
-    print(dan.getValues())
-    exit()
-    # for i in range(500):
-    #     cnsrt = prb.createConstraint(f'cnsrt_{i}', x - i * y, nodes=[])
-    #     print(cnsrt.getBounds())
+    mimmo.setLowerBounds([1, 1])
+    mimmo.setUpperBounds([10, 10])
 
     prb.setDynamics(x)
     prb.setDt(dt)
@@ -1180,12 +1155,18 @@ if __name__ == '__main__':
     # opts['ipopt.jac_c_constant'] = 'yes'
     # opts['ipopt.jac_d_constant'] = 'yes'
     # opts['ipopt.hessian_constant'] = 'yes'
+
+    from transcriptions import transcriptor
+    from horizon.solvers import Solver
+    from horizon.utils import plotter
+    import matplotlib.pyplot as plt
+
     solv = Solver.make_solver('ipopt', prb, opts)
-    tic = time.time()
     solv.solve()
-    toc = time.time() - tic
-    print(toc)
-    print(solv.getSolutionDict()['x'])
+    solution = solv.getSolutionDict()
+
+    print(prb.evalFun(mimmo, solution))
+
     exit()
     # N = 3
     # nodes_vec = np.array(range(N+1))    # nodes = 10
