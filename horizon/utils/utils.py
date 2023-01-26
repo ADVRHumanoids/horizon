@@ -222,3 +222,5 @@ def double_integrator(q, v, a, kd=None):
 def barrier(x):
     return cs.if_else(x > 0, 0, x)
 
+def barrier_1(x):
+    return cs.sum1(cs.if_else(x > 0, 0, x ** 2))
