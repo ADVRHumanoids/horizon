@@ -141,6 +141,22 @@ class Solver(ABC):
         f = cs.vertcat(*fun_list)
         return f
 
+    def _createCnsrtLambDict(self, solution):
+
+        lambd_cnsrt_dict = dict()
+        pos = 0
+        for name, fun in self.prb.function_container.getCnstr().items(): # iterate through each symbolic constraint
+            
+            #extracting and reshaping the constraint values associated to name
+            lam_g_vals = solution['lam_g'][pos:pos + fun.getDim() * len(fun.getNodes())]
+            lam_g_vals_mat = np.reshape(lam_g_vals, (fun.getDim(), len(fun.getNodes())), order='F')
+
+            lambd_cnsrt_dict[name + "_lambd"] = lam_g_vals_mat
+
+            pos = pos + fun.getDim() * len(fun.getNodes()) 
+        
+        return lambd_cnsrt_dict
+
     def _createCnsrtSolDict(self, solution):
 
         fun_sol_dict = dict()

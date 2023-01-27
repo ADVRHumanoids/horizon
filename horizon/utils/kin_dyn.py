@@ -183,9 +183,9 @@ class ForwardDynamics():
         self.fd = kindyn.aba()
         self.contact_jacobians = dict()
         for frame in contact_frames:
-            self.contact_jacobians[frame] = cs.Function.deserialize(kindyn.jacobian(frame, force_reference_frame))
+            self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
-    def call(self, q, qdot, tau, frame_force_mapping=dict(), params = 0):
+    def call(self, q, qdot, tau, frame_force_mapping=dict(), eval_num=False, params = 0):
         """
                 Computes generalized accelerations:
                 Args:
@@ -199,16 +199,47 @@ class ForwardDynamics():
                 """
         JtF_sum = 0
 
-        for frame, wrench in frame_force_mapping.items():
-            J = self.contact_jacobians[frame](q=q, p=params)['J']
+        if not eval_num:
 
-            if wrench.shape[0] == 3:  # point contact
-                JtF = cs.mtimes(J[0:3, :].T, wrench)
-            else:  # surface contact
-                JtF = cs.mtimes(J.T, wrench)
-            JtF_sum += JtF
+            for frame, wrench in frame_force_mapping.items():
+                J = self.contact_jacobians[frame](q=q, p=params)['J']
+
+                if wrench.shape[0] == 3:  # point contact
+                    JtF = cs.mtimes(J[0:3, :].T, wrench)
+                else:  # surface contact
+                    JtF = cs.mtimes(J.T, wrench)
+                JtF_sum += JtF
+
+        else:
+
+            n_ints = tau.shape[1]
+
+            JtF_sum = cs.DM(np.zeros((q.shape[0], n_ints)))
+            JtF_sumi = cs.DM(np.zeros((tau.shape[0], 1)))
+            for i in range(n_ints): # iterate through each sample interval
+                
+                for frame, wrench in frame_force_mapping.items():
+                    
+                    wrench_dim = wrench[:, i].shape[0]
+
+                    J = self.contact_jacobians[frame](q=q[:, i])['J']
+
+                    if wrench_dim == 3:  # point contact
+
+                        JtFi = J[0:3, :].T @ wrench[:, i]
+
+                    else:  # surface contact
+
+                        JtFi = J[:, i * n_ints: i* n_ints + n_ints].T @ wrench[:, i]
+                            
+                    JtF_sumi += JtFi
+                
+                JtF_sum[:, i] = JtF_sumi
+
+                JtF_sumi = cs.DM(np.zeros((tau.shape[0], 1)))
 
         qddot = self.fd(q=q, v=qdot, tau=tau + JtF_sum)['a']
+
         return qddot
 
 class InverseDynamics():
