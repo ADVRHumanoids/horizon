@@ -10,13 +10,16 @@ import geometry_msgs.msg
 import time
 from casadi_kin_dyn import pycasadi_kin_dyn as cas_kin_dyn
 from copy import deepcopy
-from horizon.utils.trajectory_viewer import TrajectoryViewer
+from horizon.ros.trajectory_viewer import TrajectoryViewer
+from threading import Thread, Lock
 
 try:
     import tf as ros_tf
 except ImportError:
     from . import tf_broadcaster_simple as ros_tf
     print('will not use tf publisher')
+
+lock = Lock()
 
 
 def normalize_quaternion(q):
@@ -226,7 +229,15 @@ class replay_trajectory:
         nq = np.shape(self.q_replay)[0]
         ns = np.shape(self.q_replay)[1]
 
+        # for elem in self.tv.values():
+        #     dt_markers = 0.05
+        #     multiplier = self.dt / dt_markers
+        #     n_markers_max = int((ns-1) * multiplier)
+        #     p = Thread(target=self.publish_frame_trajectories, args=(self.tv['ball_1'], 1/dt_markers, n_markers_max))
+        #     p.start()
+
         while not rospy.is_shutdown():
+
             k = 0
             for qk in self.q_replay.T:
 
@@ -239,13 +250,34 @@ class replay_trajectory:
                         action = Marker.DELETEALL
                     else:
                         action = Marker.ADD
-                    elem.publish_marker_array(action=action)
+                    # action = Marker.ADD
+                    elem.publish_once(action=action)
 
                 if self.frame_force_mapping:
                     if k != ns-1:
                         self.publishContactForces(t, qk, k)
+
+
                 rate.sleep()
                 k += 1
             if self.__sleep > 0.:
                 time.sleep(self.__sleep)
                 print('replaying traj ...')
+
+    # def publish_frame_trajectories(self, pub, rate, markers_max=500):
+    #
+    #     k = 0
+    #     rospy_rate = rospy.Rate(rate)
+    #     while True:
+    #         if k == markers_max:
+    #             action = Marker.DELETEALL
+    #             k = 0
+    #             print('reset')
+    #         else:
+    #             action = Marker.ADD
+    #
+    #         k += 1
+    #         pub.publish_once(action=action, markers_max=markers_max)
+    #
+    #         rospy_rate.sleep()
+
