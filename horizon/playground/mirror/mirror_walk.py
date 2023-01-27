@@ -7,6 +7,7 @@ from horizon.rhc.model_description import *
 import numpy as np
 import rospkg
 import casadi as cs
+import rospy
 
 """
 This application is basically what /playground/mirror/mirror_walk_am.py does, but using the tasks dicts, and without using the ActionManager.
@@ -18,7 +19,7 @@ urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
-
+rospy.set_param('/robot_description', urdf)
 ns = 50
 tf = 8.0  # 10s
 dt = tf / ns
