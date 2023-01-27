@@ -50,10 +50,6 @@ class FullModelInverseDynamics:
         self.v = self.prb.createStateVariable('v', self.nv)
         self.a = self.prb.createInputVariable('a', self.nv)
 
-        # velocity limits
-        vel_lims = kd.velocityLimits()
-        self.v.setBounds(-vel_lims, vel_lims)
-
         # parse contacts
         self.fmap = dict()
         self.cmap = dict()

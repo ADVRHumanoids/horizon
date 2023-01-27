@@ -8,7 +8,8 @@ from horizon.utils.actionManager import ActionManager, Step
 import numpy as np
 import rospkg
 import casadi as cs
-
+import rospy
+import subprocess
 """
 An application of mirror walking using the ActionManager.
 It uses the TaskInterface, but just for the problem setting, everything else is manually inserted.
@@ -18,6 +19,9 @@ urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
+rospy.set_param('/robot_description', urdf)
+bashCommand = 'rosrun robot_state_publisher robot_state_publisher'
+subprocess.Popen(bashCommand.split(), start_new_session=True)
 
 ns = 50
 tf = 8.0  # 10s

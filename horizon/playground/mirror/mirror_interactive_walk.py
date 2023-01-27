@@ -19,7 +19,8 @@ import rospkg, rospy, yaml
 from cartesian_interface.pyci_all import *
 from xbot_interface import xbot_interface as xbot
 
-
+# 1. rviz / roscore
+# 2. rosrun cartesian_interface marker_spawner
 class CartesioSolver:
 
     def __init__(self, urdf, srdf, pb, kd, solver) -> None:
