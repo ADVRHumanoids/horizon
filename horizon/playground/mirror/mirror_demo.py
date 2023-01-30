@@ -84,12 +84,12 @@ prb.createFinalResidual('base_link_y', 1e3 * (model.q[1] - base_pos_y_param))
 # ================================================================================
 # ================================================================================
 
-# gait_matrix = np.array([[0, 1, 0],
-#                         [1, 0, 0],
-#                         [0, 0, 1]]).astype(int)
+gait_matrix = np.array([[0, 1, 0],
+                        [1, 0, 0],
+                        [0, 0, 1]]).astype(int)
 
-gait_matrix = np.array([[0],
-                        [1],
+gait_matrix = np.array([[1],
+                        [0],
                         [0]]).astype(int)
 
 flight_with_duty = int(cycle_nodes / gait_matrix.shape[1] * duty_cycle)
@@ -138,7 +138,7 @@ for contact in contacts:
 
     # vertical contact frame
     rot_err = cs.sumsqr(ee_rot[2, :2])
-    # prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
+    prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
 
     # barrier force
     fcost = barrier(model.fmap[contact][2] - 10.0)  # fz > 10
@@ -160,9 +160,9 @@ for contact in contacts:
                                     nodes=swing_nodes[contact])
 
         # vertical takeoff and touchdown
-        lat_vel = cs.vertcat(ee_v[0:2], ee_v_ang)
-        vert = prb.createConstraint(f"{contact}_vert", lat_vel,
-                                    nodes=swing_nodes[contact][:vertical_constraint_nodes] + swing_nodes[contact][-vertical_constraint_nodes:])
+        # lat_vel = cs.vertcat(ee_v[0:2], ee_v_ang)
+        # vert = prb.createConstraint(f"{contact}_vert", lat_vel,
+        #                             nodes=swing_nodes[contact][:vertical_constraint_nodes] + swing_nodes[contact][-vertical_constraint_nodes:])
 
 tg = TrajectoryGenerator()
 
@@ -172,6 +172,7 @@ for contact, z_constr in z_des.items():
         rep_param = np.concatenate([z_trj] * int((len(swing_nodes[contact]) + 10) / z_trj.shape[1]), axis=1)
 
         z_des[contact].assign(rep_param[:, :len(swing_nodes[contact])], nodes=swing_nodes[contact])
+
 
 
 
@@ -229,18 +230,18 @@ if solver_type != 'ilqr':
 #     print(obj)
 #     print(obj.getNodes().tolist())
 #     print(obj.getBounds())
-
-print('CONSTRAINTS:')
-for cnsrt, obj in prb.getConstraints().items():
-    print(cnsrt,':', type(obj))
-    print(obj.getFunction())
-    print(obj._fun_impl)
-    print(obj.getNodes())
-    print(obj.getBounds())
 #
-print('COSTS:')
-for cnsrt, obj in prb.getCosts().items():
-    print(cnsrt,':', obj.getNodes(), type(obj))
+# print('CONSTRAINTS:')
+# for cnsrt, obj in prb.getConstraints().items():
+#     print(cnsrt,':', type(obj))
+#     print(obj.getFunction())
+#     print(obj._fun_impl)
+#     print(obj.getNodes())
+#     print(obj.getBounds())
+# #
+# print('COSTS:')
+# for cnsrt, obj in prb.getCosts().items():
+#     print(cnsrt,':', obj.getNodes(), type(obj))
 
 
 opts = {'ipopt.tol': 0.001,
