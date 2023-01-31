@@ -84,9 +84,9 @@ prb.createFinalResidual('base_link_y', 1e3 * (model.q[1] - base_pos_y_param))
 # ================================================================================
 # ================================================================================
 
-gait_matrix = np.array([[0, 1, 0],
-                        [1, 0, 0],
-                        [0, 0, 1]]).astype(int)
+# gait_matrix = np.array([[0, 1, 0],
+#                         [1, 0, 0],
+#                         [0, 0, 1]]).astype(int)
 
 gait_matrix = np.array([[1],
                         [0],
@@ -138,7 +138,7 @@ for contact in contacts:
 
     # vertical contact frame
     rot_err = cs.sumsqr(ee_rot[2, :2])
-    prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
+    prb.createIntermediateCost(f'{contact}_rot', 1e3 * rot_err)
 
     # barrier force
     fcost = barrier(model.fmap[contact][2] - 10.0)  # fz > 10
