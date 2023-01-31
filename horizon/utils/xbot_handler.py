@@ -56,13 +56,16 @@ class XBotHandler:
             self.robot.move()
 
 
-    def replay(self, solution, var_names=None):
+    def replay(self, solution, var_names=None, dt_name=None):
 
         if var_names is None:
             var_names = ['q']
 
+        if dt_name is None:
+            dt_name = ['dt']
+
         var_q = var_names[0]
-        dt = solution['dt'] #0.001
+        dt = solution[dt_name]
         q = solution[var_q]
         num_samples = solution[var_q].shape[1]
 
@@ -73,6 +76,8 @@ class XBotHandler:
         q_homing = q_robot[:, 0]
         self.robot.sense()
         self.stupid_homing(q_homing)
+
+        input('click to replay')
         rate = rospy.Rate(1. / dt)
 
         for i in range(num_samples):

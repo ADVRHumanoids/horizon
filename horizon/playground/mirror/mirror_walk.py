@@ -211,24 +211,24 @@ opts_rti['ilqr.max_iter'] = 4
 ti.setSolverOptions(opts)
 ti.finalize()
 
-# print('VARIABLES:')
-# for var_name, obj in ti.prb.getVariables().items():
-#     print(var_name, ':', type(obj))
-#     print(obj)
-#     print(obj.getNodes().tolist())
-#     print(obj.getBounds())
+print('VARIABLES:')
+for var_name, obj in ti.prb.getVariables().items():
+    print(var_name, ':', type(obj))
+    print(obj)
+    print(obj.getNodes().tolist())
+    print(obj.getBounds())
 
-# print('CONSTRAINTS:')
-# for cnsrt, obj in ti.prb.getConstraints().items():
-#     print(cnsrt,':', type(obj))
-#     print(obj.getFunction())
-#     print(obj._fun_impl)
-#     print(obj.getNodes())
-#     print(obj.getBounds())
-#
-# print('COSTS:')
-# for cnsrt, obj in ti.prb.getCosts().items():
-#     print(cnsrt,':', obj.getNodes(), type(obj))
+print('CONSTRAINTS:')
+for cnsrt, obj in ti.prb.getConstraints().items():
+    print(cnsrt,':', type(obj))
+    print(obj.getFunction())
+    print(obj._fun_impl)
+    print(obj.getNodes())
+    print(obj.getBounds())
+
+print('COSTS:')
+for cnsrt, obj in ti.prb.getCosts().items():
+    print(cnsrt,':', obj.getNodes(), type(obj))
 #
 
 ti.bootstrap()
@@ -244,12 +244,12 @@ solution = ti.solution
 # rospy.loginfo("'spot' visualization started.")
 
 ## single replay
-# q_sol = solution['q']
-# frame_force_mapping = {contacts[i]: solution[forces[i].getName()] for i in range(3)}
-# repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), q_sol, frame_force_mapping, kd_frame, kd)
-# repl.sleep(1.)
-# repl.replay(is_floating_base=True)
-# exit()
+q_sol = solution['q']
+frame_force_mapping = {contacts[i]: solution[forces[i].getName()] for i in range(3)}
+repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), q_sol, frame_force_mapping, kd_frame, kd)
+repl.sleep(1.)
+repl.replay(is_floating_base=True)
+exit()
 
 plot_flag = True
 if plot_flag:

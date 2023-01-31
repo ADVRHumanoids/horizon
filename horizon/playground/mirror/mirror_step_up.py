@@ -14,12 +14,7 @@ import casadi as cs
 import rospy
 import subprocess
 import time
-"""
-This application is basically what /playground/mirror/mirror_walk_am.py does, but using the tasks dicts, and without using the ActionManager.
-There should be:
-- a config file with all the problem setting, constraints/costs
-- an execute file to set parameters, use the actionManager...
-"""
+
 urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
@@ -33,9 +28,9 @@ transcription_opts = dict(integrator='RK4')
 
 init_nodes = 20
 end_nodes = 20
-cycle_nodes = 100
+cycle_nodes = 90
 clearance = 0.2
-duty_cycle = .3
+duty_cycle = .5
 vertical_constraint_nodes = 2
 # ns = 100
 ns = init_nodes + cycle_nodes + end_nodes
@@ -92,10 +87,6 @@ gait_matrix = np.array([[0, 1, 0],
                         [1, 0, 0],
                         [0, 0, 1]]).astype(int)
 
-# gait_matrix = np.array([[0, 0],
-#                         [1, 0],
-#                         [0, 1]]).astype(int)
-
 # gait_matrix = np.array([[0],
 #                         [1],
 #                         [0]]).astype(int)
@@ -131,7 +122,9 @@ for name, elem in swing_nodes.items():
 
 contact_pos = dict()
 z_des = dict()
+pos_des = dict()
 clea = dict()
+pos_constr = dict()
 for contact in contacts:
     FK = kd.fk(contact)
     DFK = kd.frameVelocity(contact, kd_frame)
@@ -158,10 +151,14 @@ for contact in contacts:
 
 
     if swing_nodes[contact]:
+
         # clearance
         contact_pos[contact] = FK(q=model.q0)['ee_pos']
         z_des[contact] = prb.createParameter(f'{contact}_z_des', 1)
         clea[contact] = prb.createConstraint(f"{contact}_clea", ee_pos[2] - z_des[contact], nodes=swing_nodes[contact])
+
+        pos_des[contact] = prb.createParameter(f'{contact}_pos_goal', 1)
+        pos_constr[contact] = prb.createConstraint(f"{contact}_pos_goal", ee_pos[0] - pos_des[contact], nodes=swing_nodes[contact][-1] + 1)
 
         # zero force
         model.fmap[contact].setBounds(np.array([[0, 0, 0]] * len(swing_nodes[contact])).T,
@@ -173,17 +170,20 @@ for contact in contacts:
         vert = prb.createConstraint(f"{contact}_vert", lat_vel,
                                     nodes=swing_nodes[contact][:vertical_constraint_nodes] + swing_nodes[contact][-vertical_constraint_nodes:])
 
+
 tg = TrajectoryGenerator()
 
 for contact, z_constr in z_des.items():
-        pos_z = contact_pos[contact][2].elements()[0]
-        z_trj = np.atleast_2d(tg.from_derivatives(flight_with_duty, pos_z, pos_z, clearance, [0, 0, 0]))
-        rep_param = np.concatenate([z_trj] * int((len(swing_nodes[contact]) + 10) / z_trj.shape[1]), axis=1)
+    pos_z = contact_pos[contact][2].elements()[0]
+    z_trj = np.atleast_2d(tg.from_derivatives(flight_with_duty, pos_z, pos_z, clearance, [0, 0, 0]))
+    rep_param = np.concatenate([z_trj] * int((len(swing_nodes[contact]) + 10) / z_trj.shape[1]), axis=1)
 
-        z_des[contact].assign(rep_param[:, :len(swing_nodes[contact])], nodes=swing_nodes[contact])
+    z_des[contact].assign(rep_param[:, :len(swing_nodes[contact])], nodes=swing_nodes[contact])
 
 
-
+for contact, pos_constr in pos_constr.items():
+    pos_x = contact_pos[contact][0].elements()[0]
+    pos_des[contact].assign(pos_x + 0.2)
 
 base_pos_x_param.assign(ptgt_final[0])
 base_pos_y_param.assign(ptgt_final[1])
@@ -202,7 +202,7 @@ prb.createResidual("min_rot", 1e-4 * (model.q[3:5] - q0[3:5]))
 prb.createResidual("min_q", 1e-1 * (model.q[7:] - q0[7:]))
 
 # joint velocity
-prb.createResidual("min_v", 1e0 * model.v)
+prb.createResidual("min_v", 1e-2 * model.v)
 
 # final posture
 # todo: incredible, this is the problem. if it's FinalResidual, everything goes tho whores
