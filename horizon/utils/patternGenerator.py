@@ -8,6 +8,8 @@ class PatternGenerator():
         stance_nodes = dict()
         swing_nodes = dict()
 
+        new_cycle_nodes = cycle_nodes - cycle_nodes % gait_matrix.shape[1]
+
         # prepare stance and swing nodes
         for contact in self.contacts:
             stance_nodes[contact] = []
@@ -25,14 +27,14 @@ class PatternGenerator():
                 j += phase_nodes
 
         for name, value in stance_nodes.items():
-            stance_nodes[name].extend([n for n in range(cycle_nodes) if n not in swing_nodes[name]])
+            stance_nodes[name].extend([n for n in range(new_cycle_nodes) if n not in swing_nodes[name]])
 
 
-        return swing_nodes, stance_nodes
+        return stance_nodes, swing_nodes, new_cycle_nodes
 
     def generatePattern(self, gait_matrix, cycle_nodes, duty_cycle=1., opts=None):
 
-        swing_nodes, stance_nodes = self.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
+        stance_nodes, swing_nodes = self.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
 
         # repeat patter through nodes
         n_cycles = int(self.n_nodes / cycle_nodes) + 1
