@@ -320,7 +320,7 @@ for c in contacts:
 #     print(c_phases[c].getActivePhase())
 
 ################################################ CRAWLING ##############################################################
-n_cycle = 10
+n_cycle = 20
 initial_phase = 2
 
 for i in range(n_cycle):

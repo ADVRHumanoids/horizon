@@ -22,10 +22,10 @@ def SRBD(m, I, f_dict, r, rddot, p_dict, w, wdot):
     """
     g = np.array([0., 0., -9.81])
     eq1 = m * (rddot - g)
-    eq2 = cs.mtimes(I, wdot) + cs.mtimes(utils.skew(w), cs.mtimes(I,  w))
+    eq2 = cs.mtimes(I, wdot) + cs.mtimes(cs.skew(w), cs.mtimes(I,  w))
     for i, f in f_dict.items():
         eq1 = eq1 - f
-        eq2 = eq2 - cs.mtimes(utils.skew(p_dict[i] - r),  f)
+        eq2 = eq2 - cs.mtimes(cs.skew(p_dict[i] - r),  f)
 
     return cs.vertcat(eq1, eq2)
 

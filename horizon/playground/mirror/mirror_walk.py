@@ -8,6 +8,7 @@ import numpy as np
 import rospkg
 import casadi as cs
 import rospy
+import subprocess
 
 """
 This application is basically what /playground/mirror/mirror_walk_am.py does, but using the tasks dicts, and without using the ActionManager.
@@ -20,6 +21,8 @@ urdf = open(urdf_path, 'r').read()
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
 rospy.set_param('/robot_description', urdf)
+subprocess.Popen(['rosrun', 'robot_state_publisher', 'robot_state_publisher'])
+
 ns = 50
 tf = 8.0  # 10s
 dt = tf / ns
@@ -60,8 +63,7 @@ task_base_x = {'type': 'Cartesian',
                'distal_link': 'base_link',
                'name': 'final_base_x',
                'indices': [0],
-               'nodes': [ns],
-               'weight': 1e3}
+               'nodes': [ns]}
 #
 task_base_y = {'type': 'Cartesian',
                'distal_link': 'base_link',
@@ -215,7 +217,7 @@ ti.finalize()
 #     print(obj)
 #     print(obj.getNodes().tolist())
 #     print(obj.getBounds())
-#
+
 # print('CONSTRAINTS:')
 # for cnsrt, obj in ti.prb.getConstraints().items():
 #     print(cnsrt,':', type(obj))
@@ -242,12 +244,12 @@ solution = ti.solution
 # rospy.loginfo("'spot' visualization started.")
 
 ## single replay
-q_sol = solution['q']
-frame_force_mapping = {contacts[i]: solution[forces[i].getName()] for i in range(3)}
-repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), q_sol, frame_force_mapping, kd_frame, kd)
-repl.sleep(1.)
-repl.replay(is_floating_base=True)
-exit()
+# q_sol = solution['q']
+# frame_force_mapping = {contacts[i]: solution[forces[i].getName()] for i in range(3)}
+# repl = replay_trajectory.replay_trajectory(dt, kd.joint_names(), q_sol, frame_force_mapping, kd_frame, kd)
+# repl.sleep(1.)
+# repl.replay(is_floating_base=True)
+# exit()
 
 plot_flag = True
 if plot_flag:
@@ -256,7 +258,7 @@ if plot_flag:
 
     plt.figure()
     for contact in contacts:
-        FK = cs.Function.deserialize(kd.fk(contact))
+        FK = kd.fk(contact)
         pos = FK(q=solution['q'])['ee_pos']
 
         plt.title(f'feet position - plane_xy')
@@ -266,7 +268,7 @@ if plot_flag:
 
     plt.figure()
     for contact in contacts:
-        FK = cs.Function.deserialize(kd.fk(contact))
+        FK = kd.fk(contact)
         pos = FK(q=solution['q'])['ee_pos']
 
         plt.title(f'feet position - plane_xz')

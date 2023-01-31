@@ -263,14 +263,14 @@ def SRBDViewer(I, base_frame, t, number_of_contacts):
     pub2 = rospy.Publisher('contacts', MarkerArray, queue_size=10).publish(marker_array)
 
 def setWorld(frame, kindyn, q, base_link="base_link"):
-    FRAME = cs.Function.deserialize(kindyn.fk(frame))
+    FRAME = kindyn.fk(frame)
     w_p_f = FRAME(q=q)['ee_pos']
     w_r_f = FRAME(q=q)['ee_rot']
     w_T_f = np.identity(4)
     w_T_f[0:3, 0:3] = w_r_f
     w_T_f[0:3, 3] = cs.transpose(w_p_f)
 
-    BASE_LINK = cs.Function.deserialize(kindyn.fk(base_link))
+    BASE_LINK = kindyn.fk(base_link)
     w_p_bl = BASE_LINK(q=q)['ee_pos']
     w_r_bl = BASE_LINK(q=q)['ee_rot']
     w_T_bl = np.identity(4)
@@ -364,8 +364,8 @@ class cartesIO:
 
 
 #horizon_ros_utils.roslaunch("horizon_examples", "SRBD_kangaroo.launch")
-horizon_ros_utils.roslaunch("horizon_examples", "SRBD_kangaroo_line_feet.launch")
-#horizon_ros_utils.roslaunch("horizon_examples", "SRBD_spot.launch")
+# horizon_ros_utils.roslaunch("horizon_examples", "SRBD_kangaroo_line_feet.launch")
+horizon_ros_utils.roslaunch("horizon_examples", "SRBD_spot.launch")
 time.sleep(3.)
 
 """
@@ -518,7 +518,7 @@ print(f"max_contact_velocity: {max_contact_velocity}")
 i = 0
 initial_foot_position = dict()
 for frame in foot_frames:
-    FK = cs.Function.deserialize(kindyn.fk(frame))
+    FK = kindyn.fk(frame)
     p = FK(q=joint_init)['ee_pos']
     print(f"{frame}: {p}")
     """
@@ -544,7 +544,7 @@ for frame in foot_frames:
 """
 Initialize com state and com velocity
 """
-COM = cs.Function.deserialize(kindyn.centerOfMass())
+COM = kindyn.centerOfMass()
 com = COM(q=joint_init)['com']
 print(f"com: {com}")
 r.setInitialGuess(com)
@@ -684,7 +684,7 @@ Single Rigid Body Dynamics constraint: data are taken from the loaded urdf model
 """
 m = kindyn.mass()
 print(f"mass: {m}")
-M = cs.Function.deserialize(kindyn.crba())
+M = kindyn.crba()
 I = M(q=joint_init)['B'][3:6, 3:6]
 print(f"I centroidal: {I}")
 
