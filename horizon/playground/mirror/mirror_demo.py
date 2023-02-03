@@ -31,23 +31,24 @@ solver_type = 'ipopt'
 transcription_method = 'multiple_shooting'
 transcription_opts = dict(integrator='RK4')
 
+resample_flag = True
+plot_flag = False
+
 init_nodes = 20
 end_nodes = 20
-cycle_nodes = 100
+cycle_nodes = 90
 clearance = 0.2
 duty_cycle = .3
 vertical_constraint_nodes = 2
-# ns = 100
 ns = init_nodes + cycle_nodes + end_nodes
-
-print(ns)
-tf = 20.0  # 10s
+tf = 30.0  # 10s
 dt = tf / ns
 
 problem_opts = {'ns': ns, 'tf': tf, 'dt': dt}
 
 q_init = {}
 
+# from srdf
 for i in range(3):
     q_init[f'arm_{i + 1}_joint_2'] = -1.9
     q_init[f'arm_{i + 1}_joint_3'] = -2.30
@@ -77,21 +78,61 @@ for contact in contacts:
 
 ptgt_final = base_init.copy()
 
-# base x position
-base_pos_x_param = prb.createParameter('base_pos_x_param', 1)
-prb.createFinalConstraint('base_link_x', model.q[0] - base_pos_x_param)
+f0 = np.array([0, 0, kd.mass() * 9.8 / 3])
 
-# base y position
-base_pos_y_param = prb.createParameter('base_pos_y_param', 1)
-prb.createFinalResidual('base_link_y', 1e3 * (model.q[1] - base_pos_y_param))
+# base position
+base_pos_param = prb.createParameter('base_pos_x_param', 3)
+prb.createFinalResidual('final_base_x', 3 * (model.q[0] - base_pos_param[0]))
+prb.createFinalResidual('final_base_y', 3 * (model.q[1] - base_pos_param[1]))
+# prb.createFinalResidual('final_base_z', 3 * (model.q[5] - base_pos_param[2]))
+
+# initial position
+model.q.setBounds(model.q0, model.q0, nodes=0)
+model.v.setBounds(model.v0, model.v0, nodes=0)
+# final velocity
+model.v.setBounds(model.v0, model.v0, nodes=ns)
+
+# base rotation
+# prb.createResidual("min_rot", 1e-4 * (model.q[3:5] - model.q0[3:5]))
+
+# joint posture
+prb.createResidual("min_q", 1e-1 * (model.q[7:] - model.q0[7:]))
+
+# joint velocity
+prb.createResidual("min_v", 3e-2 * model.v)
+
+# final posture
+prb.createFinalResidual("min_qf", 1e-1 * (model.q[7:] - model.q0[7:]))
+
+jlim_cost = barrier_1(model.q[8:10] - (-2.55)) + \
+            barrier_1(model.q[14:16] - (-2.55)) + \
+            barrier_1(model.q[20:22] - (-2.55))
+
+prb.createCost(f'jlim', 1e2 * jlim_cost)
+
+# joint acceleration
+prb.createIntermediateResidual("min_q_ddot", 1e-4 * model.a)
+
+# regularize forces
+for f in model.fmap.values():
+    prb.createIntermediateResidual(f"min_{f.getName()}", 1e-3 * (f - f0))
+
+# com_fn = kd.centerOfMass()
+
+
+# set initial condition and initial guess
+model.q.setInitialGuess(model.q0)
+
+for f in model.fmap.values():
+    f.setInitialGuess(f0)
 
 # ================================================================================
 # ================================================================================
 
-gait_matrix = np.array([[0, 1, 0],
-                        [1, 0, 0],
+gait_matrix = np.array([[1, 0, 0],
+                        [0, 1, 0],
                         [0, 0, 1]]).astype(int)
-
+#
 # gait_matrix = np.array([[0, 0],
 #                         [1, 0],
 #                         [0, 1]]).astype(int)
@@ -100,11 +141,18 @@ gait_matrix = np.array([[0, 1, 0],
 #                         [1],
 #                         [0]]).astype(int)
 
+
 flight_with_duty = int(cycle_nodes / gait_matrix.shape[1] * duty_cycle)
+stance_with_duty = int(cycle_nodes / gait_matrix.shape[1] * (1 - duty_cycle))
+print('number of nodes: ', ns)
+print('init phase duration:', init_nodes * dt, f'({init_nodes})')
+print('final phase duration:', end_nodes * dt, f'({end_nodes})')
+print('nodes flight duration:', flight_with_duty * dt, f'({flight_with_duty})')
+print('nodes stance duration:', stance_with_duty * dt, f'({stance_with_duty})')
 
 # create pattern
 pg = PatternGenerator(cycle_nodes, contacts)
-stance_nodes, swing_nodes, cycle_nodes = pg.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
+stance_nodes, swing_nodes, cycle_nodes = pg.generateCycle_old(gait_matrix, cycle_nodes, duty_cycle)
 
 list_init_nodes = list(range(init_nodes))
 
@@ -132,6 +180,7 @@ for name, elem in swing_nodes.items():
 contact_pos = dict()
 z_des = dict()
 clea = dict()
+
 for contact in contacts:
     FK = kd.fk(contact)
     DFK = kd.frameVelocity(contact, kd_frame)
@@ -143,15 +192,14 @@ for contact in contacts:
     ee_v_ang = DFK(q=model.q, qdot=model.v)['ee_vel_angular']
     a = DDFK(q=model.q, qdot=model.v)['ee_acc_linear']
 
-    contact_pos[contact] = FK(q=model.q0)['ee_pos']
-
     # vertical contact frame
     rot_err = cs.sumsqr(ee_rot[2, :2])
-    prb.createIntermediateCost(f'{contact}_rot', 1e3 * rot_err)
+    prb.createIntermediateCost(f'{contact}_rot', 5e0 * rot_err)
+
 
     # barrier force
-    fcost = barrier(model.fmap[contact][2] - 10.0)  # fz > 10
-    prb.createResidual(f'{contact}_unil', 1e1 * fcost, nodes=stance_nodes[contact][:-1]) # [1:-1]
+    fcost = barrier_1(model.fmap[contact][2] - 100.0) # fz > 10
+    prb.createResidual(f'{contact}_unil', 1e-3 * fcost, nodes=stance_nodes[contact][:-1]) # [1:-1]
 
     # contact constraint
     prb.createConstraint(f"{contact}_vel", cs.vertcat(ee_v, ee_v_ang), nodes=stance_nodes[contact])
@@ -185,48 +233,9 @@ for contact, z_constr in z_des.items():
 
 
 
-base_pos_x_param.assign(ptgt_final[0])
-base_pos_y_param.assign(ptgt_final[1])
-
-q0 = model.q0
-v0 = model.v0
-f0 = np.array([0, 0, kd.mass() * 9.8 / 3])
-
-# final velocity
-model.v.setBounds(v0, v0, nodes=ns)
-
-# base rotation
-prb.createResidual("min_rot", 1e-4 * (model.q[3:5] - q0[3:5]))
-
-# joint posture
-prb.createResidual("min_q", 1e-1 * (model.q[7:] - q0[7:]))
-
-# joint velocity
-prb.createResidual("min_v", 1e0 * model.v)
-
-# final posture
-# todo: incredible, this is the problem. if it's FinalResidual, everything goes tho whores
-prb.createResidual("min_qf", 1e1 * (model.q[7:] - q0[7:]))
-# prb.createFinalResidual("min_qf", 1e1 * (model.q[7:] - model.q0[7:]))
-
-# regularize input
-prb.createIntermediateResidual("min_q_ddot", 1e0 * model.a)
-
-# regularize forces
-for f in model.fmap.values():
-    prb.createIntermediateResidual(f"min_{f.getName()}", 1e-3 * (f - f0))
-
-# com_fn = kd.centerOfMass()
-
-
-# set initial condition and initial guess
-model.q.setBounds(q0, q0, nodes=0)
-model.v.setBounds(v0, v0, nodes=0)
-
-model.q.setInitialGuess(q0)
-
-for f in model.fmap.values():
-    f.setInitialGuess(f0)
+# base_pos_param[0].assign(ptgt_final[0])
+# base_pos_param[1].assign(ptgt_final[1])
+# base_pos_param[2].assign(ptgt_final[2])
 
 model.setDynamics()
 
@@ -255,19 +264,21 @@ if solver_type != 'ilqr':
 
 opts = {'ipopt.tol': 0.001,
         'ipopt.constr_viol_tol': 1e-3,
-        'ipopt.max_iter': 1000,
-        'error_on_fail': True,
-        'ilqr.max_iter': 200,
+        'ipopt.max_iter': 200,
+        'error_on_fail': False,
+        'ilqr.max_iter': 300,
         'ilqr.alpha_min': 0.01,
         'ilqr.use_filter': False,
-        'ilqr.hxx_reg': 0.0,
+        'ilqr.step_length': 1.0,
+        'ilqr.enable_line_search': False,
+        'ilqr.hxx_reg': 1.0,
         'ilqr.integrator': 'RK4',
         'ilqr.merit_der_threshold': 1e-6,
         'ilqr.step_length_threshold': 1e-9,
         'ilqr.line_search_accept_ratio': 1e-4,
         'ilqr.kkt_decomp_type': 'qr',
         'ilqr.constr_decomp_type': 'qr',
-        'ilqr.verbose': True,
+        'ilqr.codegen_enabled': True,
         'ipopt.linear_solver': 'ma57',
         }
 
@@ -291,7 +302,7 @@ solution = solver_bs.getSolutionDict()
 
 
 # ================================================================
-resample_flag = False
+
 if resample_flag:
     from horizon.utils import resampler_trajectory
 
@@ -366,12 +377,25 @@ if resample_flag:
         solution['tau_res'] = tau_res
 
 # ====================store solutions ============================
-ms = matStorer(f'mat_files/mirror_demo_dc{int(duty_cycle*10)}_cn{cycle_nodes}_clea{int(clearance*10)}_in{init_nodes}_en{end_nodes}_tf{int(tf)}.mat')
+
+name_stored = f'mat_files/mirror_demo_dc{int(duty_cycle*10)}_cn{cycle_nodes}_clea{int(clearance*10)}_in{init_nodes}_en{end_nodes}_tf{int(tf)}.mat'
+ms = matStorer(name_stored)
 info_dict = dict(n_nodes=prb.getNNodes(), dt=prb.getDt())
+
+info_dict['init_nodes'] = init_nodes
+info_dict['end_nodes'] = end_nodes
+info_dict['cycle_nodes'] = cycle_nodes
+info_dict['clearance'] = clearance
+info_dict['duty_cycle'] = duty_cycle
+info_dict['vertical_constraint_nodes'] = vertical_constraint_nodes
+info_dict['ns'] = ns
+info_dict['tf'] = tf
+
 ms.store({**solution, **info_dict})
 
+print('solution stored as', name_stored)
 ## single replay
-plot_flag = False
+
 
 if not plot_flag:
     q_sol = solution['q']
