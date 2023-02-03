@@ -46,17 +46,37 @@ class XBotHandler:
 
 
 
+    def homing(self, q_homing, duration=5., dt = 0.001):
+
+        self.robot.sense()
+        init_pose = self.robot.getMotorPosition()
+        final_pose = q_homing
+        t = 0
+        tau = 0
+
+        rate = rospy.Rate(1. / dt)
+
+        while tau < 1.:
+            tau = t / duration
+            alpha = ((6 * tau - 15) * tau + 10) * tau * tau * tau
+            q_ref = init_pose + alpha * (final_pose - init_pose)
+            self.robot.setPositionReference(q_ref)
+            self.robot.move()
+            rate.sleep()
+            t += dt
+
+
 
     def stupid_homing(self, q_homing, duration=5):
 
         for i in range(100):
             self.robot.setPositionReference(q_homing)
-            # robot.setStiffness(4 *[200, 200, 100]) #[200, 200, 100]
-            # robot.setDamping(4 * [50, 50, 30])  # [200, 200, 100]
+            # robot.setStiffness(3 *[200, 200, 100]) #[200, 200, 100]
+            # robot.setDamping(3 * [50, 50, 30])  # [200, 200, 100]
             self.robot.move()
 
 
-    def replay(self, solution, var_names=None, dt_name=None):
+    def replay(self, solution, var_names=None, dt_name=None, homing_duration=5.):
 
         if var_names is None:
             var_names = ['q']
@@ -66,6 +86,10 @@ class XBotHandler:
 
         var_q = var_names[0]
         dt = solution[dt_name]
+
+        if not isinstance(solution[dt_name], float):
+            dt = solution[dt_name].item(0)
+
         q = solution[var_q]
         num_samples = solution[var_q].shape[1]
 
@@ -73,9 +97,16 @@ class XBotHandler:
         # q_dot_robot = qdot_res[6:, :]
         # tau_robot = tau_res[6:, :]
 
+        # set stiffness and damping
+        # for i in range(1):
+            # self.robot.setStiffness(3 *[200, 200, 100]) #[200, 200, 100]
+            # self.robot.setDamping(3 * [50, 50, 30])  # [200, 200, 100]
+            # self.robot.move()
+
+        # exit()
         q_homing = q_robot[:, 0]
         self.robot.sense()
-        self.stupid_homing(q_homing)
+        self.homing(q_homing, duration=homing_duration, dt=dt)
 
         input('click to replay')
         rate = rospy.Rate(1. / dt)

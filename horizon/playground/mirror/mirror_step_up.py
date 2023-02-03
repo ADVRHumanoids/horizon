@@ -29,14 +29,15 @@ transcription_opts = dict(integrator='RK4')
 init_nodes = 20
 end_nodes = 20
 cycle_nodes = 90
-clearance = 0.2
-duty_cycle = .5
+clearance = 0.1
+duty_cycle = .4
+lenght_disp = 0.2
 vertical_constraint_nodes = 2
 # ns = 100
 ns = init_nodes + cycle_nodes + end_nodes
 
 print(ns)
-tf = 20.0  # 10s
+tf = 40.0  # 10s
 dt = tf / ns
 
 problem_opts = {'ns': ns, 'tf': tf, 'dt': dt}
@@ -44,9 +45,9 @@ problem_opts = {'ns': ns, 'tf': tf, 'dt': dt}
 q_init = {}
 
 for i in range(3):
-    q_init[f'arm_{i + 1}_joint_2'] = -1.9
-    q_init[f'arm_{i + 1}_joint_3'] = -2.30
-    q_init[f'arm_{i + 1}_joint_5'] = -0.4
+    q_init[f'arm_{i + 1}_joint_2'] = -0.9 # -1.25   #-1.9       # -0.9
+    q_init[f'arm_{i + 1}_joint_3'] = - 1.8 # -2.30  #-2.30      # - 2.03
+    q_init[f'arm_{i + 1}_joint_5'] = - 0.9 # -1.08  #-0.4       # -1.13
 
 base_init = np.array([0, 0, 0.72, 0, 0, 0, 1])
 
@@ -92,10 +93,17 @@ gait_matrix = np.array([[0, 1, 0],
 #                         [0]]).astype(int)
 
 flight_with_duty = int(cycle_nodes / gait_matrix.shape[1] * duty_cycle)
+stance_with_duty = int(cycle_nodes / gait_matrix.shape[1] * (1 - duty_cycle))
+
+print('number of nodes: ', ns)
+print('init phase duration:', init_nodes * dt, f'({init_nodes})')
+print('final phase duration:', end_nodes * dt, f'({end_nodes})')
+print('nodes flight duration:', flight_with_duty * dt, f'({flight_with_duty})')
+print('nodes stance duration:', stance_with_duty * dt, f'({stance_with_duty})')
 
 # create pattern
 pg = PatternGenerator(cycle_nodes, contacts)
-stance_nodes, swing_nodes, cycle_nodes = pg.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
+stance_nodes, swing_nodes, cycle_nodes = pg.generateCycle_old(gait_matrix, cycle_nodes, duty_cycle)
 
 list_init_nodes = list(range(init_nodes))
 
@@ -140,7 +148,7 @@ for contact in contacts:
 
     # vertical contact frame
     rot_err = cs.sumsqr(ee_rot[2, :2])
-    prb.createIntermediateCost(f'{contact}_rot', 1e3 * rot_err)
+    prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
 
     # barrier force
     fcost = barrier(model.fmap[contact][2] - 10.0)  # fz > 10
@@ -157,8 +165,8 @@ for contact in contacts:
         z_des[contact] = prb.createParameter(f'{contact}_z_des', 1)
         clea[contact] = prb.createConstraint(f"{contact}_clea", ee_pos[2] - z_des[contact], nodes=swing_nodes[contact])
 
-        pos_des[contact] = prb.createParameter(f'{contact}_pos_goal', 1)
-        pos_constr[contact] = prb.createConstraint(f"{contact}_pos_goal", ee_pos[0] - pos_des[contact], nodes=swing_nodes[contact][-1] + 1)
+        pos_des[contact] = prb.createParameter(f'{contact}_pos_goal', 2)
+        pos_constr[contact] = prb.createConstraint(f"{contact}_pos_goal", ee_pos[:2] - pos_des[contact], nodes=swing_nodes[contact][-1])
 
         # zero force
         model.fmap[contact].setBounds(np.array([[0, 0, 0]] * len(swing_nodes[contact])).T,
@@ -181,12 +189,23 @@ for contact, z_constr in z_des.items():
     z_des[contact].assign(rep_param[:, :len(swing_nodes[contact])], nodes=swing_nodes[contact])
 
 
-for contact, pos_constr in pos_constr.items():
-    pos_x = contact_pos[contact][0].elements()[0]
-    pos_des[contact].assign(pos_x + 0.2)
+# # assign xy
+lenght_disp = 0.1
+dtheta = 2 * np.pi/3
 
-base_pos_x_param.assign(ptgt_final[0])
-base_pos_y_param.assign(ptgt_final[1])
+theta = 0
+for contact, pos_constr in pos_constr.items():
+    pos_xy = contact_pos[contact].toarray().flatten()[:2]
+    pos_goal = np.array([lenght_disp * cs.cos(theta), lenght_disp * cs.sin(theta)])
+
+    pos_des[contact].assign(pos_xy + pos_goal, nodes=swing_nodes[contact][-1])
+    theta += dtheta
+
+    print(f'contact {contact} moving from {pos_xy} to {pos_xy + pos_goal}')
+
+
+# base_pos_x_param.assign(ptgt_final[0])
+# base_pos_y_param.assign(ptgt_final[1])
 
 q0 = model.q0
 v0 = model.v0
@@ -205,12 +224,12 @@ prb.createResidual("min_q", 1e-1 * (model.q[7:] - q0[7:]))
 prb.createResidual("min_v", 1e-2 * model.v)
 
 # final posture
-# todo: incredible, this is the problem. if it's FinalResidual, everything goes tho whores
+# todo: incredible, this is the problem. if it's FinalResidual, everything goes to whores
 prb.createResidual("min_qf", 1e1 * (model.q[7:] - q0[7:]))
 # prb.createFinalResidual("min_qf", 1e1 * (model.q[7:] - model.q0[7:]))
 
 # regularize input
-prb.createIntermediateResidual("min_q_ddot", 1e0 * model.a)
+prb.createIntermediateResidual("min_q_ddot", 1e1 * model.a)
 
 # regularize forces
 for f in model.fmap.values():
@@ -291,7 +310,7 @@ solution = solver_bs.getSolutionDict()
 
 
 # ================================================================
-resample_flag = False
+resample_flag = True
 if resample_flag:
     from horizon.utils import resampler_trajectory
 
@@ -366,10 +385,11 @@ if resample_flag:
         solution['tau_res'] = tau_res
 
 # ====================store solutions ============================
-ms = matStorer(f'mat_files/mirror_demo_dc{int(duty_cycle*10)}_cn{cycle_nodes}_clea{int(clearance*10)}_in{init_nodes}_en{end_nodes}_tf{int(tf)}.mat')
+name_stored = f'mat_files/mirror_step_up_1.mat'
+ms = matStorer(name_stored)
 info_dict = dict(n_nodes=prb.getNNodes(), dt=prb.getDt())
 ms.store({**solution, **info_dict})
-
+print('solution stored as', name_stored)
 ## single replay
 plot_flag = False
 
