@@ -153,12 +153,9 @@ model.v.setBounds(model.v0, model.v0, 0)
 
 model.q.setInitialGuess(model.q0)
 
-f0 = [0, 0, kd.mass()/4 * 9.8]
+f0 = [0, 0, kd.mass()/3 * 9.8]
 for f_name, f_var in model.fmap.items():
     f_var.setInitialGuess(f0)
-
-if solver_type != 'ilqr':
-    Transcriptor.make_method(transcription_method, prb, transcription_opts)
 
 ptgt = prb.createParameter('ptgt', 3)
 goalx = prb.createFinalResidual("final_x", 3 * (model.q[0] - ptgt[0]))
@@ -282,6 +279,11 @@ for c in contacts:
     c_phases[c].registerPhase(flight_phase)
 
 
+model.setDynamics()
+
+if solver_type != 'ilqr':
+    Transcriptor.make_method(transcription_method, prb, transcription_opts)
+
 for c in contacts:
     stance = c_phases[c].getRegisteredPhase(f'stance_{c}')
     flight = c_phases[c].getRegisteredPhase(f'flight_{c}')
@@ -328,7 +330,6 @@ for i in range(n_cycle):
         c_phases[step].addPhase(c_phases[step].getRegisteredPhase(f'flight_{step}'), initial_phase + pos)
     initial_phase += pos + 1
 
-model.setDynamics()
 
 
 opts = {'ilqr.max_iter': 300,
@@ -351,7 +352,7 @@ opts = {'ilqr.max_iter': 300,
         }
 
 # todo if receding is true ....
-solver_bs = Solver.make_solver('ilqr', prb, opts)
+solver_bs = Solver.make_solver(solver_type, prb, opts)
 
 try:
     solver_bs.set_iteration_callback()
@@ -361,7 +362,7 @@ except:
 scoped_opts_rti = opts.copy()
 scoped_opts_rti['ilqr.enable_line_search'] = False
 scoped_opts_rti['ilqr.max_iter'] = 1
-solver_rti = Solver.make_solver('ilqr', prb, scoped_opts_rti)
+solver_rti = Solver.make_solver(solver_type, prb, scoped_opts_rti)
 
 t = time.time()
 solver_bs.solve()

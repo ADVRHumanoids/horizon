@@ -179,7 +179,7 @@ class NlpsolSolver(Solver):
 
         self.var_solution["opt_cost"] = float(sol['f'])
 
-        self.var_solution["n_iter2sol"] =  self.iter_counter_callback.iter_counter
+        self.var_solution["n_iter2sol"] = self.iter_counter_callback.iter_counter
 
         # get solution as state/input
         self._createVarSolAsInOut(sol)
