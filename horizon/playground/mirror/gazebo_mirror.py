@@ -20,12 +20,15 @@ urdf_path = rospkg.RosPack().get_path('mirror_urdf') + '/urdf/mirror.urdf'
 urdf = open(urdf_path, 'r').read()
 rospy.set_param('/robot_description', urdf)
 
-name = 'mat_files/' + 'mirror_demo_dc3_cn90_clea2_in20_en20_tf40.mat'
+# fast_step_in_place.mat done
 
-# good mirror_demo_dc3_cn90_clea2_in20_en20_tf30
+name = 'mat_files/' + 'mirror_balancing_1_leg.mat'
+
+
+# name = 'mat_files/' + 'success/' + 'very_good_experiment.mat'
 ms = mat_storer.matStorer(name)
 solution = ms.load()
  
 from horizon.utils.xbot_handler import XBotHandler
 xbh = XBotHandler()
-xbh.replay(solution, var_names=['q_res'], dt_name='dt_res', homing_duration=5.)
+xbh.replay(solution, var_names=['q_res'], dt_name='dt_res', homing_duration=2.)

@@ -31,15 +31,12 @@ plot_flag = False
 
 init_nodes = 20
 end_nodes = 20
-cycle_nodes = 100
-clearance = 0.15
-step_height = 0.15
-duty_cycle = .6
-lenght_disp = 0.25
-vertical_constraint_nodes = 1
+cycle_nodes = 30
+clearance = 0.3
+duty_cycle = 1.
+vertical_constraint_nodes = 2
 # ns = 100
 ns = init_nodes + cycle_nodes + end_nodes
-
 tf = 20.0  # 10s
 dt = tf / ns
 
@@ -48,9 +45,9 @@ problem_opts = {'ns': ns, 'tf': tf, 'dt': dt}
 q_init = {}
 
 for i in range(3):
-    q_init[f'arm_{i + 1}_joint_2'] = -0.9 # -1.9
-    q_init[f'arm_{i + 1}_joint_3'] = - 1.8 # -2.30
-    q_init[f'arm_{i + 1}_joint_5'] = - 0.9 # -0.4
+    q_init[f'arm_{i + 1}_joint_2'] = -1.2 #-0.9 #  -1.9
+    q_init[f'arm_{i + 1}_joint_3'] =-2.10 #- 1.8 # -2.30
+    q_init[f'arm_{i + 1}_joint_5'] = -0.9 #- 0.9 # -0.4
 
 base_init = np.array([0, 0, 0.72, 0, 0, 0, 1])
 
@@ -75,6 +72,10 @@ for contact in contacts:
 #     model.setContactFrame(contact, 'vertex', dict(vertex_frames=[contact]))
 
 ptgt_final = base_init.copy()
+# ptgt_final[0] += base_disp_x
+# ptgt_final[1] += base_disp_y
+# ptgt_final[2] = base_rot
+# ptgt_final[2] =
 
 # base x position
 base_pos_x_param = prb.createParameter('base_pos_x_param', 1)
@@ -84,16 +85,14 @@ prb.createFinalConstraint('base_link_x', model.q[0] - base_pos_x_param)
 base_pos_y_param = prb.createParameter('base_pos_y_param', 1)
 prb.createFinalResidual('base_link_y', 1e3 * (model.q[1] - base_pos_y_param))
 
+base_pos_rot_param = prb.createParameter('base_pos_rot_param', 1)
+prb.createFinalResidual('base_link_rot', 1e3 * (model.q[5] - base_pos_rot_param))
 # ================================================================================
 # ================================================================================
 
-gait_matrix = np.array([[0, 1, 0],
-                        [1, 0, 0],
-                        [0, 0, 1]]).astype(int)
-
-# gait_matrix = np.array([[0],
-#                         [1],
-#                         [0]]).astype(int)
+gait_matrix = np.array([[1, 1],
+                        [0, 1],
+                        [0, 0]]).astype(int)
 
 flight_with_duty = int(cycle_nodes / gait_matrix.shape[1] * duty_cycle)
 stance_with_duty = int(cycle_nodes / gait_matrix.shape[1] * (1 - duty_cycle))
@@ -103,6 +102,7 @@ print('init phase duration:', init_nodes * dt, f'({init_nodes})')
 print('final phase duration:', end_nodes * dt, f'({end_nodes})')
 print('nodes flight duration:', flight_with_duty * dt, f'({flight_with_duty})')
 print('nodes stance duration:', stance_with_duty * dt, f'({stance_with_duty})')
+
 # create pattern
 pg = PatternGenerator(cycle_nodes, contacts)
 stance_nodes, swing_nodes, cycle_nodes = pg.generateCycle_old(gait_matrix, cycle_nodes, duty_cycle)
@@ -147,9 +147,15 @@ for contact in contacts:
 
     contact_pos[contact] = FK(q=model.q0)['ee_pos']
 
-    # vertical contact frame
-    rot_err = cs.sumsqr(ee_rot[2, :2])
-    prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
+    initial_ee_rotation_z = FK(q=model.q0)['ee_rot'][2, :2]
+
+    if np.any(np.absolute(initial_ee_rotation_z) > 0.0001):
+        raise Exception('ee rotation is not zero:', initial_ee_rotation_z)
+
+    if not swing_nodes[contact]:
+        # vertical contact frame
+        rot_err = cs.sumsqr(ee_rot[2, :2])
+        prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
 
     # barrier force
     fcost = barrier(model.fmap[contact][2] - 100.0)  # fz > 10
@@ -159,14 +165,19 @@ for contact in contacts:
     prb.createConstraint(f"{contact}_vel", cs.vertcat(ee_v, ee_v_ang), nodes=stance_nodes[contact])
 
     if swing_nodes[contact]:
+
+        rot_err = cs.sumsqr(ee_rot[2, :2])
+        prb.createIntermediateCost(f'{contact}_rot', 1e4 * rot_err)
+
         # clearance
         contact_pos[contact] = FK(q=model.q0)['ee_pos']
         z_des[contact] = prb.createParameter(f'{contact}_z_des', 1)
         clea[contact] = prb.createConstraint(f"{contact}_clea", ee_pos[2] - z_des[contact], nodes=swing_nodes[contact])
 
-        pos_des[contact] = prb.createParameter(f'{contact}_pos_goal', 2)
-        pos_constr[contact] = prb.createConstraint(f"{contact}_pos_goal", ee_pos[:2] - pos_des[contact],
-                                                   nodes=swing_nodes[contact][-1])
+        # xy pos
+        # pos_des[contact] = prb.createParameter(f'{contact}_pos_goal', 2)
+        # pos_constr[contact] = prb.createConstraint(f"{contact}_pos_goal", ee_pos[:2] - pos_des[contact],
+        #                                            nodes=swing_nodes[contact][-1])
 
         # zero force
         model.fmap[contact].setBounds(np.array([[0, 0, 0]] * len(swing_nodes[contact])).T,
@@ -179,37 +190,39 @@ for contact in contacts:
                                     nodes=swing_nodes[contact][:vertical_constraint_nodes] + swing_nodes[contact][
                                                                                              -vertical_constraint_nodes:])
 
+
 tg = TrajectoryGenerator()
 
 for contact, z_constr in z_des.items():
     pos_z = contact_pos[contact][2].elements()[0]
-    pos_z_final = pos_z + step_height
-    z_trj = np.atleast_2d(tg.from_derivatives(flight_with_duty, pos_z, pos_z_final, clearance, [0, 0, 0]))
-    rep_param = np.concatenate([z_trj] * int((len(swing_nodes[contact]) + 10) / z_trj.shape[1]), axis=1)
+    z_trj = np.atleast_2d(tg.from_derivatives(len(swing_nodes[contact]), pos_z, pos_z, clearance, [0, 0, 0]))
+    z_des[contact].assign(z_trj, nodes=swing_nodes[contact])
 
-    z_des[contact].assign(rep_param[:, :len(swing_nodes[contact])], nodes=swing_nodes[contact])
 
 # # assign xy
-dtheta = 2 * np.pi / 3
+# dtheta = 2 * np.pi / 3
 
-theta = 0
-for contact, pos_constr in pos_constr.items():
-    pos_xy = contact_pos[contact].toarray().flatten()[:2]
-
-    # increase the support polygon by moving the legs in the radial direction
-    pos_goal = np.array([lenght_disp * cs.cos(theta), lenght_disp * cs.sin(theta)])
-
-    pos_des[contact].assign(pos_xy + pos_goal, nodes=swing_nodes[contact][-1])
-    theta += dtheta
-
-    print(f'contact {contact} moving from {pos_xy} to {pos_xy + pos_goal}')
+# theta = 0
+# for contact, pos_constr in pos_constr.items():
+#     pos_xy = contact_pos[contact].toarray().flatten()[:2]
+#     pos_goal = np.array([lenght_disp * cs.cos(theta), lenght_disp * cs.sin(theta)])
+#
+#     pos_des[contact].assign(pos_xy + pos_goal, nodes=swing_nodes[contact][-1])
+#     theta += dtheta
+#
+#     print(f'contact {contact} moving from {pos_xy} to {pos_xy + pos_goal}')
 
 # base_pos_x_param.assign(ptgt_final[0])
 # base_pos_y_param.assign(ptgt_final[1])
+# base_pos_rot_param.assign(ptgt_final[2])
 
 q0 = model.q0
 v0 = model.v0
+
 f0 = np.array([0, 0, kd.mass() * 9.8 / 3])
+
+# joint limits
+model.q.setBounds(kd.q_min(), kd.q_max())
 
 # final velocity
 model.v.setBounds(v0, v0, nodes=ns)
@@ -218,18 +231,18 @@ model.v.setBounds(v0, v0, nodes=ns)
 prb.createResidual("min_rot", 1e-4 * (model.q[3:5] - q0[3:5]))
 
 # joint posture
-prb.createResidual("min_q", 1e-1 * (model.q[7:] - q0[7:]))
+prb.createIntermediateResidual("min_q", 1e1 * (model.q[7:] - q0[7:]))
 
 # joint velocity
 prb.createResidual("min_v", 1e-3 * model.v)
 
 # final posture
 # todo: incredible, this is the problem. if it's FinalResidual, everything goes to whores
-prb.createResidual("min_qf", 1e1 * (model.q[7:] - q0[7:]))
-# prb.createFinalResidual("min_qf", 1e1 * (model.q[7:] - model.q0[7:]))
-
+# prb.createIntermediateResidual("min_qf", 1e1 * (model.q[7:] - q0[7:]))
+prb.createFinalResidual("min_qf_final", 1e2 * (model.q[7:] - model.q0[7:]))
+#
 # regularize input
-prb.createIntermediateResidual("min_q_ddot", 2e0 * model.a)
+prb.createIntermediateResidual("min_q_ddot", 1e0 * model.a)
 
 # regularize forces
 for f in model.fmap.values():
@@ -383,19 +396,17 @@ if resample_flag:
         solution['tau_res'] = tau_res
 
 # ====================store solutions ============================
-name_stored = f'mat_files/mirror_step_up_1.mat'
+name_stored = f'mat_files/mirror_balancing_1_leg.mat'
 ms = matStorer(name_stored)
-info_dict = dict(n_nodes=prb.getNNodes(),
-                 dt=prb.getDt(),
+info_dict = dict(n_nodes=prb.getNNodes(), dt=prb.getDt(),
                  init_nodes=init_nodes,
                  end_nodes=end_nodes,
-                 cycle_nodes=cycle_nodes,
+                 cycle_node=cycle_nodes,
                  clearance=clearance,
-                 step_height=step_height,
                  duty_cycle=duty_cycle,
-                 lenght_disp=lenght_disp,
-                 vertical_constraint_nodes=vertical_constraint_nodes,
-                 tf=tf)
+                 tf=tf,
+                 )
+
 
 ms.store({**solution, **info_dict})
 print('solution stored as', name_stored)

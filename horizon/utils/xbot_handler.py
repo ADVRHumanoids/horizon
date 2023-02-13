@@ -50,6 +50,16 @@ class XBotHandler:
 
         self.robot.sense()
         init_pose = self.robot.getMotorPosition()
+
+        # print(self.robot.getStiffness())
+        # damp = self.robot.getDamping()
+        # new_damp = [2 * elem for elem in damp]
+
+        # for i in range(1000):
+        #     self.robot.setDamping(new_damp)  # [200, 200, 100]
+
+        # print(self.robot.getDamping())
+
         final_pose = q_homing
         t = 0
         tau = 0
@@ -71,8 +81,7 @@ class XBotHandler:
 
         for i in range(100):
             self.robot.setPositionReference(q_homing)
-            # robot.setStiffness(3 *[200, 200, 100]) #[200, 200, 100]
-            # robot.setDamping(3 * [50, 50, 30])  # [200, 200, 100]
+
             self.robot.move()
 
 
