@@ -79,7 +79,7 @@ class PatternGenerator():
 
     def generatePattern(self, gait_matrix, cycle_nodes, duty_cycle=1., opts=None):
 
-        stance_nodes, swing_nodes, new_cycle_nodes = self.generateCycle(gait_matrix, cycle_nodes, duty_cycle)
+        stance_nodes, swing_nodes, new_cycle_nodes = self.generateCycle_old(gait_matrix, cycle_nodes, duty_cycle)
 
         # repeat patter through nodes
         n_cycles = int(self.n_nodes / cycle_nodes) + 1

@@ -193,8 +193,11 @@ for contact in contacts:
     a = DDFK(q=model.q, qdot=model.v)['ee_acc_linear']
 
     # vertical contact frame
-    rot_err = cs.sumsqr(ee_rot[2, :2])
-    prb.createIntermediateCost(f'{contact}_rot', 5e0 * rot_err)
+    # rot_err = cs.sumsqr(ee_rot[2, :2])
+    # prb.createIntermediateCost(f'{contact}_rot', 5e0 * rot_err)
+    # rot_err = ee_rot[2, :2]
+    prb.createIntermediateConstraint(f'{contact}_rot_0', ee_rot[2, 0])
+    prb.createIntermediateConstraint(f'{contact}_rot_1', ee_rot[2, 1])
 
 
     # barrier force
