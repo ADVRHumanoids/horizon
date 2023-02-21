@@ -49,6 +49,32 @@ class PatternGenerator():
 
         return stance_nodes, swing_nodes
 
+    def generateGait(self, gait_matrix, cycle_nodes):
+        stance_nodes = dict()
+        swing_nodes = dict()
+
+        new_cycle_nodes = cycle_nodes - cycle_nodes % gait_matrix.shape[1]
+
+        # prepare stance and swing nodes
+        for contact in self.contacts:
+            stance_nodes[contact] = []
+            swing_nodes[contact] = []
+
+        # compute nodes depending on gait type
+        phase_nodes = int(cycle_nodes / gait_matrix.shape[1])
+
+        for n_contact in range(gait_matrix.shape[0]):
+            j = 0
+            for n_cycle in range(gait_matrix.shape[1]):
+                swing_chunk = [n + j for n in range(phase_nodes)]
+                swing_nodes[self.contacts[n_contact]].extend(swing_chunk if gait_matrix[n_contact, n_cycle] else [])
+                j += phase_nodes
+
+        for name, value in stance_nodes.items():
+            stance_nodes[name].extend([n for n in range(new_cycle_nodes) if n not in swing_nodes[name]])
+
+        return stance_nodes, swing_nodes, new_cycle_nodes
+
     def generateCycle_old(self, gait_matrix, cycle_nodes, duty_cycle=1.):
         stance_nodes = dict()
         swing_nodes = dict()
@@ -148,12 +174,18 @@ class PatternGenerator():
             colors_text.append(color_list)
 
 
+        for row in range(len(table_text)):
+            table_text[row] = ['empty' if v is None else v for v in table_text[row]]
+
+
         # Add a table at the bottom of the axes
         fig, ax = plt.subplots()
         ax.axis('tight')
         ax.axis('off')
-        ax.table(cellText=table_text, cellColours=colors_text,
+        tab = ax.table(cellText=table_text, cellColours=colors_text,
                  colLabels=columns, rowLabels=rows, loc='center')
+
+        tab.set_fontsize(40)
 
         plt.show()
 
@@ -166,24 +198,23 @@ if __name__ == '__main__':
 
     # =============================================================================================
     # =============================================================================================
-    # cycle_nodes = 10
-    # gait_matrix = np.array([[0, 0, 0, 1],
-    #                         [0, 1, 0, 0],
-    #                         [1, 0, 0, 0],
-    #                         [0, 0, 1, 0]]).astype(int)
-    #
-    # #  gait_matrix, contacts, cycle_nodes, duty_cycle=1., opts=None):
-    # stance_old, swing_old, new_cycle_nodes = pg.generateCycle_old(gait_matrix, cycle_nodes, 1.)
-    #
-    # print('stance')
-    # for name, elem in stance_old.items():
-    #     print(name, elem)
-    # print('swing')
-    # for name, elem in swing_old.items():
-    #     print(name, elem)
-    #
-    # pg.visualizer(cycle_nodes, stance_old, swing_old)
-    # exit()
+    cycle_nodes = 40
+    gait_matrix = np.array([[0, 0, 0, 1],
+                            [0, 1, 0, 0],
+                            [1, 0, 0, 0],
+                            [0, 0, 1, 0]]).astype(int)
+
+    stance_old, swing_old, new_cycle_nodes = pg.generateGait(gait_matrix, cycle_nodes)
+
+    print('stance')
+    for name, elem in stance_old.items():
+        print(name, elem)
+    print('swing')
+    for name, elem in swing_old.items():
+        print(name, elem)
+
+    pg.visualizer(cycle_nodes, stance_old, swing_old)
+    exit()
     # =============================================================================================
     # =============================================================================================
 
