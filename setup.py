@@ -65,7 +65,7 @@ setuptools.setup(
     description="Library for Trajectory Optimization based on CasADi",
     long_description_content_type="text/markdown",
     url="https://github.com/ADVRHumanoids/horizon",
-    packages=['horizon', 'horizon.utils', 'horizon.solvers', 'horizon.transcriptions', 'horizon.examples', 'horizon.ros'],
+    packages=['horizon', 'horizon.utils', 'horizon.solvers', 'horizon.transcriptions', 'horizon.examples', 'horizon.ros', 'horizon.rhc'],
     install_requires=['casadi', 'numpy', 'matplotlib', 'scipy', 'casadi-kin-dyn', 'rospkg'],
     python_requires=">=3.6",
     cmdclass={'build_py': CustomBuild,
