@@ -27,7 +27,7 @@ class RegularizationTask(Task):
             self.opt_variable_list = [self.prb.getVariables(name) for name in opt_variable_names]
 
         # todo: what to do with this one?
-        self.opt_reference_list = [self.prb.createParameter(f'{name}_ref', self.prb.getVariables(name).getDim()) for name in opt_variable_names]
+            self.opt_reference_list = [self.prb.createParameter(f'{name}_ref', self.prb.getVariables(name).getDim()) for name in opt_variable_names]
 
         if None in self.opt_variable_list:
             raise ValueError(f'variable inserted is not in the problem.')
@@ -55,13 +55,13 @@ class RegularizationTask(Task):
             self.reg_fun.append(self.instantiator(f'reg_{self.name}_{v.getName()}', w * (v - r), nodes))
 
     # todo: temporary
-    def setRef(self, index, ref):
-        self.opt_reference_list[index].assign(ref)
+    def setRef(self, index, ref, nodes=None):
+        self.opt_reference_list[index].assign(ref, nodes)
 
     def getRef(self):
         return self.opt_reference_list
 
-    def setNodes(self, nodes):
+    def setNodes(self, nodes, erasing=True):
         super().setNodes(nodes)
         for reg in self.reg_fun:
             reg.setNodes(nodes)

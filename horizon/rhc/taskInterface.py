@@ -279,7 +279,8 @@ class TaskInterface:
 
         task = task_factory.create(task_specific)
 
-        self.setTask(task)
+        # todo: check if here it is necessary
+        # self.setTask(task)
 
         return task
 
