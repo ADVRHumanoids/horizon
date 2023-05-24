@@ -2,8 +2,9 @@ from horizon.problem import Problem
 from horizon.functions import Function, Constraint
 import numpy as np
 import json, codecs
-class bcolors:
 
+
+class bcolors:
     CPURPLE = '\033[95m'
     CBLUE0 = '\033[94m'
     CCYAN0 = '\033[96m'
@@ -55,6 +56,7 @@ class bcolors:
     CBEIGEBG2 = '\33[106m'
     CWHITEBG2 = '\33[107m'
 
+
 class ProblemAnalyzer:
     def __init__(self, prb: Problem):
         self.prb = prb
@@ -65,16 +67,37 @@ class ProblemAnalyzer:
                             formatter=None
                             )
 
+        self._fun_color_dict()
+
+    def _fun_color_dict(self):
+
+        self._item_fun = {
+            'elements': self.printElement,
+            'nodes': self.printNodes,
+            'values': self.printValues,
+            'bounds': self.printBounds,
+            'initial_guess': self.printInitialGuess
+            }
+
+        self._item_colors = {
+             'elements': bcolors.CYELLOW0,
+             'nodes': bcolors.CRED2,
+             'values': bcolors.CVIOLET2,
+             'bounds': bcolors.CBLUE,
+             'initial_guess': bcolors.CCYAN0
+             }
 
     def _separator(self):
         print(f"{bcolors.CBOLD}{bcolors.CWHITE}"
               f"-------------------------------------------------------------------------------------------------------"
               f"{bcolors.CEND}")
+
     def _print_title(self, title, color):
         print(f"{bcolors.CBOLD}{bcolors.CITALIC}{color} ================= {title} ==================== {bcolors.CEND}")
 
     def _print_lower_bounds(self, elem, color):
         print(f"{bcolors.CBOLD}{color}Lower Bounds:\n{bcolors.CEND}{elem.getLowerBounds()}")
+
     def _print_upper_bounds(self, elem, color):
         print(f"{bcolors.CBOLD}{color}Upper Bounds:\n{bcolors.CEND}{elem.getUpperBounds()}")
 
@@ -96,32 +119,91 @@ class ProblemAnalyzer:
     def printInitialGuess(self, elem, color):
         print(f"{bcolors.CBOLD}{color}Initial Guess:\n{bcolors.CEND}{elem.getInitialGuess()}")
 
-    def print(self):
-        self._print_title("VARIABLES", bcolors.CGREEN2)
-        for name, elem in self.prb.getVariables().items():
+    def printVariables(self, elem=None, suppress_bounds=False, suppress_ig=False):
+
+        item_list = ['elements', 'nodes', 'bounds', 'initial_guess']
+
+        if suppress_bounds is True:
+            item_list.remove('bounds')
+
+        if suppress_ig is True:
+            item_list.remove('initial_guess')
+
+        if elem is None:
+            self._print_generic_group("VARIABLES", bcolors.CGREEN2, self.prb.getVariables(), item_list)
+        else:
+            self._print_generic_element(self.prb.getVariables(elem), item_list)
+
+        # self._print_title("VARIABLES", bcolors.CGREEN2)
+        # for name, elem in self.prb.getVariables().items():
+        #     self._separator()
+        #     self.printElement(elem, bcolors.CYELLOW0)
+        #     self.printNodes(elem, bcolors.CRED2)
+        #     self.printBounds(elem, bcolors.CBLUE)
+        #     self.printInitialGuess(elem, bcolors.CCYAN0)
+
+    def printParameters(self, elem=None, suppress_values=False):
+
+        item_list = ['elements', 'nodes', 'values']
+
+        if suppress_values is True:
+            item_list.remove('values')
+
+        if elem is None:
+            self._print_generic_group("PARAMETERS", bcolors.CGREEN2, self.prb.getParameters(), item_list)
+        else:
+            self._print_generic_element(self.prb.getParameters(elem), item_list)
+        # self._print_title("PARAMETERS", bcolors.CGREEN2)
+        # for name, elem in self.prb.getParameters().items():
+        #     self.printElement(elem, bcolors.CYELLOW0)
+        #     self.printNodes(elem, bcolors.CRED2)
+        #     self.printValues(elem, bcolors.CVIOLET2)
+
+    def printConstraints(self, elem=None, suppress_bounds=False):
+
+        item_list = ['elements', 'nodes', 'bounds']
+
+        if suppress_bounds is True:
+            item_list.remove('bounds')
+
+        if elem is None:
+            self._print_generic_group("CONSTRAINTS", bcolors.CGREEN2, self.prb.getConstraints(), item_list)
+        else:
+            self._print_generic_element(self.prb.getConstraints(elem), item_list)
+        # self._print_title("CONSTRAINTS", bcolors.CGREEN2)
+        # for name, elem in self.prb.getConstraints().items():
+        #     self.printElement(elem, bcolors.CYELLOW0)
+        #     self.printNodes(elem, bcolors.CRED2)
+        #     self.printBounds(elem, bcolors.CBLUE)
+
+    def printCosts(self, elem=None):
+
+        item_list = ['elements', 'nodes']
+
+        if elem is None:
+            self._print_generic_group("COSTS", bcolors.CGREEN2, self.prb.getCosts(), item_list)
+        else:
+            self._print_generic_element(self.prb.getCosts(elem), item_list)
+        # self._print_title("COSTS", bcolors.CGREEN2)
+        # for name, elem in self.prb.getCosts().items():
+        #     self.printElement(elem, bcolors.CYELLOW0)
+        #     self.printNodes(elem, bcolors.CRED2)
+
+    def _print_generic_group(self, name, color, container, item_list):
+        self._print_title(name, color)
+        for name, elem in container.items():
+            self._print_generic_element(elem, item_list)
             self._separator()
-            self.printElement(elem, bcolors.CYELLOW0)
-            self.printNodes(elem, bcolors.CRED2)
-            self.printBounds(elem, bcolors.CBLUE)
-            self.printInitialGuess(elem, bcolors.CCYAN0)
 
-        self._print_title("PARAMETERS", bcolors.CGREEN2)
-        for name, elem in self.prb.getParameters().items():
-            self.printElement(elem, bcolors.CYELLOW0)
-            self.printNodes(elem, bcolors.CRED2)
-            self.printValues(elem, bcolors.CVIOLET2)
+    def _print_generic_element(self, elem, item_list):
+        for item in item_list:
+            self._item_fun[item](elem, self._item_colors[item])
 
-        self._print_title("CONSTRAINTS", bcolors.CGREEN2)
-        for name, elem in self.prb.getConstraints().items():
-            self.printElement(elem, bcolors.CYELLOW0)
-            self.printNodes(elem, bcolors.CRED2)
-            self.printBounds(elem, bcolors.CBLUE)
-
-        self._print_title("COSTS", bcolors.CGREEN2)
-        for name, elem in self.prb.getCosts().items():
-            self.printElement(elem, bcolors.CYELLOW0)
-            self.printNodes(elem, bcolors.CRED2)
-
+    def print(self):
+        self.printVariables()
+        self.printParameters()
+        self.printConstraints()
+        self.printCosts()
 
     def prbAsDict(self):
         data = dict()
@@ -193,34 +275,34 @@ class ProblemAnalyzer:
     #     print("comparing d1 to d2:")
     #     self.findDiff(data1, data2)
 
-def compare_dicts(dict1, dict2, keys=[]):
 
+def compare_dicts(dict1, dict2, keys=[]):
     for k in dict1.keys() | dict2.keys():
         new_keys = keys + [k]
         if isinstance(dict1.get(k), dict) and isinstance(dict2.get(k), dict):
             compare_dicts(dict1[k], dict2[k], new_keys)
         else:
             if dict1.get(k) != dict2.get(k):
-                colored_keys = [f"{bcolors.CYELLOW0}{bcolors.CBOLD if i == 0 else ''}{k}" for i, k in enumerate(new_keys)]
+                colored_keys = [f"{bcolors.CYELLOW0}{bcolors.CBOLD if i == 0 else ''}{k}" for i, k in
+                                enumerate(new_keys)]
                 print(f"{bcolors.CBOLD}{'.'.join(colored_keys)}{bcolors.CEND}")
 
                 if isinstance(dict1.get(k), list) and isinstance(dict2.get(k), list):
                     if len(dict1.get(k)) != len(dict2.get(k)):
-                        print(" "*3 + f"{bcolors.CRED2}Difference of size: {len(dict1.get(k))} != {len(dict2.get(k))}{bcolors.CEND}")
+                        print(
+                            " " * 3 + f"{bcolors.CRED2}Difference of size: {len(dict1.get(k))} != {len(dict2.get(k))}{bcolors.CEND}")
                     else:
-                        diffs = [i for i, (elem1, elem2) in enumerate(zip(dict1.get(k), dict2.get(k))) if elem1 != elem2]
-                        print(" "*3 + f"{bcolors.CRED2}Difference at position(s): {diffs}{bcolors.CEND}") if diffs else None
+                        diffs = [i for i, (elem1, elem2) in enumerate(zip(dict1.get(k), dict2.get(k))) if
+                                 elem1 != elem2]
+                        print(
+                            " " * 3 + f"{bcolors.CRED2}Difference at position(s): {diffs}{bcolors.CEND}") if diffs else None
                 else:
                     print(f"Element is not a list")
-                print(" "*6 + f"{bcolors.CCYAN0}- : {dict1.get(k)}{bcolors.CEND}")
-                print(" "*6 + f"{bcolors.CVIOLET2}+ : {dict2.get(k)}{bcolors.CEND}")
-
+                print(" " * 6 + f"{bcolors.CCYAN0}- : {dict1.get(k)}{bcolors.CEND}")
+                print(" " * 6 + f"{bcolors.CVIOLET2}+ : {dict2.get(k)}{bcolors.CEND}")
 
 
 if __name__ == '__main__':
-
-
-
     obj_text_1 = codecs.open('data.json', 'r', encoding='utf-8').read()
     obj_text_2 = codecs.open('data_add_nodes.json', 'r', encoding='utf-8').read()
     data1 = json.loads(obj_text_1)
