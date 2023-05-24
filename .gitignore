@@ -11,3 +11,4 @@ venv
 *.so*
 *.mat
 
+.vscode/launch.json

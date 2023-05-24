@@ -1,11 +1,11 @@
 name: hori
 channels:
 - conda-forge
-- robostack
-- francesco_ruscelli
+- robostack-staging
+#- francesco_ruscelli
 dependencies:
-- python=3.8
-- nodejs=14
+- python=3.9
+- nodejs
 - jupyterlab=3.2
 - yaml-cpp
 - pip
@@ -20,8 +20,14 @@ dependencies:
 - conda-verify
 - anaconda-client
 - ros-noetic-ros-base
-- ros-noetic-pinocchio
-- francesco_ruscelli::casadi_kin_dyn
+- pinocchio
+- ros-noetic-tf2-msgs
+- ros-noetic-rviz
+- ros-noetic-ros-numpy  # maybe not necessary (bugged)
+- ros-noetic-robot-state-publisher
+- catkin_tools
+#- ros-noetic-pinocchio
+#- francesco_ruscelli::casadi_kin_dyn
 #- ros-noetic-catkin
 #- ros-noetic-robot-state-publisher
 #- ros-noetic-joint-state-publisher

@@ -66,7 +66,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/ADVRHumanoids/horizon",
     packages=['horizon', 'horizon.utils', 'horizon.solvers', 'horizon.transcriptions', 'horizon.examples', 'horizon.ros', 'horizon.rhc', 'horizon.rhc.tasks'],
-    install_requires=['casadi', 'numpy', 'matplotlib', 'scipy', 'casadi-kin-dyn', 'rospkg'],
+    install_requires=['casadi', 'numpy', 'matplotlib', 'scipy', 'rospkg'], #for now removed casadi-kin-dyn due to the installation issue related to the library
     python_requires=">=3.6",
     cmdclass={'build_py': CustomBuild,
               'develop': CustomDevelop},
