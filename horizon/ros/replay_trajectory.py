@@ -160,6 +160,7 @@ class replay_trajectory:
 
     def publish_future_trajectory_marker(self, frame, traj):
 
+        # todo: trajectory should come from outside or computed automatically based on frame?
         self.future_tv[frame].publish_line(traj)
 
     def publishContactForces(self, time, qk, k):
