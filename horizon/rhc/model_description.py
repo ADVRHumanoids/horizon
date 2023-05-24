@@ -21,6 +21,7 @@ class FullModelInverseDynamics:
         self.kd = kd
         self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
         self.fixed_joint_map = fixed_joint_map
+        self.id_fn = None
 
         # number of dof
         self.nq = self.kd.nq()
@@ -118,8 +119,8 @@ class FullModelInverseDynamics:
 
         # underactuation constraints
         if self.fmap:
-            id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
-            self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
+            self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
+            self.tau = self.id_fn.call(self.q, self.v, self.a, self.fmap)
             self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
@@ -127,13 +128,16 @@ class FullModelInverseDynamics:
     def getContacts(self):
         return list(self.cmap.keys())
 
+    def computeTorqueValues(self, q, v, a, fmap):
+
+        tau = self.id_fn.call(q, v, a, fmap)
+        return tau
+
     # def getInput(self):
     #     return self.a
     #
     # def getState(self):
     #     return
-
-
 
 class SingleRigidBodyDynamicsModel:
         #  problem, kd, q_init, base_init, floating_base=True):
@@ -142,6 +146,8 @@ class SingleRigidBodyDynamicsModel:
         self.prb: Problem = problem
         self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
         self.kd_real = kd
+
+        self.id_fn = None
 
         # compute q0 from real robot
         q0_real = self.kd_real.mapToQ(q_init)
@@ -400,10 +406,9 @@ class SingleRigidBodyDynamicsModel:
 
         # underactuation constraints
         if self.fmap:
-            id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
-            self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
+            self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
+            self.tau = self.id_fn.call(self.q, self.v, self.a, self.fmap)
             self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
-
 
     def getContacts(self):
         return self.cmap.keys()
