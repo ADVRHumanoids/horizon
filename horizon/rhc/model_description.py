@@ -130,6 +130,9 @@ class FullModelInverseDynamics:
 
     def computeTorqueValues(self, q, v, a, fmap):
 
+        if self.id_fn is None:
+            return None
+
         tau = self.id_fn.call(q, v, a, fmap)
         return tau
 
