@@ -28,6 +28,12 @@ class YamlParser:
         required_fields = ['constraints', 'costs', 'solver'] # 'solver'
         required_fields_dict = cls._parse_required_fields(parsed_yaml, required_fields)
 
+        # remove all entries that start with "."
+        keys_to_remove = [key for key in parsed_yaml.keys() if isinstance(key, str) and key.startswith('.')]
+        for key in keys_to_remove:
+            del parsed_yaml[key]
+
+
         # parse tasks
         field_names = {'constraints': 'constraint', 'costs': 'residual'}
 
