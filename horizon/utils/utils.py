@@ -104,6 +104,46 @@ def angular_velocities(q1, q2, dt):
         q1[3]*q2[1] + q1[1]*q2[2] - q1[1]*q2[3] - q1[2]*q2[0],
         q1[3]*q2[2] - q1[1]*q2[1] + q1[1]*q2[0] - q1[2]*q2[3]])
 
+def matrix_to_quaternion(matrix):
+    # Ensure the matrix is a valid rotation matrix
+    assert np.isclose(np.linalg.det(matrix), 1.0), "Input matrix is not a valid rotation matrix"
+
+    # Extract the components of the rotation matrix
+    r11, r12, r13 = matrix[0, 0], matrix[0, 1], matrix[0, 2]
+    r21, r22, r23 = matrix[1, 0], matrix[1, 1], matrix[1, 2]
+    r31, r32, r33 = matrix[2, 0], matrix[2, 1], matrix[2, 2]
+
+    # Calculate the trace of the matrix
+    trace = r11 + r22 + r33
+
+    if trace > 0:
+        s = 0.5 / np.sqrt(trace + 1.0)
+        w = 0.25 / s
+        x = (r32 - r23) * s
+        y = (r13 - r31) * s
+        z = (r21 - r12) * s
+    elif r11 > r22 and r11 > r33:
+        s = 2.0 * np.sqrt(1.0 + r11 - r22 - r33)
+        w = (r32 - r23) / s
+        x = 0.25 * s
+        y = (r12 + r21) / s
+        z = (r13 + r31) / s
+    elif r22 > r33:
+        s = 2.0 * np.sqrt(1.0 + r22 - r11 - r33)
+        w = (r13 - r31) / s
+        x = (r12 + r21) / s
+        y = 0.25 * s
+        z = (r23 + r32) / s
+    else:
+        s = 2.0 * np.sqrt(1.0 + r33 - r11 - r22)
+        w = (r21 - r12) / s
+        x = (r13 + r31) / s
+        y = (r23 + r32) / s
+        z = 0.25 * s
+
+    # Return the quaternion in the x, y, z, w order as a numpy array
+    return np.array([x, y, z, w])
+
 def rotationMatrixToQuaterion(R):
     """
     Compute quaternion from rotation matrix
