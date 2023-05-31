@@ -96,7 +96,6 @@ class FullModelInverseDynamics:
     def _make_vertex_contact(self, contact_frame, contact_params):
 
         # todo WARNING: contact_params['vertex_frames'] must be a list!!!!!!!!!!!!!!!!!
-
         vertex_frames = contact_params['vertex_frames']  # todo improve error
 
         # create inputs (todo: support degree > 0)
@@ -125,7 +124,7 @@ class FullModelInverseDynamics:
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 
-    def getContacts(self):
+    def getContactFrames(self):
         return list(self.cmap.keys())
 
     def computeTorqueValues(self, q, v, a, fmap):
