@@ -116,9 +116,14 @@ class RollingTask(Task):
         r = self.radius @ wheel_ver
 
         # velocity of point contact between wheel and plane
-        v_contact_point = ee_v_distal_t + cs.cross(omega, r)
+        # v_contact_point = ee_v_distal_t + cs.cross(omega, r)
 
-        fun = v_contact_point
+        # test with skating contact
+
+        v_contact_point = ee_v_distal_t / cs.norm_2(ee_v_distal_t) + cs.cross(ee_p_distal_r[:, 2], r)
+
+        # fun = v_contact_point
+        fun = cs.if_else(cs.norm_2(ee_v_distal_t) < 1e-1, cs.SX([0., 0., 0.]), v_contact_point)
         return fun
 
     def _initialize(self):

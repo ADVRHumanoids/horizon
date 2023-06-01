@@ -232,7 +232,7 @@ class SingleRigidBodyDynamicsModel:
         base_pos_0, _, _ = self.kd_real.centerOfMass()(q0_real, 0, 0)
         self.q0 = self.kd_srbd.mapToQ({})
         self.q0[:3] = base_pos_0.full().flatten()
-        self.q0[3:7] = utils.rotationMatrixToQuaterion(base_rot_0)
+        self.q0[3:7] = utils.matrix_to_quaternion(base_rot_0).flatten()
 
         q0_idx = 7
         for jn in self.kd_srbd.joint_names()[2:]:
@@ -242,7 +242,7 @@ class SingleRigidBodyDynamicsModel:
             rel_rot = base_rot_0.T @ rot_0
             #
             self.q0[q0_idx:q0_idx+3] = rel_pos.full().flatten()
-            self.q0[q0_idx+3:q0_idx+7] = utils.rotationMatrixToQuaterion(rel_rot)
+            self.q0[q0_idx+3:q0_idx+7] = utils.matrix_to_quaternion(rel_rot).flatten()
             # self.q0[q0_idx:q0_idx+3] = pos_0.full().flatten()
             # self.q0[q0_idx + 3:q0_idx + 7] = utils.rotationMatrixToQuaterion(rot_0)
             q0_idx += 7
