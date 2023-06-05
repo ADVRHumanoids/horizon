@@ -33,6 +33,9 @@ class TaskInterface:
         # get the model
         self.prb = prb
         self.model = model
+
+        self.solver_bs = None
+        self.solver_rti = None
         
         
         # here I register the the default tasks
@@ -54,12 +57,12 @@ class TaskInterface:
         self.task_list = []
         
 
-    def finalize(self):
+    def finalize(self, rti=True):
         """
         to be called after all variables have been created
         """
         self.model.setDynamics()
-        self._create_solver()
+        self._create_solver(rti)
 
     
     def bootstrap(self):
@@ -377,7 +380,7 @@ class TaskInterface:
 
         self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
 
-    def _create_solver(self):
+    def _create_solver(self, rti=True):
 
         if self.si.type != 'ilqr':
             # todo get options from yaml
@@ -391,9 +394,10 @@ class TaskInterface:
         except:
             pass
 
-        scoped_opts_rti = self.si.opts.copy()
-        scoped_opts_rti['ilqr.enable_line_search'] = False
-        scoped_opts_rti['ilqr.max_iter'] = 1
-        self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
+        if rti:
+            scoped_opts_rti = self.si.opts.copy()
+            scoped_opts_rti['ilqr.enable_line_search'] = False
+            scoped_opts_rti['ilqr.max_iter'] = 1
+            self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
 
         return self.solver_bs, self.solver_rti
