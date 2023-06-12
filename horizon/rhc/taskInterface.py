@@ -20,7 +20,7 @@ import numpy as np
 from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
-from horizon.ros.replay_trajectory import replay_trajectory
+# from horizon.ros.replay_trajectory import replay_trajectory
 import logging
 import time
 
@@ -208,30 +208,30 @@ class TaskInterface:
         self.prb.getInput().setInitialGuess(u_opt)
         self.prb.setInitialState(x0=x_opt[:, 0])
 
-    def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
+    # def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
 
-        # single replay
-        joint_names = self.model.kd.joint_names()
-        q_sol = self.solution['q']
-        q_sol_minimal = np.zeros([q_sol.shape[0], self.prb.getNNodes()])
+    #     # single replay
+    #     joint_names = self.model.kd.joint_names()
+    #     q_sol = self.solution['q']
+    #     q_sol_minimal = np.zeros([q_sol.shape[0], self.prb.getNNodes()])
 
-        # if q is not minimal (continuous joints are present) make it minimal
-        for col in range(q_sol.shape[1]):
-            q_sol_minimal[:, col] = self.model.kd.getMinimalQ(q_sol[:, col])
+    #     # if q is not minimal (continuous joints are present) make it minimal
+    #     for col in range(q_sol.shape[1]):
+    #         q_sol_minimal[:, col] = self.model.kd.getMinimalQ(q_sol[:, col])
 
-        frame_force_mapping = {cname: self.solution[f.getName()] for cname, f in self.model.fmap.items()}
+    #     frame_force_mapping = {cname: self.solution[f.getName()] for cname, f in self.model.fmap.items()}
 
-        repl = replay_trajectory(self.prb.getDt(),
-                                 joint_names,
-                                 q_sol_minimal,
-                                 frame_force_mapping,
-                                 self.model.kd_frame,
-                                 self.model.kd,
-                                 fixed_joint_map=self.model.fixed_joint_map,
-                                 trajectory_markers=trajectory_markers,
-                                 trajectory_markers_opts=trajectory_markers_opts)
-        repl.sleep(1.)
-        repl.replay(is_floating_base=True, base_link='pelvis')
+    #     repl = replay_trajectory(self.prb.getDt(),
+    #                              joint_names,
+    #                              q_sol_minimal,
+    #                              frame_force_mapping,
+    #                              self.model.kd_frame,
+    #                              self.model.kd,
+    #                              fixed_joint_map=self.model.fixed_joint_map,
+    #                              trajectory_markers=trajectory_markers,
+    #                              trajectory_markers_opts=trajectory_markers_opts)
+    #     repl.sleep(1.)
+    #     repl.replay(is_floating_base=True, base_link='pelvis')
 
     # a possible method could read from yaml and create the task list
     def setTaskFromYaml(self, yaml_config):
