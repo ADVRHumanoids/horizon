@@ -65,7 +65,7 @@ def resample_input(input, node_time, dt):
     Returns:
         input_res: resampled input
     """
-    number_of_nodes = input.shape[1]+1
+    number_of_nodes = input.shape[1]
     node_time_array = np.zeros([number_of_nodes])
     if hasattr(node_time, "__iter__"):
         for i in range(1, number_of_nodes):
