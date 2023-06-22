@@ -86,8 +86,8 @@ def main(args):
 
     # joint names
     joint_names = kindyn.joint_names()
-    if 'universe' in joint_names: joint_names.remove('universe')
-    if 'floating_base_joint' in joint_names: joint_names.remove('floating_base_joint')
+    # if 'universe' in joint_names: joint_names.remove('universe')
+    # if 'floating_base_joint' in joint_names: joint_names.remove('floating_base_joint')
 
     contacts_name = ['lf_foot', 'rf_foot', 'lh_foot', 'rh_foot']
 

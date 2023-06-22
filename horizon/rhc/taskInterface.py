@@ -40,6 +40,8 @@ class TaskInterface:
         
         # here I register the the default tasks
         # todo: should I do it here?
+        # todo: name of task should be inherited from the task class itself:
+        #  --> task_factory.register(CartesianTask.signature(), CartesianTask)
         # uniform the names of these tasks
         task_factory.register('Cartesian', CartesianTask)
         task_factory.register('Contact', ContactTask)
@@ -49,7 +51,6 @@ class TaskInterface:
         task_factory.register('JointLimits', JointLimitsTask)
         task_factory.register('Regularization', RegularizationTask)
         task_factory.register('Rolling', RollingTask)
-
 
         # self.a0 = np.zeros(self.nv)
 
