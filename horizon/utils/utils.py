@@ -264,6 +264,16 @@ def double_integrator(q, v, a, kd=None):
 
     return cs.vertcat(qdot_fn(q, v), a)
 
+
+def double_integrator_jerk(q, v, a, j, kd=None):
+    if kd is None:
+        xdot = cs.vertcat(v, a, j)
+        return xdot
+
+    qdot_fn = kd.qdot()
+
+    return cs.vertcat(qdot_fn(q, v), a, j)
+
 def single_integrator(q, v, kd=None):
 
     if kd is None:

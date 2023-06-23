@@ -14,6 +14,9 @@ class JointLimitsTask(Task):
 
         super().__init__(*args, **kwargs)
 
+        self.indices = np.array(list(range(self.kin_dyn.nq()))).astype(int) if self.indices is None else np.array(
+            self.indices).astype(int)
+
         if self.fun_type == 'constraint':
             self._initialize_bounds()
         elif self.fun_type == 'cost':
@@ -41,7 +44,7 @@ class JointLimitsTask(Task):
         self.q_min = self._getQMin()[self.indices]
         self.q_max = self._getQMax()[self.indices]
 
-        self.q.setBounds(self.q_min, self.q_max, self.initial_nodes)
+        self.q.setBounds(self.q_min, self.q_max, self.nodes)
 
     def _initialize_cost(self):
 
@@ -70,7 +73,7 @@ class JointLimitsTask(Task):
         self.q_max = qmax
 
         if self.fun_type == 'constraint':
-            self.q.setBounds(self.q_min, self.q_max, self.initial_nodes)
+            self.q.setBounds(self.q_min, self.q_max, self.nodes)
         elif self.fun_type == 'cost':
             self.q_min_cost.setBounds(self.q_min, self.q_max, self.nodes)
             self.q_max_cost.setBounds(self.q_min, self.q_max, self.nodes)

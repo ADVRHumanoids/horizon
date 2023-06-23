@@ -49,7 +49,9 @@ class FullModelInverseDynamics:
         # todo this is ugly
         self.q = self.prb.createStateVariable('q', self.nq)
         self.v = self.prb.createStateVariable('v', self.nv)
-        self.a = self.prb.createInputVariable('a', self.nv)
+        # self.a = self.prb.createInputVariable('a', self.nv)
+        self.a = self.prb.createStateVariable('a', self.nv)
+        self.j = self.prb.createInputVariable('j', self.nv)
 
         # parse contacts
         self.fmap = dict()
@@ -113,7 +115,8 @@ class FullModelInverseDynamics:
     def setDynamics(self):
         # todo refactor this floating base stuff
 
-        self.xdot = utils.double_integrator(self.q, self.v, self.a, self.kd)
+        # self.xdot = utils.double_integrator(self.q, self.v, self.a, self.kd)
+        self.xdot = utils.double_integrator_jerk(self.q, self.v, self.a, self.j, self.kd)
         self.prb.setDynamics(self.xdot)
 
         # underactuation constraints

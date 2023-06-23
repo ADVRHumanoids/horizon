@@ -462,7 +462,7 @@ void IterativeLQR::setIndices(const std::string& f_name, const std::vector<int>&
         return;
     }
 
-    throw std::runtime_error("...");
+    throw std::runtime_error(f_name + " is not defined in the problem formulation \n");
 
 }
 
