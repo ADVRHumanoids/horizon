@@ -55,6 +55,7 @@ class FullModelInverseDynamics:
 
         # parse contacts
         self.fmap = dict()
+        self.fdot_map = dict()
         self.cmap = dict()
 
     def fk(self, frame) -> Tuple[Union[cs.SX, cs.MX]]:
@@ -83,6 +84,7 @@ class FullModelInverseDynamics:
 
     def _make_surface_contact(self, contact_frame, contact_params):
         # create input (todo: support degree > 0)
+        # wrench = self.prb.createInputVariable('f_' + contact_frame, dim=6)
         wrench = self.prb.createInputVariable('f_' + contact_frame, dim=6)
         self.fmap[contact_frame] = wrench
         self.cmap[contact_frame] = [wrench]
@@ -101,11 +103,15 @@ class FullModelInverseDynamics:
         vertex_frames = contact_params['vertex_frames']  # todo improve error
 
         # create inputs (todo: support degree > 0)
-        vertex_forces = [self.prb.createInputVariable('f_' + vf, dim=3) for vf in vertex_frames]
+        # vertex_forces = [self.prb.createInputVariable('f_' + vf, dim=3) for vf in vertex_frames]
+        vertex_forces = [self.prb.createStateVariable('f_' + vf, dim=3) for vf in vertex_frames]
+        vertex_forces_dot = [self.prb.createInputVariable('fdot_' + vf, dim=3) for vf in vertex_frames]
 
         # save vertices
         for frame, force in zip(vertex_frames, vertex_forces):
             self.fmap[frame] = force
+        for frame, force in zip(vertex_frames, vertex_forces_dot):
+            self.fdot_map[frame] = force
 
         self.cmap[contact_frame] = vertex_forces
 
@@ -116,14 +122,14 @@ class FullModelInverseDynamics:
         # todo refactor this floating base stuff
 
         # self.xdot = utils.double_integrator(self.q, self.v, self.a, self.kd)
-        self.xdot = utils.double_integrator_jerk(self.q, self.v, self.a, self.j, self.kd)
+        self.xdot = utils.double_integrator_jerk(self.q, self.v, self.a, self.j, list(self.fdot_map.values()), self.kd)
         self.prb.setDynamics(self.xdot)
 
         # underactuation constraints
         if self.fmap:
             self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
             self.tau = self.id_fn.call(self.q, self.v, self.a, self.fmap)
-            self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
+            self.prb.createConstraint('dynamics', self.tau[:6])
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 

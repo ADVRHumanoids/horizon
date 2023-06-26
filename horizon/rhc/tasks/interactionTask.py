@@ -216,6 +216,7 @@ class VertexContact(InteractionTask):
     def setContact(self, nodes, erasing=True):
 
         good_nodes = [n for n in nodes if n <= self.all_nodes[-1]]
+        # good_nodes = self.all_nodes
 
         # start with all swing
         if erasing:

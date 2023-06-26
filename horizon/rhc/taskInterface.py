@@ -398,6 +398,7 @@ class TaskInterface:
             scoped_opts_rti = self.si.opts.copy()
             scoped_opts_rti['ilqr.enable_line_search'] = False
             scoped_opts_rti['ilqr.max_iter'] = 1
+            scoped_opts_rti['ipopt.max_iter'] = 5
             self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
 
         return self.solver_bs, self.solver_rti
