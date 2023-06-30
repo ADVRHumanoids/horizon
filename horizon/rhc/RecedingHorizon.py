@@ -1,7 +1,7 @@
 import phase_manager.pymanager as pymanager
 import phase_manager.pyphase as pyphase
 from horizon.problem import Problem
-from horizon.rhc.taskInterface import TaskInterface
+from horizon.rhc.taskInterface import ProblemInterface, TaskInterface
 from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.rhc.action_manager.ActionManager import ActionManager
 import numpy as np
@@ -154,53 +154,46 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 #         raise Exception('task not found')
 #     # flight_phase.addConstraint(prb.getConstraints(f'{c}_vert'), nodes=[0 ,flight_duration-1])  # nodes=[0, 1, 2]
 #     c_phases[c].registerPhase(flight_phase)
-class RecedingHorizon:
-    # def __init__(self, ti: TaskInterface, config_file, name=None):
-    def __init__(self,
-                 problem: Problem,
-                 model: FullModelInverseDynamics | SingleRigidBodyDynamicsModel,
-                 ):
-
-        self.prb = problem
-        self.model = model
-
-# pymanager
-# pyphase
 
 # TODO: people don't like TaskInterface.
 # maybe a taskInterface bare? without tasks, only with stuff to compute, solve, ...
-class RecedingHorizonPm(RecedingHorizon):
+class RecedingHorizon:
     def __init__(self,
                  problem: Problem,
                  model: FullModelInverseDynamics | SingleRigidBodyDynamicsModel,
                  config_file=None,
                  opts=None):
 
-        super().__init__(problem, model)
-
-        if opts is None:
-            opts = dict(rate=100)
-
-        self.dt = ??
+        self.problem = problem
+        self.model = model
 
         # variables for loop
+        self.dt = self.problem.getDt()
+        self.rate = 1 / self.dt
         self.iteration = 0
-        self.rate = opts['rate']
 
-        self.ti = TaskInterface(prb=self.prb, model=self.model)
-        self.ti.setTaskFromYaml(config_file)
+        # if config file is available, create taskInterface, otherwise create basic problemInterface
+        if config_file:
+            self.interface = TaskInterface(prb=self.problem, model=self.model)
+            self.interface.setTaskFromYaml(config_file)
+        else:
+            self.interface = ProblemInterface(prb=self.problem, model=self.model)
 
-        self.pm = pymanager.PhaseManager(self.prb.getNNodes() - 1)
+    def __init_phase_manager(self):
 
-        self.am = ActionManager(self.ti, self.pm, self.model.cmap.keys())
+        # create phaseManager for receding horizon
+        self.pm = pymanager.PhaseManager(self.problem.getNNodes() - 1)
 
-        # phase manager handling
+        # default create a phase for each contact specified in the model
         contact_phases = dict()
         for c in self.model.cmap.keys():
             contact_phases[c] = self.pm.addTimeline(f'{c}_timeline')
 
+    def __init_action_manager(self):
 
-
+        pass
+        # create actionManager for simple horizon
+        # self.am = ActionManager(self.interface, self.pm, self.model.cmap.keys())
 
     def __set_default_action(self):
 
@@ -216,27 +209,27 @@ class RecedingHorizonPm(RecedingHorizon):
 
     def __set_initial_conditions(self):
         #set initial bounds
-        self.ti.model.q.setBounds(self.ti.model.q0, self.ti.model.q0, nodes=0)
-        self.ti.model.v.setBounds(self.ti.model.v0, self.ti.model.v0, nodes=0)
-        self.ti.model.a.setBounds(np.zeros([self.model.a.shape[0], 1]), np.zeros([self.model.a.shape[0], 1]), nodes=0)
+        self.interface.model.q.setBounds(self.interface.model.q0, self.interface.model.q0, nodes=0)
+        self.interface.model.v.setBounds(self.interface.model.v0, self.interface.model.v0, nodes=0)
+        self.interface.model.a.setBounds(np.zeros([self.model.a.shape[0], 1]), np.zeros([self.model.a.shape[0], 1]), nodes=0)
 
         # set initial guess
-        self.ti.model.q.setInitialGuess(self.ti.model.q0)
-        self.ti.model.v.setInitialGuess(self.ti.model.v0)
+        self.interface.model.q.setInitialGuess(self.interface.model.q0)
+        self.interface.model.v.setInitialGuess(self.interface.model.v0)
 
 
         f0 = [0, 0, self.model.kd.mass() / len(self.model.cmap.keys()) * 9.8]
-        for cname, cforces in self.ti.model.cmap.items():
+        for cname, cforces in self.interface.model.cmap.items():
             for c in cforces:
                 c.setInitialGuess(f0)
 
     def bootstrap(self):
         # finalize taskInterface and solve bootstrap problem
-        self.ti.finalize()
-        self.ti.bootstrap()
+        self.interface.finalize()
+        self.interface.bootstrap()
 
-        self.ti.load_initial_guess()
-        self.__solution = self.ti.solution
+        self.interface.load_initial_guess()
+        self.__solution = self.interface.solution
 
     def __init_replayer(self):
 
@@ -259,6 +252,11 @@ class RecedingHorizonPm(RecedingHorizon):
         time_elapsed_shifting_list = list()
         xig = np.empty([self.prb.getState().getVars().shape[0], 1])
 
+
+    def setInput(self):
+
+        # // as a phase
+        pass
     def run(self):
 
         # set initial state and initial guess
@@ -282,15 +280,15 @@ class RecedingHorizonPm(RecedingHorizon):
 
         self.iteration = self.iteration + 1
 
-        self.ti.rti()
-        self.__solution = self.ti.solution
+        self.interface.rti()
+        self.__solution = self.interface.solution
         dt_res = 0.01
-        self.ti.resample(dt_res=dt_res, nodes=[0, 1], resample_tau=False)
+        self.interface.resample(dt_res=dt_res, nodes=[0, 1], resample_tau=False)
 
         tau = list()
 
         for i in range(self.__solution['q_res'].shape[1] - 1):
-            tau.append(self.ti.model.computeTorqueValues(self.__solution['q_res'][:, i], self.__solution['v_res'][:, i],
+            tau.append(self.interface.model.computeTorqueValues(self.__solution['q_res'][:, i], self.__solution['v_res'][:, i],
                                                     self.__solution['a_res'][:, i],
                                                     {name: self.__solution['f_' + name][:, i] for name in self.model.fmap}))
 

@@ -24,39 +24,16 @@ from horizon.ros.replay_trajectory import replay_trajectory
 import logging
 import time
 
-
-class TaskInterface:
+class ProblemInterface:
     def __init__(self,
                  prb,
                  model):
 
-        # get the model
         self.prb = prb
         self.model = model
 
         self.solver_bs = None
         self.solver_rti = None
-        
-        
-        # here I register the the default tasks
-        # todo: should I do it here?
-        # todo: name of task should be inherited from the task class itself:
-        #  --> task_factory.register(CartesianTask.signature(), CartesianTask)
-        # uniform the names of these tasks
-        task_factory.register('Cartesian', CartesianTask)
-        task_factory.register('Contact', ContactTask)
-        task_factory.register('Wrench', SurfaceContact)
-        task_factory.register('VertexForce', VertexContact)
-        task_factory.register('Postural', PosturalTask)
-        task_factory.register('JointLimits', JointLimitsTask)
-        task_factory.register('Regularization', RegularizationTask)
-        task_factory.register('Rolling', RollingTask)
-
-        # self.a0 = np.zeros(self.nv)
-
-        # task list
-        self.task_list = []
-        
 
     def finalize(self, rti=True):
         """
@@ -65,7 +42,6 @@ class TaskInterface:
         self.model.setDynamics()
         self._create_solver(rti)
 
-    
     def bootstrap(self):
         t = time.time()
         self.solver_bs.solve()
@@ -77,9 +53,8 @@ class TaskInterface:
             pass
         self.solution = self.solver_bs.getSolutionDict()
 
-    
     def rti(self):
-                
+
         t = time.time()
         check = self.solver_rti.solve()
         elapsed = time.time() - t
@@ -169,7 +144,6 @@ class TaskInterface:
                 self.solution['tau'] = tau
                 self.solution['tau_res'] = tau_res
 
-
     def save_solution(self, filename):
         import copy
         ms = mat_storer.matStorer(filename)
@@ -191,20 +165,18 @@ class TaskInterface:
         sol_to_save['dt'] = self.prb.getDt()
         ms.store(sol_to_save)
 
-
     def load_solution(self, filename):
         ms = mat_storer.matStorer(filename)
         ig = ms.load()
         self.load_initial_guess(from_dict=ig)
 
-    
     def load_initial_guess(self, from_dict=None):
         if from_dict is None:
             from_dict = self.solution
 
         x_opt = from_dict['x_opt']
         u_opt = from_dict['u_opt']
-        
+
         self.prb.getState().setInitialGuess(x_opt)
         self.prb.getInput().setInitialGuess(u_opt)
         self.prb.setInitialState(x0=x_opt[:, 0])
@@ -233,6 +205,59 @@ class TaskInterface:
                                  trajectory_markers_opts=trajectory_markers_opts)
         repl.sleep(1.)
         repl.replay(is_floating_base=True, base_link='pelvis')
+
+    def setSolverOptions(self, solver_options):
+        solver_type = solver_options.pop('type')
+        is_receding = solver_options.pop('receding', False)
+
+        self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
+
+    def _create_solver(self, rti=True):
+
+        if self.si.type != 'ilqr':
+            # todo get options from yaml
+            th = Transcriptor.make_method('multiple_shooting', self.prb)
+
+        # todo if receding is true ....
+        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
+
+        try:
+            self.solver_bs.set_iteration_callback()
+        except:
+            pass
+
+        if rti:
+            scoped_opts_rti = self.si.opts.copy()
+            scoped_opts_rti['ilqr.enable_line_search'] = False
+            scoped_opts_rti['ilqr.max_iter'] = 1
+            self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
+
+        return self.solver_bs, self.solver_rti
+
+
+class TaskInterface(ProblemInterface):
+    def __init__(self,
+                 prb,
+                 model):
+
+        super().__init__(prb, model)
+
+        # here I register the the default tasks
+        # todo: should I do it here?
+        # todo: name of task should be inherited from the task class itself:
+        #  --> task_factory.register(CartesianTask.signature(), CartesianTask)
+        # uniform the names of these tasks
+        task_factory.register('Cartesian', CartesianTask)
+        task_factory.register('Contact', ContactTask)
+        task_factory.register('Wrench', SurfaceContact)
+        task_factory.register('VertexForce', VertexContact)
+        task_factory.register('Postural', PosturalTask)
+        task_factory.register('JointLimits', JointLimitsTask)
+        task_factory.register('Regularization', RegularizationTask)
+        task_factory.register('Rolling', RollingTask)
+
+        # task list
+        self.task_list = []
 
     # a possible method could read from yaml and create the task list
     def setTaskFromYaml(self, yaml_config):
@@ -374,31 +399,3 @@ class TaskInterface:
     # todo
     def setTaskOptions(self):
         pass
-
-    def setSolverOptions(self, solver_options):
-        solver_type = solver_options.pop('type')
-        is_receding = solver_options.pop('receding', False)
-
-        self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
-
-    def _create_solver(self, rti=True):
-
-        if self.si.type != 'ilqr':
-            # todo get options from yaml
-            th = Transcriptor.make_method('multiple_shooting', self.prb)
-
-        # todo if receding is true ....
-        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
-        
-        try:
-            self.solver_bs.set_iteration_callback()
-        except:
-            pass
-
-        if rti:
-            scoped_opts_rti = self.si.opts.copy()
-            scoped_opts_rti['ilqr.enable_line_search'] = False
-            scoped_opts_rti['ilqr.max_iter'] = 1
-            self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
-
-        return self.solver_bs, self.solver_rti
