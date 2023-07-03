@@ -25,6 +25,13 @@ class InteractionTask(Task):
         self.indices = np.array([0, 1, 2, 3, 4, 5]).astype(int) if self.indices is None else np.array(
             self.indices).astype(int)
 
+        # TODO: add initialize now conflicts
+    #     self.__initialize()
+    #
+    # def __initialize(self):
+    #
+    #     self.setNodes(self.nodes)
+
     @abstractmethod
     def getWrench(self):
         pass
@@ -183,9 +190,9 @@ class VertexContact(InteractionTask):
 
         self.all_nodes = self.forces[0].getNodes()
 
-        self.initialize()
+        self.__initialize()
 
-    def initialize(self):
+    def __initialize(self):
 
         self.fn_barrier = self.make_fn_barrier()
         self.fc_constr = self.make_friction_cone() if self.enable_fc else None
