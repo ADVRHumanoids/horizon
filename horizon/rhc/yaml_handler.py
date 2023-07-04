@@ -36,10 +36,6 @@ class YamlParser:
         for key in keys_to_remove:
             del parsed_yaml[key]
 
-
-        # parse tasks
-        field_names = {'constraints': 'constraint', 'costs': 'residual'}
-
         # TODO tutto questo fa cagare diocane # refactor in a good way
         task_list = list()
         non_active_task_list = list()
