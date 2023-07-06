@@ -47,14 +47,15 @@ class NlpsolSolver(Solver):
         self.solver = cs.nlpsol('solver', solver_plugin, self.prob_dict, self.opts,)
 
     class IterCountCallback(cs.Callback):
-        def __init__(self, name, nx, ng, np, opts={}, iter_counter = -1):
+        def __init__(self, name, nx, ng, np, opts={}):
             cs.Callback.__init__(self)
 
             self.nx = nx
             self.ng = ng
             self.np = np
 
-            self.iter_counter = iter_counter
+            self.iter_counter = -1
+            self.cost_values = []
             # Initialize internal objects
             self.construct(name, opts)
 
@@ -75,11 +76,14 @@ class NlpsolSolver(Solver):
                 return cs.Sparsity(0,0)
 
         def eval(self, arg):
+            
+            # add here any info to be retrieved from the solver
 
-            self.iter_counter = self.iter_counter + 1
-
+            self.cost_values.append(arg[1])
+            self.iter_counter = len(self.cost_values) 
+                                    
             return [0]
-
+        
     def build(self):
         """
         fill the dictionary "state_var_impl"
@@ -180,6 +184,7 @@ class NlpsolSolver(Solver):
         self.var_solution["opt_cost"] = float(sol['f'])
 
         self.var_solution["n_iter2sol"] = self.iter_counter_callback.iter_counter
+        self.var_solution["cost_values"] = self.iter_counter_callback.cost_values
 
         # get solution as state/input
         self._createVarSolAsInOut(sol)
