@@ -11,7 +11,7 @@ np.set_printoptions(precision=3, suppress=True)
 
 class FullModelInverseDynamics:
     
-    def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, **kwargs):
+    def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, sys_order_degree=2, **kwargs):
         # todo: adding contact dict
 
         if fixed_joint_map is None:
@@ -22,6 +22,11 @@ class FullModelInverseDynamics:
         self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
         self.fixed_joint_map = fixed_joint_map
         self.id_fn = None
+
+        if sys_order_degree < 2:
+            raise ValueError("The degree of the system must be at least 2.")
+        else:
+            self.sys_order_degree = sys_order_degree
 
         # number of dof
         self.nq = self.kd.nq()
@@ -38,25 +43,48 @@ class FullModelInverseDynamics:
             self.joint_names = self.kd.joint_names()[1:]
 
         self.v0 = np.zeros(self.nv)
-
+        self.a0 = np.zeros(self.nv)
 
         self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 
-        self.nq = self.kd.nq()
-        self.nv = self.kd.nv()
+        var_der_names = ['acceleration', 'jerk', 'snap', 'crackle', 'pop']
 
         # custom choices
-        # todo this is ugly
-        self.q = self.prb.createStateVariable('q', self.nq)
-        self.v = self.prb.createStateVariable('v', self.nv)
-        # self.a = self.prb.createInputVariable('a', self.nv)
-        self.a = self.prb.createStateVariable('a', self.nv)
-        self.j = self.prb.createInputVariable('j', self.nv)
+        self.state_vars = dict()
+        self.input_vars = dict()
 
-        # parse contacts
+        self.state_vars['q'] = self.prb.createStateVariable('q', self.nq)
+        self.state_vars['v'] = self.prb.createStateVariable('v', self.nv)
+
+        # minimum order 2
+        n_degree = self.sys_order_degree - 2
+
+        # create state variables
+        for ord in range(n_degree):
+            name_state_var = var_der_names[ord][0]
+            self.state_vars[name_state_var] = self.prb.createStateVariable(name_state_var, self.nv)
+
+        # create input variables
+        input_state_var = var_der_names[n_degree][0]
+        self.input_vars[input_state_var] = self.prb.createInputVariable(input_state_var, self.nv)
+
         self.fmap = dict()
-        self.fdot_map = dict()
         self.cmap = dict()
+
+
+        # TODO: ------ hacks for retro-compatibility ------
+        for var, value in self.state_vars.items():
+            setattr(self, var, value)
+
+        for var, value in self.input_vars.items():
+            setattr(self, var, value)
+
+        self._f_der_map = dict()
+        for ord in range(n_degree - 1):
+            f_der_name = f"f" + "d" * ord + "dot_"
+            self._f_der_map[f_der_name] = dict()
+
+
 
     def fk(self, frame) -> Tuple[Union[cs.SX, cs.MX]]:
         """
@@ -64,13 +92,16 @@ class FullModelInverseDynamics:
         at the symbolic state variable q
         """
         fk_fn = self.kd.fk(frame)
-        return fk_fn(self.q)
+        return fk_fn(self.input_vars['q'])
 
 
     def setContactFrame(self, contact_frame, contact_type, contact_params=dict()):
+        '''
+        set frame as a contact: create a contact force linked to the frame
+        '''
 
         # todo add more guards
-        if contact_frame in self.fmap.keys():
+        if contact_frame in self.getContactFrames():
             raise Exception(f'{contact_frame} frame is already a contact')
 
         if contact_type == 'surface':
@@ -82,17 +113,48 @@ class FullModelInverseDynamics:
 
         raise ValueError(f'{contact_type} is not a valid contact type')
 
+    def __create_force(self, contact_frame, dim=3):
+
+        # minimum order 2
+        n_degree = self.sys_order_degree - 2
+
+        f_der = None
+        if n_degree == 0:
+            f = self.prb.createInputVariable('f_' + contact_frame, dim=dim)
+        else:
+
+            f_der = dict()
+            f = self.prb.createStateVariable('f_' + contact_frame, dim=dim)
+
+            for ord in range(0, n_degree - 1):
+                state_f_var = f'f' + "d" * ord + "dot_"
+                f_der[state_f_var] = self.prb.createStateVariable(state_f_var + contact_frame, dim=dim)
+                # self.state_vars[input_f_var]
+
+            input_f_var = f'f' + "d" * (n_degree - 1) + "dot_"
+            f_der[input_f_var] = self.prb.createInputVariable(input_f_var + contact_frame, dim=dim)
+            # self.input_vars[input_f_var]
+
+        return f, f_der
+
+
+
+
     def _make_surface_contact(self, contact_frame, contact_params):
         # create input (todo: support degree > 0)
+
+        wrench, wrench_der = self.__create_force(contact_frame, dim=6)
         # wrench = self.prb.createInputVariable('f_' + contact_frame, dim=6)
-        wrench = self.prb.createInputVariable('f_' + contact_frame, dim=6)
+
         self.fmap[contact_frame] = wrench
-        self.cmap[contact_frame] = [wrench]
+        self.cmap[contact_frame] = [wrench_der]
         return wrench
 
     def _make_point_contact(self, contact_frame, contact_params):
         # create input (todo: support degree > 0)
-        force = self.prb.createInputVariable('f_' + contact_frame, dim=3)
+        force, force_der = self.__create_force(contact_frame, dim=3)
+        # force = self.prb.createInputVariable('f_' + contact_frame, dim=3)
+
         self.fmap[contact_frame] = force
         self.cmap[contact_frame] = [force]
         return force
@@ -104,14 +166,18 @@ class FullModelInverseDynamics:
 
         # create inputs (todo: support degree > 0)
         # vertex_forces = [self.prb.createInputVariable('f_' + vf, dim=3) for vf in vertex_frames]
-        vertex_forces = [self.prb.createStateVariable('f_' + vf, dim=3) for vf in vertex_frames]
-        vertex_forces_dot = [self.prb.createInputVariable('fdot_' + vf, dim=3) for vf in vertex_frames]
+        # vertex_forces = [self.prb.createStateVariable('f_' + vf, dim=3) for vf in vertex_frames]
+        # vertex_forces_dot = [self.prb.createInputVariable('fdot_' + vf, dim=3) for vf in vertex_frames]
+
+        vertex_forces, vertex_forces_der = zip(*(self.__create_force(vf, dim=3) for vf in vertex_frames))
 
         # save vertices
         for frame, force in zip(vertex_frames, vertex_forces):
             self.fmap[frame] = force
-        for frame, force in zip(vertex_frames, vertex_forces_dot):
-            self.fdot_map[frame] = force
+
+        for frame, force_dict in zip(vertex_frames, vertex_forces_der):
+            for depth, force in force_dict.items():
+                self._f_der_map[depth][frame] = force
 
         self.cmap[contact_frame] = vertex_forces
 
@@ -425,3 +491,97 @@ class SingleRigidBodyDynamicsModel:
         return self.cmap.keys()
 
 
+if __name__ == '__main__':
+
+    import rospkg
+    import casadi_kin_dyn.py3casadi_kin_dyn as casadi_kin_dyn
+
+    cogimon_urdf_folder = rospkg.RosPack().get_path('cogimon_urdf')
+    cogimon_srdf_folder = rospkg.RosPack().get_path('cogimon_srdf')
+
+    urdf = open(cogimon_urdf_folder + '/urdf/cogimon.urdf', 'r').read()
+
+
+    ns = 20
+    T = 1.
+    dt = T / ns
+
+    prb = Problem(ns, receding=True, casadi_type=cs.SX)
+    prb.setDt(dt)
+
+    base_init = np.atleast_2d(np.array([0.03, 0., 0.962, 0., -0.029995, 0.0, 0.99955]))
+    # base_init = np.array([0., 0., 0.96, 0., 0.0, 0.0, 1.])
+
+    q_init = {"LHipLat": -0.0,
+              "LHipSag": -0.363826,
+              "LHipYaw": 0.0,
+              "LKneePitch": 0.731245,
+              "LAnklePitch": -0.307420,
+              "LAnkleRoll": 0.0,
+              "RHipLat": 0.0,
+              "RHipSag": -0.363826,
+              "RHipYaw": 0.0,
+              "RKneePitch": 0.731245,
+              "RAnklePitch": -0.307420,
+              "RAnkleRoll": -0.0,
+              "WaistLat": 0.0,
+              "WaistYaw": 0.0,
+              "LShSag": 1.1717860,
+              "LShLat": -0.059091562,
+              "LShYaw": -5.18150657e-02,
+              "LElbj": -1.85118,
+              "LForearmPlate": 0.0,
+              "LWrj1": -0.523599,
+              "LWrj2": -0.0,
+              "RShSag": 1.17128697,
+              "RShLat": 6.01664139e-02,
+              "RShYaw": 0.052782481,
+              "RElbj": -1.8513760,
+              "RForearmPlate": 0.0,
+              "RWrj1": -0.523599,
+              "RWrj2": -0.0}
+
+    contact_dict = {
+        'l_sole': {
+            'type': 'vertex',
+            'vertex_frames': [
+                'l_foot_lower_left_link',
+                'l_foot_upper_left_link',
+                'l_foot_lower_right_link',
+                'l_foot_upper_right_link',
+            ]
+        },
+
+        'r_sole': {
+            'type': 'vertex',
+            'vertex_frames': [
+                'r_foot_lower_left_link',
+                'r_foot_upper_left_link',
+                'r_foot_lower_right_link',
+                'r_foot_upper_right_link',
+            ]
+        }
+    }
+
+    kin_dyn = casadi_kin_dyn.CasadiKinDyn(urdf)
+
+    model = FullModelInverseDynamics(problem=prb,
+                                     kd=kin_dyn,
+                                     q_init=q_init,
+                                     base_init=base_init,
+                                     contact_dict=contact_dict,
+                                     sys_order_degree=4)
+
+    model._make_vertex_contact('r_sole', dict(vertex_frames=['r_foot_lower_left_link', 'r_foot_upper_left_link', 'r_foot_lower_right_link', 'r_foot_upper_right_link']))
+
+    # model.setDynamics()
+    print(model.fmap)
+    print(model._f_der_map)
+
+    # print(model.state_vars)
+    # print(model.input_vars)
+
+    # print(model.q)
+    # print(model.v)
+    # print(model.a)
+    # print(model.fmap)
