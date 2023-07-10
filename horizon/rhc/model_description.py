@@ -267,10 +267,10 @@ class FullModelInverseDynamics:
         '''
         return self.fmap
 
-    def getStateVariables(self):
+    def getState(self):
         return self.state_vec
 
-    def getInputVariables(self):
+    def getInput(self):
         return self.input_vec
 
     def computeTorqueValues(self, q, v, a, fmap):
