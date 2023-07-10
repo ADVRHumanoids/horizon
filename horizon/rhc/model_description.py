@@ -6,11 +6,12 @@ import casadi as cs
 import numpy as np
 from casadi_kin_dyn import pycasadi_kin_dyn
 import urdf_parser_py.urdf as upp
+from collections import OrderedDict
 
 np.set_printoptions(precision=3, suppress=True)
 
 class FullModelInverseDynamics:
-    
+
     def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, sys_order_degree=2, **kwargs):
         # todo: adding contact dict
 
@@ -22,6 +23,7 @@ class FullModelInverseDynamics:
         self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
         self.fixed_joint_map = fixed_joint_map
         self.id_fn = None
+        self.floating_base = floating_base
 
         if sys_order_degree < 2:
             raise ValueError("The degree of the system must be at least 2.")
@@ -50,11 +52,11 @@ class FullModelInverseDynamics:
         var_der_names = ['acceleration', 'jerk', 'snap', 'crackle', 'pop']
 
         # custom choices
-        self.state_vars = dict()
-        self.input_vars = dict()
+        self.state_vec = OrderedDict()
+        self.input_vec = OrderedDict()
 
-        self.state_vars['q'] = self.prb.createStateVariable('q', self.nq)
-        self.state_vars['v'] = self.prb.createStateVariable('v', self.nv)
+        self.state_vec['q'] = self.prb.createStateVariable('q', self.nq)
+        self.state_vec['v'] = self.prb.createStateVariable('v', self.nv)
 
         # minimum order 2
         n_degree = self.sys_order_degree - 2
@@ -62,26 +64,26 @@ class FullModelInverseDynamics:
         # create state variables
         for ord in range(n_degree):
             name_state_var = var_der_names[ord][0]
-            self.state_vars[name_state_var] = self.prb.createStateVariable(name_state_var, self.nv)
+            self.state_vec[name_state_var] = self.prb.createStateVariable(name_state_var, self.nv)
 
         # create input variables
         input_state_var = var_der_names[n_degree][0]
-        self.input_vars[input_state_var] = self.prb.createInputVariable(input_state_var, self.nv)
+        self.input_vec[input_state_var] = self.prb.createInputVariable(input_state_var, self.nv)
 
-        self.fmap = dict()
-        self.cmap = dict()
+        self.fmap = dict() #  map contact frames - forces (can be more contact frame for one contact)
+        self.cmap = dict() # map contact frame - force
 
 
         # TODO: ------ hacks for retro-compatibility ------
-        for var, value in self.state_vars.items():
+        for var, value in self.state_vec.items():
             setattr(self, var, value)
 
-        for var, value in self.input_vars.items():
+        for var, value in self.input_vec.items():
             setattr(self, var, value)
 
         self._f_der_map = dict()
-        for ord in range(n_degree - 1):
-            f_der_name = f"f" + "d" * ord + "dot_"
+        for ord in range(n_degree):
+            f_der_name = f"f" + "d" * ord + "dot"
             self._f_der_map[f_der_name] = dict()
 
 
@@ -92,7 +94,7 @@ class FullModelInverseDynamics:
         at the symbolic state variable q
         """
         fk_fn = self.kd.fk(frame)
-        return fk_fn(self.input_vars['q'])
+        return fk_fn(self.input_vec['q'])
 
 
     def setContactFrame(self, contact_frame, contact_type, contact_params=dict()):
@@ -107,9 +109,9 @@ class FullModelInverseDynamics:
         if contact_type == 'surface':
             return self._make_surface_contact(contact_frame, contact_params)
         elif contact_type == 'vertex':
-            return self._make_vertex_contact(contact_frame, contact_params) 
+            return self._make_vertex_contact(contact_frame, contact_params)
         elif contact_type == 'point':
-            return self._make_point_contact(contact_frame, contact_params) 
+            return self._make_point_contact(contact_frame, contact_params)
 
         raise ValueError(f'{contact_type} is not a valid contact type')
 
@@ -125,20 +127,20 @@ class FullModelInverseDynamics:
 
             f_der = dict()
             f = self.prb.createStateVariable('f_' + contact_frame, dim=dim)
+            self.state_vec[f.getName()] = f
 
             for ord in range(0, n_degree - 1):
-                state_f_var = f'f' + "d" * ord + "dot_"
-                f_der[state_f_var] = self.prb.createStateVariable(state_f_var + contact_frame, dim=dim)
-                # self.state_vars[input_f_var]
+                prefix_state_f_var = f'f' + "d" * ord + "dot"
+                state_f_var_name = prefix_state_f_var + f"_{contact_frame}"
+                f_der[prefix_state_f_var] = self.prb.createStateVariable(state_f_var_name, dim=dim)
+                self.state_vec[state_f_var_name] = f_der[prefix_state_f_var]
 
-            input_f_var = f'f' + "d" * (n_degree - 1) + "dot_"
-            f_der[input_f_var] = self.prb.createInputVariable(input_f_var + contact_frame, dim=dim)
-            # self.input_vars[input_f_var]
+            prefix_input_f_var = f'f' + "d" * (n_degree - 1) + "dot"
+            input_f_var_name = prefix_input_f_var + f"_{contact_frame}"
+            f_der[prefix_input_f_var] = self.prb.createInputVariable(input_f_var_name, dim=dim)
+            self.input_vec[input_f_var_name] = f_der[prefix_input_f_var]
 
         return f, f_der
-
-
-
 
     def _make_surface_contact(self, contact_frame, contact_params):
         # create input (todo: support degree > 0)
@@ -147,7 +149,13 @@ class FullModelInverseDynamics:
         # wrench = self.prb.createInputVariable('f_' + contact_frame, dim=6)
 
         self.fmap[contact_frame] = wrench
-        self.cmap[contact_frame] = [wrench_der]
+        self.cmap[contact_frame] = [wrench]
+
+        # save higher degree forces
+        if self._f_der_map:
+            for depth, w_der in wrench_der.items():
+                self._f_der_map[depth][contact_frame] = w_der
+
         return wrench
 
     def _make_point_contact(self, contact_frame, contact_params):
@@ -157,6 +165,12 @@ class FullModelInverseDynamics:
 
         self.fmap[contact_frame] = force
         self.cmap[contact_frame] = [force]
+
+        # save higher degree forces
+        if self._f_der_map:
+            for depth, f_der in force_der.items():
+                self._f_der_map[depth][contact_frame] = f_der
+
         return force
 
     def _make_vertex_contact(self, contact_frame, contact_params):
@@ -175,32 +189,78 @@ class FullModelInverseDynamics:
         for frame, force in zip(vertex_frames, vertex_forces):
             self.fmap[frame] = force
 
-        for frame, force_dict in zip(vertex_frames, vertex_forces_der):
-            for depth, force in force_dict.items():
-                self._f_der_map[depth][frame] = force
-
+        # save contact frame
         self.cmap[contact_frame] = vertex_forces
+
+        # save higher degree forces
+        if self._f_der_map:
+            for frame, force_dict in zip(vertex_frames, vertex_forces_der):
+                for depth, f_der in force_dict.items():
+                    self._f_der_map[depth][frame] = f_der
 
         # do we need to reconstruct the total wrench?
         return vertex_forces
+
+    def __double_integrator(self):
+
+        full_dict = OrderedDict(**self.state_vec, **self.input_vec)
+        q = full_dict.pop('q')
+
+        if not self.floating_base:
+            xdot = cs.vertcat(*full_dict.items())
+            return xdot
+
+        v = full_dict.pop('v')
+        qdot_fn = self.kd.qdot()
+
+        return cs.vertcat(qdot_fn(q, v), *full_dict.values())
 
     def setDynamics(self):
         # todo refactor this floating base stuff
 
         # self.xdot = utils.double_integrator(self.q, self.v, self.a, self.kd)
-        self.xdot = utils.double_integrator_jerk(self.q, self.v, self.a, self.j, list(self.fdot_map.values()), self.kd)
+        # self.xdot = utils.double_integrator_jerk(self.q, self.v, self.a, self.j, list(self.fdot_map.values()), self.kd)
+        self.xdot = self.__double_integrator()
         self.prb.setDynamics(self.xdot)
 
         # underactuation constraints
         if self.fmap:
+
+            if self.sys_order_degree == 2:
+                a = self.input_vec['a']
+                nodes = range(self.prb.getNNodes() - 1)
+            else:
+                a = self.state_vec['a']
+                nodes = range(self.prb.getNNodes())
+
             self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
-            self.tau = self.id_fn.call(self.q, self.v, self.a, self.fmap)
-            self.prb.createConstraint('dynamics', self.tau[:6])
+            self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap)
+            self.prb.createConstraint('dynamics', self.tau[:6], nodes=nodes)
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 
     def getContactFrames(self):
         return list(self.cmap.keys())
+
+    def getContactMap(self):
+        '''
+        return map: contact frame - list of forces associated with it
+        N.B.: one contact frame can be associated with more forces
+        '''
+        return self.cmap
+
+    def getForceMap(self):
+        '''
+        return map: frame - force
+        N.B.: frame-force mapping is univocal. More frames can be specified for one contact.
+        '''
+        return self.fmap
+
+    def getStateVariables(self):
+        return self.state_vec
+
+    def getInputVariables(self):
+        return self.input_vec
 
     def computeTorqueValues(self, q, v, a, fmap):
 
@@ -563,19 +623,22 @@ if __name__ == '__main__':
         }
     }
 
-    kin_dyn = casadi_kin_dyn.CasadiKinDyn(urdf)
+    model_kin_dyn = casadi_kin_dyn.CasadiKinDyn(urdf)
 
     model = FullModelInverseDynamics(problem=prb,
-                                     kd=kin_dyn,
+                                     kd=model_kin_dyn,
                                      q_init=q_init,
                                      base_init=base_init,
                                      contact_dict=contact_dict,
-                                     sys_order_degree=4)
+                                     sys_order_degree=2)
 
     model._make_vertex_contact('r_sole', dict(vertex_frames=['r_foot_lower_left_link', 'r_foot_upper_left_link', 'r_foot_lower_right_link', 'r_foot_upper_right_link']))
+    # model._make_point_contact('r_sole', dict())
+    # model._make_surface_contact('l_sole', dict())
 
-    # model.setDynamics()
+    model.setDynamics()
     print(model.fmap)
+    print(model.cmap)
     print(model._f_der_map)
 
     # print(model.state_vars)
