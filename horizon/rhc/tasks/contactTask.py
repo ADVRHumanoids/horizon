@@ -20,9 +20,9 @@ class ContactTask(Task):
         # initialize data class
         super().__init__(*args, **kwargs)
 
-        self.initialize()
+        self.__initialize()
 
-    def initialize(self):
+    def __initialize(self):
 
         self.setNodes(self.nodes)
 

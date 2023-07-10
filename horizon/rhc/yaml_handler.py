@@ -25,17 +25,16 @@ class YamlParser:
                 print(exc)
 
         # parse required fields
-        required_fields = ['constraints', 'costs', 'solver'] # 'solver'
-        required_fields_dict = cls._parse_required_fields(parsed_yaml, required_fields)
+        # required_fields = ['constraints', 'costs', 'solver'] # 'solver'
+        required_fields = ['solver'] # 'solver'
+        problem_fields = ['constraints', 'costs']
+        required_fields_dict = cls._parse_fields(parsed_yaml, required_fields, required=True)
+        optional_fields_dict = cls._parse_fields(parsed_yaml, problem_fields, required=False)
 
         # remove all entries that start with "."
         keys_to_remove = [key for key in parsed_yaml.keys() if isinstance(key, str) and key.startswith('.')]
         for key in keys_to_remove:
             del parsed_yaml[key]
-
-
-        # parse tasks
-        field_names = {'constraints': 'constraint', 'costs': 'residual'}
 
         # TODO tutto questo fa cagare diocane # refactor in a good way
         task_list = list()
@@ -43,10 +42,10 @@ class YamlParser:
         for task_name, task_desc in parsed_yaml.items():
             task_desc['name'] = task_name
 
-            if task_name in required_fields_dict['costs']:
+            if task_name in optional_fields_dict['costs']:
                 task_desc['fun_type'] = 'residual'
                 task_list.append(task_desc)
-            elif task_name in required_fields_dict['constraints']:
+            elif task_name in optional_fields_dict['constraints']:
                 task_desc['fun_type'] = 'constraint'
                 task_list.append(task_desc)
             else:
@@ -67,7 +66,22 @@ class YamlParser:
 
         return required_fields_dict
 
+    @staticmethod
+    def _parse_fields(parsed_yaml, desired_fields, required=False):
+        '''
+        check if fields in desired_field is present and fill desired_fields
+        '''
+        fields_dict = dict()
+        for field in desired_fields:
+            if field in parsed_yaml:
+                fields_dict[field] = parsed_yaml.pop(field)
+            else:
+                if required:
+                    raise ValueError(f"'{field}' field is required.")
+                else:
+                    fields_dict[field] = list()
 
+        return fields_dict
     @staticmethod
     def resolve(task_desc, shortcuts):
         '''

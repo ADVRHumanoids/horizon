@@ -29,7 +29,7 @@ class CartesianTask(Task):
         elif self.fun_type == 'residual':
             self.instantiator = self.prb.createResidual
 
-        self._initialize()
+        self.__initialize()
 
     # TODO
     # def _fk(self, frame, q, derivative=0):
@@ -148,7 +148,7 @@ class CartesianTask(Task):
 
         return rot_err
 
-    def _initialize(self):
+    def __initialize(self):
         self.ref_matrix = None
         # todo this is wrong! how to get these variables?
         q = self.prb.getVariables('q')
