@@ -117,6 +117,7 @@ class FullModelInverseDynamics:
 
     def __create_force(self, contact_frame, dim=3):
 
+        force_var_names = list()
         # minimum order 2
         n_degree = self.sys_order_degree - 2
 
@@ -128,17 +129,20 @@ class FullModelInverseDynamics:
             f_der = dict()
             f = self.prb.createStateVariable('f_' + contact_frame, dim=dim)
             self.state_vec[f.getName()] = f
+            force_var_names.append(f.getName())
 
             for ord in range(0, n_degree - 1):
                 prefix_state_f_var = f'f' + "d" * ord + "dot"
                 state_f_var_name = prefix_state_f_var + f"_{contact_frame}"
                 f_der[prefix_state_f_var] = self.prb.createStateVariable(state_f_var_name, dim=dim)
                 self.state_vec[state_f_var_name] = f_der[prefix_state_f_var]
+                force_var_names.append(state_f_var_name)
 
             prefix_input_f_var = f'f' + "d" * (n_degree - 1) + "dot"
             input_f_var_name = prefix_input_f_var + f"_{contact_frame}"
             f_der[prefix_input_f_var] = self.prb.createInputVariable(input_f_var_name, dim=dim)
             self.input_vec[input_f_var_name] = f_der[prefix_input_f_var]
+            force_var_names.append(input_f_var_name)
 
         return f, f_der
 
@@ -204,7 +208,14 @@ class FullModelInverseDynamics:
     def __double_integrator(self):
 
         full_dict = OrderedDict(**self.state_vec, **self.input_vec)
+
+        # remove q
         q = full_dict.pop('q')
+
+        # remove f
+        if self._f_der_map:
+            for f_name in self.fmap.values():
+                full_dict.pop(f_name.getName())
 
         if not self.floating_base:
             xdot = cs.vertcat(*full_dict.items())
@@ -637,9 +648,12 @@ if __name__ == '__main__':
     # model._make_surface_contact('l_sole', dict())
 
     model.setDynamics()
-    print(model.fmap)
-    print(model.cmap)
-    print(model._f_der_map)
+
+    print(model.getContactMap())
+    print(model.getForceMap())
+
+    print(model.getStateVariables())
+    print(model.getInputVariables())
 
     # print(model.state_vars)
     # print(model.input_vars)
