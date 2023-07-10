@@ -29,6 +29,7 @@ class ProblemInterface:
                  prb,
                  model):
 
+        # get the model
         self.prb = prb
         self.model = model
 

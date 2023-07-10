@@ -61,9 +61,9 @@ class ProblemAnalyzer:
     def __init__(self, prb: Problem):
         self.prb = prb
         np.set_printoptions(suppress=False,  # suppress small results
-                            linewidth=200,
+                            linewidth=np.inf,
                             precision=3,
-                            threshold=1000,  # number of displayed elements for array
+                            threshold=np.inf,  # number of displayed elements for array
                             formatter=None
                             )
 
@@ -77,15 +77,15 @@ class ProblemAnalyzer:
             'values': self.printValues,
             'bounds': self.printBounds,
             'initial_guess': self.printInitialGuess
-            }
+        }
 
         self._item_colors = {
-             'elements': bcolors.CYELLOW0,
-             'nodes': bcolors.CRED2,
-             'values': bcolors.CVIOLET2,
-             'bounds': bcolors.CBLUE,
-             'initial_guess': bcolors.CCYAN0
-             }
+            'elements': bcolors.CYELLOW0,
+            'nodes': bcolors.CRED2,
+            'values': bcolors.CVIOLET2,
+            'bounds': bcolors.CBLUE,
+            'initial_guess': bcolors.CCYAN0
+        }
 
     def _separator(self):
         print(f"{bcolors.CBOLD}{bcolors.CWHITE}"
@@ -119,9 +119,12 @@ class ProblemAnalyzer:
     def printInitialGuess(self, elem, color):
         print(f"{bcolors.CBOLD}{color}Initial Guess:\n{bcolors.CEND}{elem.getInitialGuess()}")
 
-    def printVariables(self, elem=None, suppress_bounds=False, suppress_ig=False):
+    def printVariables(self, elem=None, suppress_nodes=False, suppress_bounds=False, suppress_ig=False):
 
         item_list = ['elements', 'nodes', 'bounds', 'initial_guess']
+
+        if suppress_nodes is True:
+            item_list.remove('nodes')
 
         if suppress_bounds is True:
             item_list.remove('bounds')
@@ -159,7 +162,7 @@ class ProblemAnalyzer:
         #     self.printNodes(elem, bcolors.CRED2)
         #     self.printValues(elem, bcolors.CVIOLET2)
 
-    def printConstraints(self, elem=None, suppress_bounds=False):
+    def printConstraints(self, elem: str = None, suppress_bounds=False):
 
         item_list = ['elements', 'nodes', 'bounds']
 
