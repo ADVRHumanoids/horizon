@@ -39,7 +39,8 @@ class NlpsolSolver(Solver):
 
         self.prob_dict = {'f': j, 'x': w, 'g': g, 'p': p}
 
-        self.iter_counter_callback = self.IterCountCallback('iter_counter_callback', w.shape[0], g.shape[0], p.shape[0])
+        self.iter_counter_callback = self.IterCountCallback('iter_counter_callback', w.shape[0], g.shape[0], p.shape[0], 
+                                        opts = self.opts)
 
         self.opts['iteration_callback'] =  self.iter_counter_callback
 
@@ -48,7 +49,11 @@ class NlpsolSolver(Solver):
 
     class IterCountCallback(cs.Callback):
         def __init__(self, name, nx, ng, np, opts={}):
+
             cs.Callback.__init__(self)
+
+            self.solv_opts = opts
+            self.constr_viol = self.solv_opts["ipopt.constr_viol_tol"]
 
             self.nx = nx
             self.ng = ng
@@ -56,8 +61,10 @@ class NlpsolSolver(Solver):
 
             self.iter_counter = -1
             self.cost_values = []
+            self.is_feasible = []
+
             # Initialize internal objects
-            self.construct(name, opts)
+            self.construct(name, {})
 
         def get_n_in(self): return cs.nlpsol_n_out()
         def get_n_out(self): return 1
@@ -81,7 +88,19 @@ class NlpsolSolver(Solver):
 
             self.cost_values.append(arg[1])
             self.iter_counter = len(self.cost_values) 
-                                    
+            
+            constraint_violations = arg[2]
+            n_cnstrnts = constraint_violations.shape[0]
+            
+            within_feasibility = np.zeros((n_cnstrnts, 1), dtype=bool)
+            for i in range(0, n_cnstrnts):
+                # DM types not iterable by default
+                
+                within_feasibility[i] = constraint_violations[i] <= self.solv_opts["ipopt.constr_viol_tol"] and \
+                                        constraint_violations[i] >= - self.solv_opts["ipopt.constr_viol_tol"] 
+    
+            # self.is_feasible.append(np.all(within_feasibility))
+
             return [0]
         
     def build(self):
@@ -185,6 +204,7 @@ class NlpsolSolver(Solver):
 
         self.var_solution["n_iter2sol"] = self.iter_counter_callback.iter_counter
         self.var_solution["cost_values"] = self.iter_counter_callback.cost_values
+        self.var_solution["is_feasible"] = self.iter_counter_callback.is_feasible
 
         # get solution as state/input
         self._createVarSolAsInOut(sol)
