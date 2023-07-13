@@ -208,8 +208,10 @@ class RecedingHorizon:
         #     c_phases[c].addPhase(stance)
 
     def __set_initial_conditions(self):
+
+        self.problem.setInitialState(self.model.getInitialValue())
         #set initial bounds
-        self.interface.model.q.setBounds(self.interface.model.q0, self.interface.model.q0, nodes=0)
+        self.interface.model.getVariable['q'].setBounds(self.interface.model.q0, self.interface.model.q0, nodes=0)
         self.interface.model.v.setBounds(self.interface.model.v0, self.interface.model.v0, nodes=0)
         self.interface.model.a.setBounds(np.zeros([self.model.a.shape[0], 1]), np.zeros([self.model.a.shape[0], 1]), nodes=0)
 
