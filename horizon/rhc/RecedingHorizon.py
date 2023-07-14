@@ -6,9 +6,9 @@ from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidB
 from horizon.rhc.action_manager.ActionManager import ActionManager
 import numpy as np
 import horizon.utils.kin_dyn as kd
-import rospy, roscpp
-from joy_commands import JoyCommands
+import matplotlib.pyplot as plt
 from horizon.ros import replay_trajectory
+from typing import Union
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 # from geometry_msgs.msg import PointStamped
@@ -156,15 +156,24 @@ from trajectory_msgs.msg import JointTrajectoryPoint
 #     c_phases[c].registerPhase(flight_phase)
 
 # TODO: people don't like TaskInterface.
-# maybe a taskInterface bare? without tasks, only with stuff to compute, solve, ...
+
+# TODO: Maybe create a RecedingHorizonROS
+
 class RecedingHorizon:
     def __init__(self,
-                 problem: Problem,
-                 model: FullModelInverseDynamics | SingleRigidBodyDynamicsModel,
+                 prb: Problem,
+                 model: Union[FullModelInverseDynamics, SingleRigidBodyDynamicsModel],
                  config_file=None,
                  opts=None):
 
-        self.problem = problem
+        #
+
+        if opts is None:
+            opts = {}
+
+        self.opts = opts
+
+        self.problem = prb
         self.model = model
 
         # variables for loop
@@ -179,15 +188,54 @@ class RecedingHorizon:
         else:
             self.interface = ProblemInterface(prb=self.problem, model=self.model)
 
+        # self.__set_initial_conditions()
+        self.__init_phase_manager()
+
+        # flags
+        self.__ros_flag = False
+        self.__replay_flag = False
+        self.__plot_flag = False
+        self.__boostrap_solved = False
+
+        if "input" in self.opts:
+            if "joystick" in self.opts["input"] and self.opts["input"]["joystick"] is True:
+                self.__init_joy()
+
+        if "ros" in self.opts and self.opts["ros"] is True:
+            self.__ros_flag = self.__init_ros()
+
+        if "replay" in self.opts and self.opts["replay"] is True:
+            self.__replay_flag = self.__init_replayer()
+
+        self.__figs = dict()
+
+    def __init_ros(self):
+        import subprocess
+        import rospy
+
+        name = 'fungo'
+        rospy.set_param('/robot_description', self.model.kd.urdf())
+        bashCommand = 'rosrun robot_state_publisher robot_state_publisher'
+        subprocess.Popen(bashCommand.split(), start_new_session=True)
+
+        ros_name = f'rhc_{name}'
+        rospy.init_node(ros_name)
+
+        solution_publisher = rospy.Publisher('/mpc_solution', JointTrajectory, queue_size=10)
+        rospy.sleep(1.)
+
+        return True
+
+
     def __init_phase_manager(self):
 
         # create phaseManager for receding horizon
-        self.pm = pymanager.PhaseManager(self.problem.getNNodes() - 1)
+        self.__pm = pymanager.PhaseManager(self.problem.getNNodes() - 1)
 
         # default create a phase for each contact specified in the model
         contact_phases = dict()
         for c in self.model.cmap.keys():
-            contact_phases[c] = self.pm.addTimeline(f'{c}_timeline')
+            contact_phases[c] = self.__pm.addTimeline(f'{c}_timeline')
 
     def __init_action_manager(self):
 
@@ -207,23 +255,33 @@ class RecedingHorizon:
         #     c_phases[c].addPhase(stance)
         #     c_phases[c].addPhase(stance)
 
-    def __set_initial_conditions(self):
+    def set_initial_conditions(self):
 
-        self.problem.setInitialState(self.model.getInitialValue())
-        #set initial bounds
-        self.interface.model.getVariable['q'].setBounds(self.interface.model.q0, self.interface.model.q0, nodes=0)
-        self.interface.model.v.setBounds(self.interface.model.v0, self.interface.model.v0, nodes=0)
-        self.interface.model.a.setBounds(np.zeros([self.model.a.shape[0], 1]), np.zeros([self.model.a.shape[0], 1]), nodes=0)
+        # todo not very flexible
+        # initialize the robot as still, in the initial position, with weight equally distributed on contacts
 
-        # set initial guess
-        self.interface.model.q.setInitialGuess(self.interface.model.q0)
-        self.interface.model.v.setInitialGuess(self.interface.model.v0)
+        # #set initial bounds and initial guess
+        for name, elem in self.model.getState().items():
 
+            if self.model.getInitialState(name) is not None:
+                elem.setInitialGuess(self.model.getInitialState(name))
+                elem.setBounds(self.model.getInitialState(name), self.model.getInitialState(name), nodes=0)
 
-        f0 = [0, 0, self.model.kd.mass() / len(self.model.cmap.keys()) * 9.8]
-        for cname, cforces in self.interface.model.cmap.items():
+        for name, elem in self.model.getInput().items():
+
+            if self.model.getInitialState(name) is not None:
+                elem.setBounds(self.model.getInitialInput(name), self.model.getInitialInput(name), nodes=0)
+                elem.setInitialGuess(self.model.getInitialInput(name))
+
+        f0 = [0, 0, self.model.kd.mass() / len(self.model.getForceMap().keys()) * 9.8]
+        for cname, cforces in self.model.getContactMap().items():
             for c in cforces:
                 c.setInitialGuess(f0)
+
+    def set_solver_options(self, solver_options):
+        # todo: keep it here?
+        # this raises a question: should I make recedingHorizon a child of Task/Problem Interface
+        self.interface.setSolverOptions(solver_options)
 
     def bootstrap(self):
         # finalize taskInterface and solve bootstrap problem
@@ -233,7 +291,12 @@ class RecedingHorizon:
         self.interface.load_initial_guess()
         self.__solution = self.interface.solution
 
+        self.__boostrap_solved = True
+
     def __init_replayer(self):
+
+        if self.__ros_flag is False:
+            raise Exception("ROS required for replayer.")
 
         contact_list_repl = list(self.model.cmap.keys())
         self.repl = replay_trajectory.replay_trajectory(self.dt, self.model.kd.joint_names(), np.array([]),
@@ -242,17 +305,41 @@ class RecedingHorizon:
                                                    trajectory_markers=contact_list_repl)
 
         # future_trajectory_markers={'base_link': 'world', 'ball_1': 'world'})
+        return True
+
 
     def __init_joy(self):
+        # todo
+        from horizon.utils.JoystickInterface import JoyInterface
+        self.jc = JoyInterface()
 
-        self.jc = JoyCommands(self.gm)
 
+    def __publish_solution(self):
+
+        if not self.__ros_flag:
+            raise Exception("ROS required for publishing the solution.")
+
+    # def plot(self, var):
+    #
+    #     if var in self.__figs[var]:
+    #         self.__figs[var] = plt.figure()
+    #         ax_plot = plt.subplot()
+    #
+    #     plt.ion()
+    #     plt.show()
+    #     x_axis = range(ns + 1)
+    #     y_axis = var
+    #     ax_plot.scatter(x_axis, y_axis)
+    #
+    #     plt.pause(0.001)
+    #     ax_plot.clear()
 
 
     def __init_run(self):
 
         time_elapsed_shifting_list = list()
-        xig = np.empty([self.prb.getState().getVars().shape[0], 1])
+        xig = np.empty([self.problem.getState().getVars().shape[0], 1])
+        return xig
 
 
     def setInput(self):
@@ -260,6 +347,11 @@ class RecedingHorizon:
         # // as a phase
         pass
     def run(self):
+
+        if not self.__boostrap_solved:
+            print('\033[1m' + 'Bootstrap not found. Bootstrapping...' + '\033[0m')
+            self.bootstrap()
+            print('\033[1m' + 'Start looping...' + '\033[0m')
 
         # set initial state and initial guess
         shift_num = -1
@@ -269,16 +361,16 @@ class RecedingHorizon:
         for i in range(abs(shift_num)):
             xig[:, -1 - i] = x_opt[:, -1]
 
-        self.prb.getState().setInitialGuess(xig)
-        self.prb.setInitialState(x0=xig[:, 0])
+        self.problem.getState().setInitialGuess(xig)
+        self.problem.setInitialState(x0=xig[:, 0])
 
         # shift phases of phase manager
         # tic = time.time()
-        self.pm._shift_phases()
+        self.__pm._shift_phases()
         # time_elapsed_shifting = time.time() - tic
         # time_elapsed_shifting_list.append(time_elapsed_shifting)
 
-        self.jc.run(self.__solution)
+        # self.jc.run(self.__solution)
 
         self.iteration = self.iteration + 1
 
@@ -313,12 +405,133 @@ class RecedingHorizon:
         #
         # solution_publisher.publish(jt)
 
+        if self.__replay_flag:
 
-
-        # replay stuff
-        self.repl.frame_force_mapping = {cname: self.__solution[f.getName()] for cname, f in ti.model.fmap.items()}
-        self.repl.publish_joints(self.__solution['q'][:, 0])
-        self.repl.publishContactForces(rospy.Time.now(), self.__solution['q'][:, 0], 0)
+            # replay stuff
+            self.repl.frame_force_mapping = {cname: self.__solution[f.getName()] for cname, f in self.model.getForceMap().items()}
+            self.repl.publish_joints(self.__solution['q'][:, 0])
+            self.repl.publishContactForces(rospy.Time.now(), self.__solution['q'][:, 0], 0)
         # repl.publish_future_trajectory_marker('base_link', self.__solution['q'][0:3, :])
         # repl.publish_future_trajectory_marker('ball_1', self.__solution['q'][8:11, :])
+
+if __name__ == '__main__':
+
+    import rospkg
+    import casadi_kin_dyn.py3casadi_kin_dyn as casadi_kin_dyn
+    import casadi as cs
+    import rospy
+
+    np.set_printoptions(suppress=False,  # suppress small results
+                        linewidth=np.inf,
+                        precision=3,
+                        threshold=np.inf,  # number of displayed elements for array
+                        formatter=None
+                        )
+    
+
+    cogimon_urdf_folder = rospkg.RosPack().get_path('cogimon_urdf')
+    cogimon_srdf_folder = rospkg.RosPack().get_path('cogimon_srdf')
+
+    urdf = open(cogimon_urdf_folder + '/urdf/cogimon.urdf', 'r').read()
+
+
+    ns = 20
+    T = 1.
+    dt = T / ns
+
+    prb = Problem(ns, receding=True, casadi_type=cs.SX)
+    prb.setDt(dt)
+
+    base_init = np.atleast_2d(np.array([0.03, 0., 0.962, 0., -0.029995, 0.0, 0.99955]))
+    # base_init = np.array([0., 0., 0.96, 0., 0.0, 0.0, 1.])
+
+    q_init = {"LHipLat": -0.0,
+              "LHipSag": -0.363826,
+              "LHipYaw": 0.0,
+              "LKneePitch": 0.731245,
+              "LAnklePitch": -0.307420,
+              "LAnkleRoll": 0.0,
+              "RHipLat": 0.0,
+              "RHipSag": -0.363826,
+              "RHipYaw": 0.0,
+              "RKneePitch": 0.731245,
+              "RAnklePitch": -0.307420,
+              "RAnkleRoll": -0.0,
+              "WaistLat": 0.0,
+              "WaistYaw": 0.0,
+              "LShSag": 1.1717860,
+              "LShLat": -0.059091562,
+              "LShYaw": -5.18150657e-02,
+              "LElbj": -1.85118,
+              "LForearmPlate": 0.0,
+              "LWrj1": -0.523599,
+              "LWrj2": -0.0,
+              "RShSag": 1.17128697,
+              "RShLat": 6.01664139e-02,
+              "RShYaw": 0.052782481,
+              "RElbj": -1.8513760,
+              "RForearmPlate": 0.0,
+              "RWrj1": -0.523599,
+              "RWrj2": -0.0}
+
+    contact_dict = {
+        'l_sole': {
+            'type': 'vertex',
+            'vertex_frames': [
+                'l_foot_lower_left_link',
+                'l_foot_upper_left_link',
+                'l_foot_lower_right_link',
+                'l_foot_upper_right_link',
+            ]
+        },
+
+        'r_sole': {
+            'type': 'vertex',
+            'vertex_frames': [
+                'r_foot_lower_left_link',
+                'r_foot_upper_left_link',
+                'r_foot_lower_right_link',
+                'r_foot_upper_right_link',
+            ]
+        }
+    }
+
+    model_kin_dyn = casadi_kin_dyn.CasadiKinDyn(urdf)
+
+    model = FullModelInverseDynamics(problem=prb,
+                                     kd=model_kin_dyn,
+                                     q_init=q_init,
+                                     base_init=base_init,
+                                     contact_dict=contact_dict,
+                                     sys_order_degree=3)
+
+    model._make_vertex_contact('r_sole', dict(vertex_frames=['r_foot_lower_left_link',
+                                                             'r_foot_upper_left_link',
+                                                             'r_foot_lower_right_link',
+                                                             'r_foot_upper_right_link']))
+
+    model._make_vertex_contact('l_sole', dict(vertex_frames=['l_foot_lower_left_link',
+                                                             'l_foot_upper_left_link',
+                                                             'l_foot_lower_right_link',
+                                                             'l_foot_upper_right_link']))
+
+
+    opts = dict(
+        ros=True,
+        replay=True
+    )
+    mi = RecedingHorizon(prb=prb, model=model, opts=opts)
+    mi.set_initial_conditions()
+
+    solver_opt = dict(type="ilqr")
+    mi.set_solver_options(solver_opt)
+
+
+    # for var_name, var in mi.model.getState().items():
+    #     print(f'name: {var_name}')
+    #     print(f'intial guess: {var.getInitialGuess()}')
+    #     print(f'bounds: {var.getBounds()}')
+
+    while not rospy.is_shutdown():
+        mi.run()
 

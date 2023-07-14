@@ -15,6 +15,8 @@ class FullModelInverseDynamics:
 
     def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, sys_order_degree=2, **kwargs):
         # todo: adding contact dict
+        # todo: adding qdot_init? and more?
+        # probably should remove the q_init and base_init from here?
 
         if fixed_joint_map is None:
             fixed_joint_map = {}
@@ -90,9 +92,10 @@ class FullModelInverseDynamics:
     def __init_initial_values(self):
 
         # manage starting position
-        # initial guess (also initial condition and nominal pose)
+        # create the initial value variables
+        # initialize only the position var as the q_init, the rest to zero
         # TODO: forces are NOT considered here
-        for state_var_name in self.state_vec.keys():
+        for state_var_name, state_var in self.state_vec.items():
             if state_var_name == 'q':
                 self.initial_state_map[state_var_name] = self.kd.mapToQ(self.__q_init)
 
@@ -102,8 +105,8 @@ class FullModelInverseDynamics:
 
                 self.initial_state_map[state_var_name] = np.zeros(self.nv)
 
-        for input_var_name in self.input_vec.keys():
-            self.initial_state_map[input_var_name] = np.zeros(self.nv)
+        for input_var_name, input_var in self.input_vec.items():
+            self.initial_input_map[input_var_name] = np.zeros(self.nv)
 
         # TODO: ------ hacks for retro-compatibility ------
         for item_name, elem in self.initial_state_map.items():
@@ -121,15 +124,21 @@ class FullModelInverseDynamics:
         fk_fn = self.kd.fk(frame)
         return fk_fn(self.input_vec['q'])
 
-    def getInitialState(self, var=None):
+    def getInitialState(self, var):
 
-        if var is None:
-            np.concatenate(list(self.initial_state_map.values()))
+        # if var is None:
+        #     np.concatenate(list(self.initial_state_map.values()))
         if var in self.initial_state_map:
             return self.initial_state_map[var]
         else:
             return None
 
+    def getInitialInput(self, var):
+
+        if var in self.initial_input_map:
+            return self.initial_input_map[var]
+        else:
+            return None
     def setContactFrame(self, contact_frame, contact_type, contact_params=dict()):
         '''
         set frame as a contact: create a contact force linked to the frame

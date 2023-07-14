@@ -10,6 +10,9 @@ import numpy as np
 import casadi as cs
 import random
 
+class Plotter:
+    def __init__(self):
+        pass
 
 def createPlotGrid(n_rows_max, n_plots, title):
     cols = n_plots if n_plots < n_rows_max else n_rows_max
@@ -32,8 +35,6 @@ class PlotterHorizon:
 
     def setSolution(self, solution):
         self.solution = solution
-
-
 
     def _plotVar(self, val, ax, abstract_var, markers, show_bounds, legend, dim):
         var_dim_select = set(range(val.shape[0]))
