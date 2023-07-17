@@ -1,10 +1,11 @@
 import logging
-
-import matplotlib.pyplot as mplt
+import matplotlib.pyplot as plt
 from matplotlib.ticker import FormatStrFormatter
 from matplotlib import gridspec
 from horizon.problem import Problem
-from horizon.variables import InputVariable
+from horizon.variables import InputVariable, Variable, RecedingVariable, RecedingInputVariable
+from horizon.functions import Function, RecedingFunction
+
 import math
 import numpy as np
 import casadi as cs
@@ -26,7 +27,7 @@ def create_grid(n_plots, title, n_rows_max, opts=None):
 
     gs = gridspec.GridSpec(rows, cols, **opts)
 
-    fig = mplt.figure(layout='constrained')
+    fig = plt.figure(layout='constrained')
     fig.suptitle(title)
 
     return fig, gs
@@ -36,28 +37,79 @@ class Plotter():
         self.prb = prb
         self.solution = solution
 
-    def plot(self, ax, val_name, dim):
+        # gs.hspace = 0.3
 
-        if self.plotVar(ax, val_name, dim):
-            return True
+        # w = 7195
+        # h = 3841
 
-        if self.plotFun(ax, val_name, dim):
-            return True
+        # fig = plt.figure(frameon=True)
+        # fig.set_size_inches(fig_size[0], fig_size[1])
+        # fig.tight_layout()
 
-        return False
 
-    def plotVar(self, ax, val_name, dim):
+    def plot(self, ax, item_name, dim, args):
 
-        abstract_var = prb.getVariables(val_name)
-        if not abstract_var:
-            return False
+        return self.__plot_element(ax, item_name, dim, args)
 
-        return self.__plot_variable(ax, abstract_var, dim)
+    def __get_val(self, item, dim):
 
-    def __plot_variable(self, ax, abstract_var, dim):
+        if isinstance(item, (Variable, RecedingVariable)):
+            val = self.solution[item.getName()]
+        elif isinstance(item, (Function, RecedingFunction)):
+            val = self.prb.evalFun(item, self.solution)
+        else:
+            raise ValueError('item not recognized')
 
-        val = self.solution[abstract_var.getName()]
+        var_dim_select = set(range(val.shape[0]))
 
+        if dim is not None:
+            if not set(dim).issubset(var_dim_select):
+                raise Exception('Wrong selected dimension.')
+            else:
+                var_dim_select = dim
+
+        return val, var_dim_select
+
+    def __plot_element(self, ax, item, dim, args):
+
+        val, var_dim_select = self.__get_val(item, dim)
+        nodes_var = val.shape[1]
+
+        if isinstance(val, (InputVariable, RecedingInputVariable)):
+            plot_fun = ax.step
+        else:
+            plot_fun = ax.plot
+
+        for dim in var_dim_select:
+            plot_fun(np.array(range(nodes_var)), val[dim, range(nodes_var)], **args)
+
+        return True
+
+    # def __plot_bounds(self, ax, abstract_var, dim, args=None):
+    #
+    #     val, var_dim_select = self.__get_val(abstract_var, dim)
+    #     nodes_var = val.shape[1]
+    #
+    #     lb, ub = abstract_var.getBounds()
+    #
+    #     for dim in var_dim_select:
+    #         ax.plot(np.array(range(nodes_var)), lb[dim, range(nodes_var)], *args)
+    #         ax.plot(np.array(range(nodes_var)), ub[dim, range(nodes_var)], *args)
+    #
+
+
+class PlotterHorizon:
+    def __init__(self, prb: Problem, solution=None, opts=None, logger=None):
+
+        self.solution = solution
+        self.prb = prb
+        self.logger = logger
+        self.opts = opts
+
+    def setSolution(self, solution):
+        self.solution = solution
+
+    def _plotVar(self, val, ax, abstract_var, markers, show_bounds, legend, dim):
         var_dim_select = set(range(val.shape[0]))
         nodes_var = val.shape[1]
         if dim is not None:
@@ -66,227 +118,175 @@ class Plotter():
             else:
                 var_dim_select = dim
 
-            for j in var_dim_select:
-                ax.step(np.array(range(nodes_var)), val[i, range(nodes_var)])
+        if nodes_var == 1:
+            markers = True
+
+        baseline = None
+        legend_list = list()
+        if isinstance(abstract_var, InputVariable):
+            for i in var_dim_select: # get i-th dimension
+
+                r = random.random()
+                b = random.random()
+                g = random.random()
+                color = (r, g, b)
+
+                for j in range(nodes_var-1):
+                    # ax.plot(np.array(range(val.shape[1])), val[i, :], linewidth=0.1, color=color)
+                    # ax.plot(range(val.shape[1])[j:j + 2], [val[i, j]] * 2, color=color)
+                    ax.step(np.array(range(nodes_var)), val[i, range(nodes_var)], linewidth=0.1, color=color, label='_nolegend_')
+
+                    if show_bounds:
+                        lb, ub = abstract_var.getBounds()
+
+                        if markers:
+                            ax.plot(range(nodes_var), lb[i, range(nodes_var)], marker="x", markersize=3, linestyle='dotted',linewidth=1, color=color)
+                            ax.plot(range(nodes_var), ub[i, range(nodes_var)], marker="x", markersize=3, linestyle='dotted',linewidth=1, color=color)
+                        else:
+                            ax.plot(range(nodes_var), lb[i, range(nodes_var)], linestyle='dotted')
+                            ax.plot(range(nodes_var), ub[i, range(nodes_var)], linestyle='dotted')
+
+                if legend:
+                    legend_list.append(f'{abstract_var.getName()}_{i}')
+                    if show_bounds:
+                        legend_list.append(f'{abstract_var.getName()}_{i}_lb')
+                        legend_list.append(f'{abstract_var.getName()}_{i}_ub')
+        else:
+            for i in var_dim_select:
+                if markers:
+                    baseline, = ax.plot(range(nodes_var), val[i, :], marker="o", markersize=2)
+
+                else:
+                    baseline, = ax.plot(range(nodes_var), val[i, :])
+
+                if show_bounds:
+                    lb, ub = abstract_var.getBounds()
+                    lb_mat = np.reshape(lb, (abstract_var.getDim(), len(abstract_var.getNodes())), order='F')
+                    ub_mat = np.reshape(ub, (abstract_var.getDim(), len(abstract_var.getNodes())), order='F')
+
+                    if markers:
+                        ax.plot(range(nodes_var), lb_mat[i, :], marker="x", markersize=3, linestyle='dotted', linewidth=1, color=baseline.get_color())
+                        ax.plot(range(nodes_var), ub_mat[i, :], marker="x", markersize=3, linestyle='dotted', linewidth=1, color=baseline.get_color())
+                    else:
+                        ax.plot(range(nodes_var), lb_mat[i, :], linestyle='dotted')
+                        ax.plot(range(nodes_var), ub_mat[i, :], linestyle='dotted')
+
+                    if legend:
+                        legend_list.append(f'{abstract_var.getName()}_{i}')
+                        legend_list.append(f'{abstract_var.getName()}_{i}_lb')
+                        legend_list.append(f'{abstract_var.getName()}_{i}_ub')
+
+        if legend:
+            ax.legend(legend_list)
+
+    def plotVariables(self, names=None, grid=False, gather=None, markers=False, show_bounds=True, legend=True, dim=None):
+
+        if self.solution is None:
+            raise Exception('Solution not set. Cannot plot variables.')
+
+        if names is None:
+            selected_sol = self.solution
+        else:
+            if isinstance(names, str):
+                names = [names]
+            selected_sol = {name: self.solution[name] for name in names}
+
+        if gather:
+
+            fig, gs = create_grid(len(selected_sol), 'Variables', gather)
+            i = 0
+            for key, val in selected_sol.items():
+                ax = fig.add_subplot(gs[i, :])
+                if grid:
+                    ax.grid(axis='x')
+                self._plotVar(val, ax, self.prb.getVariables(key), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
+
+                # options
+                ax.set_title('{}'.format(key))
+                ax.ticklabel_format(useOffset=False, style='plain')
+                ax.yaxis.set_major_formatter(FormatStrFormatter('%g'))
+                # ax.set(xlabel='nodes', ylabel='vals')
+                # mplt.xticks(list(range(val.shape[1])))
+                i = i+1
+        else:
+            for key, val in selected_sol.items():
+                fig, ax = mplt.subplots(layout='constrained')
+                ax.set_title('{}'.format(key))
+                if grid:
+                    ax.grid(axis='x')
+                self._plotVar(val, ax, self.prb.getVariables(key), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
 
 
-    def __plot_bounds(self, ax, abstract_var, dim, ax_kw=None):
+        fig.tight_layout()
+        plt.show(block=False)
 
-        val = self.solution[abstract_var.getName()]
+    def plotVariable(self, name, grid=False, markers=None, show_bounds=None, legend=None, dim=None):
 
+        if self.solution is None:
+            raise Exception('Solution not set. Cannot plot variable.')
 
-        if ax_kw is None:
-            ax_kw = dict()
+        val = self.solution[name]
 
-        var_dim_select = set(range(val.shape[0]))
-        nodes_var = val.shape[1]
-        if dim is not None:
-            if not set(dim).issubset(var_dim_select):
-                raise Exception('Wrong selected dimension.')
+        fig, ax = plt.subplots(layout='constrained')
+        if grid:
+            ax.grid(axis='x')
+        self._plotVar(val, ax, self.prb.getVariables(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
+
+        ax.set_title('{}'.format(name))
+        # mplt.xticks(list(range(val.shape[1])))
+        ax.set(xlabel='nodes', ylabel='vals')
+
+    def plotFunctions(self, grid=False, gather=None, markers=None, show_bounds=None, legend=None, dim=None):
+
+        if self.solution is None:
+            raise Exception('Solution not set. Cannot plot functions.')
+
+        if self.prb.getConstraints():
+            if gather:
+                fig, gs = create_grid(len(self.prb.getConstraints()), 'Functions', gather)
+
+                i = 0
+                for name, fun in self.prb.getConstraints().items():
+                    ax = fig.add_subplot(gs[i])
+                    if grid:
+                        ax.grid(axis='x')
+                    fun_evaluated = self.prb.evalFun(fun, self.solution)
+                    self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
+
+                    ax.set_title('{}'.format(name))
+                    plt.xticks(list(range(fun_evaluated.shape[1])))
+                    ax.ticklabel_format(useOffset=False, style='plain')
+                    ax.yaxis.set_major_formatter(FormatStrFormatter('%g'))
+                    i = i+1
+
             else:
-                var_dim_select = dim
+                for name, fun in self.prb.getConstraints().items():
+                    fig, ax = plt.subplots(layout='constrained')
+                    ax.set_title('{}'.format(name))
+                    if grid:
+                        ax.grid(axis='x')
+                    fun_evaluated = self.prb.evalFun(fun, self.solution)
+                    self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
 
+            fig.tight_layout()
+            plt.show(block=False)
 
-        nodes_var = abstract_var.getNodes()
-        lb, ub = abstract_var.getBounds()
+    def plotFunction(self, name, grid=False, markers=None, show_bounds=None, legend=None, dim=None):
 
-        for i in var_dim_select:
-            ax.plot(nodes_var, lb[i, range(nodes_var)], *ax_kw)
-            ax.plot(nodes_var, ub[i, range(nodes_var)], *ax_kw)
+        if self.solution is None:
+            raise Exception('Solution not set. Cannot plot functions.')
 
+        fun = self.prb.getConstraints(name)
 
+        fig, ax = plt.subplots(layout='constrained')
+        ax.set_title('{}'.format(name))
+        if grid:
+            ax.grid(axis='x')
+        fun_evaluated = self.prb.evalFun(fun, self.solution)
+        self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
 
-# class PlotterHorizon(Plotter):
-#     def __init__(self, prb: Problem, solution=None, opts=None, logger=None):
-#
-#         super().__init__()
-#
-#         self.solution = solution
-#         self.prb = prb
-#         self.logger = logger
-#         self.opts = opts
-#
-#     def setSolution(self, solution):
-#         self.solution = solution
-#
-#     def _plotVar(self, val, ax, abstract_var, markers, show_bounds, legend, dim):
-#         var_dim_select = set(range(val.shape[0]))
-#         nodes_var = val.shape[1]
-#         if dim is not None:
-#             if not set(dim).issubset(var_dim_select):
-#                 raise Exception('Wrong selected dimension.')
-#             else:
-#                 var_dim_select = dim
-#
-#         if nodes_var == 1:
-#             markers = True
-#
-#         baseline = None
-#         legend_list = list()
-#         if isinstance(abstract_var, InputVariable):
-#             for i in var_dim_select: # get i-th dimension
-#
-#                 r = random.random()
-#                 b = random.random()
-#                 g = random.random()
-#                 color = (r, g, b)
-#
-#                 for j in range(nodes_var-1):
-#                     # ax.plot(np.array(range(val.shape[1])), val[i, :], linewidth=0.1, color=color)
-#                     # ax.plot(range(val.shape[1])[j:j + 2], [val[i, j]] * 2, color=color)
-#                     ax.step(np.array(range(nodes_var)), val[i, range(nodes_var)], linewidth=0.1, color=color, label='_nolegend_')
-#
-#                     if show_bounds:
-#                         lb, ub = abstract_var.getBounds()
-#
-#                         if markers:
-#                             ax.plot(range(nodes_var), lb[i, range(nodes_var)], marker="x", markersize=3, linestyle='dotted',linewidth=1, color=color)
-#                             ax.plot(range(nodes_var), ub[i, range(nodes_var)], marker="x", markersize=3, linestyle='dotted',linewidth=1, color=color)
-#                         else:
-#                             ax.plot(range(nodes_var), lb[i, range(nodes_var)], linestyle='dotted')
-#                             ax.plot(range(nodes_var), ub[i, range(nodes_var)], linestyle='dotted')
-#
-#                 if legend:
-#                     legend_list.append(f'{abstract_var.getName()}_{i}')
-#                     if show_bounds:
-#                         legend_list.append(f'{abstract_var.getName()}_{i}_lb')
-#                         legend_list.append(f'{abstract_var.getName()}_{i}_ub')
-#         else:
-#             for i in var_dim_select:
-#                 if markers:
-#                     baseline, = ax.plot(range(nodes_var), val[i, :], marker="o", markersize=2)
-#
-#                 else:
-#                     baseline, = ax.plot(range(nodes_var), val[i, :])
-#
-#                 if show_bounds:
-#                     lb, ub = abstract_var.getBounds()
-#                     lb_mat = np.reshape(lb, (abstract_var.getDim(), len(abstract_var.getNodes())), order='F')
-#                     ub_mat = np.reshape(ub, (abstract_var.getDim(), len(abstract_var.getNodes())), order='F')
-#
-#                     if markers:
-#                         ax.plot(range(nodes_var), lb_mat[i, :], marker="x", markersize=3, linestyle='dotted', linewidth=1, color=baseline.get_color())
-#                         ax.plot(range(nodes_var), ub_mat[i, :], marker="x", markersize=3, linestyle='dotted', linewidth=1, color=baseline.get_color())
-#                     else:
-#                         ax.plot(range(nodes_var), lb_mat[i, :], linestyle='dotted')
-#                         ax.plot(range(nodes_var), ub_mat[i, :], linestyle='dotted')
-#
-#                     if legend:
-#                         legend_list.append(f'{abstract_var.getName()}_{i}')
-#                         legend_list.append(f'{abstract_var.getName()}_{i}_lb')
-#                         legend_list.append(f'{abstract_var.getName()}_{i}_ub')
-#
-#         if legend:
-#             ax.legend(legend_list)
-#
-#     def plotVariables(self, names=None, grid=False, gather=None, markers=False, show_bounds=True, legend=True, dim=None):
-#
-#         if self.solution is None:
-#             raise Exception('Solution not set. Cannot plot variables.')
-#
-#         if names is None:
-#             selected_sol = self.solution
-#         else:
-#             if isinstance(names, str):
-#                 names = [names]
-#             selected_sol = {name: self.solution[name] for name in names}
-#
-#         if gather:
-#
-#             fig, gs = create_grid(len(selected_sol), 'Variables', gather)
-#             i = 0
-#             for key, val in selected_sol.items():
-#                 ax = fig.add_subplot(gs[i, :])
-#                 if grid:
-#                     ax.grid(axis='x')
-#                 self._plotVar(val, ax, self.prb.getVariables(key), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#                 # options
-#                 ax.set_title('{}'.format(key))
-#                 ax.ticklabel_format(useOffset=False, style='plain')
-#                 ax.yaxis.set_major_formatter(FormatStrFormatter('%g'))
-#                 # ax.set(xlabel='nodes', ylabel='vals')
-#                 # mplt.xticks(list(range(val.shape[1])))
-#                 i = i+1
-#         else:
-#             for key, val in selected_sol.items():
-#                 fig, ax = mplt.subplots(layout='constrained')
-#                 ax.set_title('{}'.format(key))
-#                 if grid:
-#                     ax.grid(axis='x')
-#                 self._plotVar(val, ax, self.prb.getVariables(key), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#
-#         fig.tight_layout()
-#         mplt.show(block=False)
-#
-#     def plotVariable(self, name, grid=False, markers=None, show_bounds=None, legend=None, dim=None):
-#
-#         if self.solution is None:
-#             raise Exception('Solution not set. Cannot plot variable.')
-#
-#         val = self.solution[name]
-#
-#         fig, ax = mplt.subplots(layout='constrained')
-#         if grid:
-#             ax.grid(axis='x')
-#         self._plotVar(val, ax, self.prb.getVariables(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#         ax.set_title('{}'.format(name))
-#         # mplt.xticks(list(range(val.shape[1])))
-#         ax.set(xlabel='nodes', ylabel='vals')
-#
-#     def plotFunctions(self, grid=False, gather=None, markers=None, show_bounds=None, legend=None, dim=None):
-#
-#         if self.solution is None:
-#             raise Exception('Solution not set. Cannot plot functions.')
-#
-#         if self.prb.getConstraints():
-#             if gather:
-#                 fig, gs = create_grid(len(self.prb.getConstraints()), 'Functions', gather)
-#
-#                 i = 0
-#                 for name, fun in self.prb.getConstraints().items():
-#                     ax = fig.add_subplot(gs[i])
-#                     if grid:
-#                         ax.grid(axis='x')
-#                     fun_evaluated = self.prb.evalFun(fun, self.solution)
-#                     self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#                     ax.set_title('{}'.format(name))
-#                     mplt.xticks(list(range(fun_evaluated.shape[1])))
-#                     ax.ticklabel_format(useOffset=False, style='plain')
-#                     ax.yaxis.set_major_formatter(FormatStrFormatter('%g'))
-#                     i = i+1
-#
-#             else:
-#                 for name, fun in self.prb.getConstraints().items():
-#                     fig, ax = mplt.subplots(layout='constrained')
-#                     ax.set_title('{}'.format(name))
-#                     if grid:
-#                         ax.grid(axis='x')
-#                     fun_evaluated = self.prb.evalFun(fun, self.solution)
-#                     self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#             fig.tight_layout()
-#             mplt.show(block=False)
-#
-#     def plotFunction(self, name, grid=False, markers=None, show_bounds=None, legend=None, dim=None):
-#
-#         if self.solution is None:
-#             raise Exception('Solution not set. Cannot plot functions.')
-#
-#         fun = self.prb.getConstraints(name)
-#
-#         fig, ax = mplt.subplots(layout='constrained')
-#         ax.set_title('{}'.format(name))
-#         if grid:
-#             ax.grid(axis='x')
-#         fun_evaluated = self.prb.evalFun(fun, self.solution)
-#         self._plotVar(fun_evaluated, ax, self.prb.getConstraints(name), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)
-#
-#         fig.tight_layout()
-#         mplt.show(block=False)
+        fig.tight_layout()
+        plt.show(block=False)
 
 if __name__ == '__main__':
 
@@ -450,7 +450,7 @@ if __name__ == '__main__':
     process = subprocess.Popen(bashCommand.split(), start_new_session=True)
 
     ti = TaskInterface(prb=prb, model=model)
-    ti.setTaskFromYaml("/home/francesco/catkin_ws/external/walk_me_maybe/config/config_walk_horizon_full_body.yaml")
+    ti.setTaskFromYaml("/home/fruscelli/forest_ws/src/walk_me_maybe/config/config_walk_horizon_full_body.yaml")
 
     # ti.getTask('com_height').setRef(base_init.T)
 
@@ -607,17 +607,18 @@ if __name__ == '__main__':
     ti.load_initial_guess()
     solution = ti.solution
 
-    plt = PlotterHorizon(prb, solution)
 
-    fig, axes = mplt.subplots(4, 2, sharex=True, gridspec_kw=dict(height_ratios=[3, 2, 1, 1]))
-    fig.suptitle('cazzi')
+    # hplt = Plotter(prb, solution)
+    hplt = PlotterHorizon(prb, solution)
 
-    plt.plot(axes[0], 'q')
+    # fig, axes = mplt.subplots(3, 2, sharex=True, gridspec_kw=dict(height_ratios=[3, 1, 1]))
+    # fig.suptitle('cazzi')
+    # hplt.plot(axes[0][0], prb.getConstraints('dynamics'), [0, 1, 2], args=dict(color='r'))
 
-    # plt.plotVariables(['q', 'v'], gather=1)
-    mplt.show()
+    hplt.plotVariables(['q', 'v'], gather=1)
+    plt.show()
 
-
+    exit()
     iteration = 0
     rate = rospy.Rate(1 / dt)
 
