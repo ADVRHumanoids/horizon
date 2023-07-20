@@ -85,6 +85,7 @@ class Plotter():
 
         return True
 
+    # def plot
     # def __plot_bounds(self, ax, abstract_var, dim, args=None):
     #
     #     val, var_dim_select = self.__get_val(abstract_var, dim)
@@ -95,7 +96,7 @@ class Plotter():
     #     for dim in var_dim_select:
     #         ax.plot(np.array(range(nodes_var)), lb[dim, range(nodes_var)], *args)
     #         ax.plot(np.array(range(nodes_var)), ub[dim, range(nodes_var)], *args)
-    #
+    #L
 
 
 class PlotterHorizon:
