@@ -170,8 +170,8 @@ class OffsetTemplate(AbstractVariable):  # note parametrize casadi type!!!
         # offset the node of self.offset
         offset_nodes = nodes_array + self._offset
 
-        if offset_nodes < 0:
-            raise ValueError(f"Variable offset does not exist on nodes: {offset_nodes}")
+        if np.any(offset_nodes < 0):
+            raise ValueError(f"Offset variable refers invalid nodes: {offset_nodes}")
 
         offset_nodes = misc.checkNodes(offset_nodes, self._nodes_array)
 

@@ -63,7 +63,7 @@ class AbstractFunction:
         all_input = self.vars + self.pars
         all_names = [f'{i.getName()}_{str(i.getOffset())}' for i in all_input]
 
-        self._fun = cs.Function(name, self.vars + self.pars, [self._f], all_names, ['f'])
+        self._fun = cs.Function(name, all_input, [self._f], all_names, ['f'])
 
     def getName(self) -> str:
         """
@@ -419,12 +419,12 @@ class RecedingFunction(AbstractFunction):
 
     def getImpl(self, nodes=None):
         """
-        Getter for the CASADI function implemented at the desired node
+        Getter for the CASADI function implemented at the all node, because it's receding
         Args:
-            node: the desired node of the implemented function to retrieve
+            node: return the function on all the nodes
 
         Returns:
-            instance of the CASADI function at the desired node
+            instance of the CASADI function at all nodes
         """
         # todo return the implemented function on all nodes always??
 
@@ -899,6 +899,10 @@ class RecedingCost(RecedingFunction):
 
     def _setWeightMask(self, casadi_type, abstract_casadi_type):
 
+        '''
+        receding requires the cost to be defined on all the nodes and a weight map select the "active" nodes
+        '''
+
         dim_weight_mask = 1
         self.weight_mask = sv.RecedingParameter(f'{self.getName()}_weight_mask',
                                                 dim_weight_mask,
@@ -911,8 +915,11 @@ class RecedingCost(RecedingFunction):
         # override _f and _fun
         self._f = self.weight_mask * self._f
         all_input = self.vars + self.pars
-        all_names = [i.getName() for i in all_input]
-        self._fun = cs.Function(self.getName(), self.vars + self.pars, [self._f], all_names, ['f'])
+        # all_names = [i.getName() for i in all_input]
+        all_names = [f'{i.getName()}_{str(i.getOffset())}' for i in all_input]
+
+        # resetting self._fun to add the weight mask
+        self._fun = cs.Function(self.getName(), all_input, [self._f], all_names, ['f'])
         self._zero_nodes_mask = np.zeros([self.weight_mask.getDim(), np.sum(self._feas_nodes_array).astype(int)])
 
         self.setNodes(misc.getNodesFromBinary(self._active_nodes_array), erasing=True)
@@ -927,7 +934,7 @@ class RecedingCost(RecedingFunction):
         # nodes_mask = np.zeros([self.weight_mask.getDim(), np.sum(self._feas_nodes_array).astype(int)])
 
         # getNodes because if it is not erasing, self.getNodes() may contain more nodes than "nodes"
-        nodes_mask[:, self.getNodes()] = 1
+        nodes_mask[:, misc.convertNodestoPos(self.getNodes(), self._feas_nodes_array)] = 1
         self.weight_mask.assign(nodes_mask)
 
     # def shift(self):
