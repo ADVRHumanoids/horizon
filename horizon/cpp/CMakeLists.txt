@@ -13,7 +13,7 @@ find_package(casadi 3.5.5 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # ilqr library
 add_library(horizon STATIC
