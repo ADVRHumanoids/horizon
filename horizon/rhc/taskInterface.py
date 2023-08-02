@@ -77,7 +77,6 @@ class TaskInterface:
             pass
         self.solution = self.solver_bs.getSolutionDict()
 
-    
     def rti(self):
                 
         t = time.time()
@@ -88,6 +87,37 @@ class TaskInterface:
         self.solution = self.solver_rti.getSolutionDict()
 
         return check
+
+    def eval_tau_on_sol(self):
+        
+        tau = np.zeros([self.model.tau.shape[0], 
+                        self.prb.getNNodes() - 1])
+        
+        if self.model.fmap:
+            
+            fmap = dict()
+
+            for frame, wrench in self.model.fmap.items():
+
+                fmap[frame] = self.solution[f'{wrench.getName()}']
+
+            id = kin_dyn.InverseDynamics(self.model.kd, fmap.keys(), self.model.kd_frame)
+
+            for i in range(tau.shape[1]):
+
+                fmap_i = dict()
+
+                for frame, wrench in fmap.items():
+                    fmap_i[frame] = wrench[:, i]
+
+                tau_i = id.call(self.solution['q'][:, i], 
+                                self.solution['v'][:, i], 
+                                self.solution['a'][:, i],
+                                fmap_i)
+                
+                tau[:, i] = tau_i.toarray().flatten()
+
+        return tau
 
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
 
