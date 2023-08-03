@@ -91,8 +91,13 @@ class SolverILQR(Solver):
         # empty solution dict
         self.solution_dict = dict()
 
+        self.current_iteration = 0 
+        self.iteration_costs = []
+
         # print iteration statistics
         self.set_iteration_callback()
+
+        self.set_iteration_callback(self._sol_info_callback)
 
     def save(self):
         data = self.prb.save()
@@ -104,7 +109,6 @@ class SolverILQR(Solver):
         data['dynamics'] = self.dyn.serialize()
         return data
 
-    
     def set_iteration_callback(self, cb=None):
         if cb is None:
             self.ilqr.setIterationCallback(self._iter_callback)
@@ -112,12 +116,20 @@ class SolverILQR(Solver):
             print('setting custom iteration callback')
             self.ilqr.setIterationCallback(cb)
 
+    def _sol_info_callback(self, fpres):
+
+        self.current_iteration = self.current_iteration + 1
+        
+        self.iteration_costs.append(fpres.cost)
 
     def configure_rti(self) -> bool:
         self.opts['max_iter'] = 1
     
     def solve(self):
         
+        self.iteration_costs = [] # resets costs data
+        self.current_iteration = 0 # resets iteration counter
+
         # set initial state
         x0 = self.prb.getInitialState()
         xinit = self.prb.getState().getInitialGuess()
@@ -159,6 +171,10 @@ class SolverILQR(Solver):
         self.solution_dict['x_opt'] = self.x_opt
         self.solution_dict['u_opt'] = self.u_opt
 
+        self.solution_dict['opt_cost'] = self.iteration_costs[-1] if len(self.iteration_costs) else -1.0
+        self.solution_dict['iter_costs'] = np.array(self.iteration_costs)
+        self.solution_dict['n_iter2sol'] = self.current_iteration
+ 
         return ret
     
     def getSolutionDict(self):
