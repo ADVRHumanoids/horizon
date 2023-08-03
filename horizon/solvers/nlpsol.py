@@ -41,9 +41,70 @@ class NlpsolSolver(Solver):
 
         self.prob_dict = {'f': j, 'x': w, 'g': g, 'p': p}
 
+        # callback to get the iteration count
+        self.iter_counter_callback = self.IterCountCallback('iter_counter_callback', w.shape[0], g.shape[0], p.shape[0], 
+                                        opts = self.opts)
+        self.opts['iteration_callback'] =  self.iter_counter_callback
+
         # create solver from prob
         self.solver = cs.nlpsol('solver', solver_plugin, self.prob_dict, self.opts)
 
+    class IterCountCallback(cs.Callback):
+        def __init__(self, name, nx, ng, np, opts={}):
+
+            cs.Callback.__init__(self)
+
+            self.solv_opts = opts
+            self.constr_viol = self.solv_opts["ipopt.constr_viol_tol"]
+
+            self.nx = nx
+            self.ng = ng
+            self.np = np
+
+            self.iter_counter = -1
+            self.cost_values = []
+            # self.is_feasible = []
+
+            # Initialize internal objects
+            self.construct(name, {})
+
+        def get_n_in(self): return cs.nlpsol_n_out()
+        def get_n_out(self): return 1
+        def get_name_in(self, i): return cs.nlpsol_out(i)
+        def get_name_out(self, i): return "ret"
+
+        def get_sparsity_in(self, i):
+            n = cs.nlpsol_out(i)
+            if n=='f':
+                return cs.Sparsity. scalar()
+            elif n in ('x', 'lam_x'):
+                return cs.Sparsity.dense(self.nx)
+            elif n in ('g', 'lam_g'):
+                return cs.Sparsity.dense(self.ng)
+            else:
+                return cs.Sparsity(0,0)
+
+        def eval(self, arg):
+            
+            # add here any info to be retrieved from the solver
+
+            self.cost_values.append(arg[1])
+            self.iter_counter = len(self.cost_values) 
+            
+            constraint_violations = arg[2]
+            n_cnstrnts = constraint_violations.shape[0]
+            
+            within_feasibility = np.zeros((n_cnstrnts, 1), dtype=bool)
+            for i in range(0, n_cnstrnts):
+                # DM types not iterable by default
+                
+                within_feasibility[i] = constraint_violations[i] <= self.solv_opts["ipopt.constr_viol_tol"] and \
+                                        constraint_violations[i] >= - self.solv_opts["ipopt.constr_viol_tol"] 
+    
+            # self.is_feasible.append(np.all(within_feasibility))
+
+            return [0]
+        
     def build(self):
         """
         fill the dictionary "state_var_impl"
@@ -95,6 +156,8 @@ class NlpsolSolver(Solver):
 
     def solve(self) -> bool:
 
+        self.iter_counter_callback.iter_counter = 0 # resetting iteration number at each solve 
+
         # update lower/upper bounds of variables
         lbw = self._getVarList('lb')
         ubw = self._getVarList('ub')
@@ -129,10 +192,20 @@ class NlpsolSolver(Solver):
 
         self.cnstr_solution = self._createCnsrtSolDict(sol)
 
+        self.lambd_solution = self._createCnsrtLambDict(sol)
+        #adding lagrange multipliers list of g to dict
+        # self.cnstr_solution['lam_x'] = np.array(sol['lam_x'])
+        self.lambd_solution['lam_g'] = np.array(sol['lam_g'])
+
         # retrieve state and input trajector
 
         # get solution dict
         self.var_solution = self._createVarSolDict(sol)
+
+        # adding additional info
+        self.var_solution["opt_cost"] = float(sol['f'])
+        self.var_solution["n_iter2sol"] = self.iter_counter_callback.iter_counter
+        self.var_solution["cost_values"] = self.iter_counter_callback.cost_values
 
         # get solution as state/input
         self._createVarSolAsInOut(sol)
@@ -150,6 +223,9 @@ class NlpsolSolver(Solver):
     def getConstraintSolutionDict(self):
         return self.cnstr_solution
 
+    def getCnstrLmbdSolDict(self):
+        return self.lambd_solution
+    
     def getDt(self):
         return self.dt_solution
 
