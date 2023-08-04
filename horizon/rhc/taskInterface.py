@@ -56,7 +56,8 @@ class TaskInterface:
 
         # task list
         self.task_list = []
-        
+
+        self.bootstrap_solved = False
 
     def finalize(self, rti=True):
         """
@@ -64,7 +65,6 @@ class TaskInterface:
         """
         self.model.setDynamics()
         self._create_solver(rti)
-
     
     def bootstrap(self):
         t = time.time()
@@ -77,6 +77,8 @@ class TaskInterface:
             pass
         self.solution = self.solver_bs.getSolutionDict()
 
+        self.bootstrap_solved = True
+
     def rti(self):
                 
         t = time.time()
@@ -88,37 +90,66 @@ class TaskInterface:
 
         return check
 
+    def init_inv_dyn_for_res(self):
+
+        # we create the inv dynamics for resampling here 
+        # to avoid runtime overhead
+
+        if (self.bootstrap_solved): # we need to need the 
+            # force map from the solution, so we wait for the bootstrap, 
+            # since it's solved during the initialization phase and not 
+            # at runtime
+
+            self.fmap = dict()
+            for frame, wrench in self.model.fmap.items():
+                self.fmap[frame] = self.solution[f'{wrench.getName()}']
+
+            self.res_id = kin_dyn.InverseDynamics(self.model.kd, 
+                                            self.fmap.keys(), 
+                                            self.model.kd_frame)
+            
+            self.tau_eval = np.zeros([self.model.tau.shape[0], 
+                                self.prb.getNNodes() - 1]) # evaluated tau on nodes
+
+        else:
+
+            raise Exception("The method init_inv_dyn_for_res from " + __class__.__name__ + 
+                        " can only be called after bootstrap() has returned!")
+        
     def eval_tau_on_sol(self):
         
-        tau = np.zeros([self.model.tau.shape[0], 
-                        self.prb.getNNodes() - 1])
-        
         if self.model.fmap:
-            
-            fmap = dict()
 
-            for frame, wrench in self.model.fmap.items():
-
-                fmap[frame] = self.solution[f'{wrench.getName()}']
-
-            id = kin_dyn.InverseDynamics(self.model.kd, fmap.keys(), self.model.kd_frame)
-
-            for i in range(tau.shape[1]):
+            for i in range(self.tau_eval.shape[1]):
 
                 fmap_i = dict()
 
-                for frame, wrench in fmap.items():
+                for frame, wrench in self.fmap.items():
                     fmap_i[frame] = wrench[:, i]
 
-                tau_i = id.call(self.solution['q'][:, i], 
+                tau_i = self.res_id.call(self.solution['q'][:, i], 
                                 self.solution['v'][:, i], 
                                 self.solution['a'][:, i],
                                 fmap_i)
                 
-                tau[:, i] = tau_i.toarray().flatten()
+                self.tau_eval[:, i] = tau_i.toarray().flatten()
 
-        return tau
+        return self.tau_eval
+    
+    def eval_tau_on_first_node(self):
+        
+        fmap_0 = dict()
 
+        for frame, wrench in self.fmap.items():
+            fmap_0[frame] = wrench[:, 0]
+
+        tau_i = self.res_id.call(self.solution['q'][:, 0], 
+                        self.solution['v'][:, 0], 
+                        self.solution['a'][:, 0],
+                        fmap_0)
+                
+        return tau_i.toarray()
+    
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
 
         if nodes is None:
@@ -159,20 +190,11 @@ class TaskInterface:
         # new fmap with resampled forces
         if self.model.fmap:
 
-            fmap = dict()
-            for frame, wrench in self.model.fmap.items():
-                fmap[frame] = self.solution[f'{wrench.getName()}']
-
-            fmap_res = dict()
-            for frame, wrench in self.model.fmap.items():
-                fmap_res[frame] = self.solution[f'{wrench.getName()}_res']
-
             # get tau resampled
             if resample_tau:
-                tau = np.zeros([self.model.tau.shape[0], self.prb.getNNodes() - 1])
-                tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]])
 
-                id = kin_dyn.InverseDynamics(self.model.kd, fmap_res.keys(), self.model.kd_frame)
+                tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]]) # we create this at runtime
+                # (can be improved)
 
                 # id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
                 # self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
@@ -180,25 +202,34 @@ class TaskInterface:
 
                 # todo: this is horrible. id.call should take matrices, I should not iter over each node
 
-                for i in range(tau.shape[1]):
+                for i in range(self.tau_eval.shape[1]):
+
                     fmap_i = dict()
-                    for frame, wrench in fmap.items():
+                    for frame, wrench in self.fmap.items():
                         fmap_i[frame] = wrench[:, i]
-                    tau_i = id.call(self.solution['q'][:, i], self.solution['v'][:, i], self.solution['a'][:, i],
+
+                    tau_i = self.res_id.call(self.solution['q'][:, i], 
+                                    self.solution['v'][:, i], 
+                                    self.solution['a'][:, i],
                                     fmap_i)
-                    tau[:, i] = tau_i.toarray().flatten()
+                    
+                    self.tau_eval[:, i] = tau_i.toarray().flatten()
 
                 for i in range(tau_res.shape[1]):
+
                     fmap_res_i = dict()
-                    for frame, wrench in fmap_res.items():
+                    for frame, wrench in self.fmap.items():
                         fmap_res_i[frame] = wrench[:, i]
-                    tau_res_i = id.call(self.solution['q_res'][:, i], self.solution['v_res'][:, i],
-                                        self.solution['a_res'][:, i], fmap_res_i)
+
+                    tau_res_i = self.res_id.call(self.solution['q_res'][:, i], 
+                                        self.solution['v_res'][:, i],
+                                        self.solution['a_res'][:, i], 
+                                        fmap_res_i)
+                    
                     tau_res[:, i] = tau_res_i.toarray().flatten()
 
-                self.solution['tau'] = tau
+                self.solution['tau'] = self.tau_eval
                 self.solution['tau_res'] = tau_res
-
 
     def save_solution(self, filename):
         import copy
