@@ -126,7 +126,7 @@ class SolverILQR(Solver):
         self.opts['max_iter'] = 1
     
     def solve(self):
-        
+
         self.iteration_costs = [] # resets costs data
         self.current_iteration = 0 # resets iteration counter
 
@@ -134,7 +134,7 @@ class SolverILQR(Solver):
         x0 = self.prb.getInitialState()
         xinit = self.prb.getState().getInitialGuess()
         uinit = self.prb.getInput().getInitialGuess()
-
+        
         # update initial guess
         self.ilqr.setStateInitialGuess(xinit)
         self.ilqr.setInputInitialGuess(uinit)
@@ -151,6 +151,7 @@ class SolverILQR(Solver):
         self._update_nodes()
 
         # solve
+
         ret = self.ilqr.solve(self.max_iter)
 
         # get solution
@@ -174,7 +175,8 @@ class SolverILQR(Solver):
         self.solution_dict['opt_cost'] = self.iteration_costs[-1] if len(self.iteration_costs) else -1.0
         self.solution_dict['iter_costs'] = np.array(self.iteration_costs)
         self.solution_dict['n_iter2sol'] = self.current_iteration
- 
+
+
         return ret
     
     def getSolutionDict(self):

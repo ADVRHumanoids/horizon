@@ -27,8 +27,15 @@ import time
 
 class TaskInterface:
     def __init__(self,
-                 prb,
-                 model):
+                prb,
+                model, 
+                debug: bool = False, 
+                verbose: bool = False):
+
+        self._debug = debug
+        self._verbose = verbose
+
+        self.rt_solve_time = -1.0
 
         # get the model
         self.prb = prb
@@ -80,11 +87,20 @@ class TaskInterface:
         self.bootstrap_solved = True
 
     def rti(self):
-                
-        t = time.time()
+        
+        if self._debug:
+
+            t = time.time()
+
         check = self.solver_rti.solve()
-        elapsed = time.time() - t
-        print(f'rti solved in {elapsed} s')
+
+        if self._debug:
+
+            self.rt_solve_time = time.time() - t
+
+        if self._debug and self._verbose:
+
+            print(f'rti solved in {self.rt_solve_time} s')
 
         self.solution = self.solver_rti.getSolutionDict()
 
@@ -96,7 +112,7 @@ class TaskInterface:
         # to avoid runtime overhead
 
         if (self.bootstrap_solved): # we need to need the 
-            # force map from the solution, so we wait for the bootstrap, 
+            # force map (in particular the keys) from the solution, so we wait for the bootstrap, 
             # since it's solved during the initialization phase and not 
             # at runtime
 
@@ -110,43 +126,27 @@ class TaskInterface:
             
             self.tau_eval = np.zeros([self.model.tau.shape[0], 
                                 self.prb.getNNodes() - 1]) # evaluated tau on nodes
+            
+            self.fmap_0 = dict() # we initialize also the force map with the wrenches on the
+            # first noe
 
         else:
 
             raise Exception("The method init_inv_dyn_for_res from " + __class__.__name__ + 
                         " can only be called after bootstrap() has returned!")
-        
-    def eval_tau_on_sol(self):
-        
-        if self.model.fmap:
-
-            for i in range(self.tau_eval.shape[1]):
-
-                fmap_i = dict()
-
-                for frame, wrench in self.fmap.items():
-                    fmap_i[frame] = wrench[:, i]
-
-                tau_i = self.res_id.call(self.solution['q'][:, i], 
-                                self.solution['v'][:, i], 
-                                self.solution['a'][:, i],
-                                fmap_i)
-                
-                self.tau_eval[:, i] = tau_i.toarray().flatten()
-
-        return self.tau_eval
     
-    def eval_tau_on_first_node(self):
+    def eval_efforts_on_first_node(self):
         
-        fmap_0 = dict()
+        for frame, wrench in self.model.fmap.items():
+            
+            # we update the force map from the latest solution
 
-        for frame, wrench in self.fmap.items():
-            fmap_0[frame] = wrench[:, 0]
-
+            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, 0]
+        
         tau_i = self.res_id.call(self.solution['q'][:, 0], 
                         self.solution['v'][:, 0], 
                         self.solution['a'][:, 0],
-                        fmap_0)
+                        self.fmap_0)
                 
         return tau_i.toarray()
     

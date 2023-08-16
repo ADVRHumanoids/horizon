@@ -6,7 +6,6 @@ import casadi as cs
 import numpy as np
 import pprint
 
-
 class NlpsolSolver(Solver):
 
     def __init__(self, prb: Problem, opts: Dict, solver_plugin: str) -> None:
