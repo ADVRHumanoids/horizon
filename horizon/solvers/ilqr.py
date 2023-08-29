@@ -315,7 +315,10 @@ class SolverILQR(Solver):
             p_vals[:, p.getNodes()] = p_vals_temp
             self.ilqr.setParameterValue(p.getName(), p_vals)
 
-        self.ilqr.setParameterValue('dt', np.full((1, self.N+1), self.prb.getDt()))
+        if isinstance(self.prb.getDt(), Parameter):
+            self.ilqr.setParameterValue('dt', self.prb.getDt().getValues())
+        else:
+            self.ilqr.setParameterValue('dt', np.full((1, self.N + 1), self.prb.getDt()))
 
     
     def _iter_callback(self, fpres):
