@@ -10,6 +10,7 @@ class RollingTask(Task):
         self.radius = radius
 
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
 
         self.indices = np.array([0, 1, 2]).astype(
             int) if self.indices is None else np.array(self.indices).astype(int)
@@ -124,7 +125,7 @@ class RollingTask(Task):
     def _initialize(self):
 
         fun = self._velocity_formulation()
-        self.constr = self.instantiator(f'{self.name}_rolling_task', self.weight * fun, nodes=self.nodes)
+        self.constr = self.instantiator(f'{self.name}_rolling_task', self.weight_param * fun, nodes=self.nodes)
 
 
     def setNodes(self, nodes, erasing=True):

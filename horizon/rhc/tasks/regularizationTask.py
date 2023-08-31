@@ -20,6 +20,7 @@ class RegularizationTask(Task):
 
     def __init__(self, opt_variable_names, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
 
         if not isinstance(opt_variable_names, list):
             self.opt_variable_list = [opt_variable_names]
@@ -45,7 +46,7 @@ class RegularizationTask(Task):
 
     def _initialize(self):
 
-        for v, w, r in zip(self.opt_variable_list, self.weight, self.opt_reference_list):
+        for v, w, r in zip(self.opt_variable_list, self.weight_param, self.opt_reference_list):
             # todo hack about nodes
             if isinstance(v, (InputVariable, RecedingInputVariable)):
                 nodes = [node for node in list(self.nodes) if node != self.prb.getNNodes()-1]
