@@ -49,9 +49,16 @@ class Task:
         self.indices = np.array(self.indices) if self.indices is not None else None
         # self.nodes = list(range(self.prb.getNNodes()))
 
+    def _createWeightParam(self):
+        self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
+        self.weight_param.assign(self.weight)
+
     def setNodes(self, nodes, erasing=True):
         self.nodes = nodes
         self.n_active = len(self.nodes)
+
+    def setWeight(self, val, nodes=None, indices=None):
+        self.weight_param.assign(val, nodes, indices)
 
     def setIndices(self, indices):
         self.indices = indices
@@ -67,3 +74,6 @@ class Task:
 
     def getType(self):
         return self.type
+
+    def getWeight(self):
+        return self.weight_param.getValues()

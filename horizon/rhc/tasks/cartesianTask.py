@@ -18,6 +18,7 @@ class CartesianTask(Task):
         self.cartesian_type = 'position' if cartesian_type is None else cartesian_type
 
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
 
         self.indices = np.array([0, 1, 2]).astype(
             int) if self.indices is None else np.array(self.indices).astype(int)
@@ -269,7 +270,7 @@ class CartesianTask(Task):
             fun = ee_a[self.indices] - self.acc_tgt
 
         self.constr = self.instantiator(
-            f'{frame_name}_cartesian_task', self.weight * fun, nodes=self.nodes)
+            f'{frame_name}_cartesian_task', self.weight_param * fun, nodes=self.nodes)
 
         # todo should I keep track of the nodes here?
         #  in other words: should be setNodes resetting?
