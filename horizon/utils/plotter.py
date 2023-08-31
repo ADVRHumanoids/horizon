@@ -52,7 +52,7 @@ class Plotter():
 
     def plot(self, item, dim=None, args=None, ax=None):
 
-        plt_name = f'${item.getName()}$'
+        plt_name = f'{item.getName()}'
         if dim is not None:
             plt_name += f'_{dim}'
 
