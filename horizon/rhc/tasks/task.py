@@ -50,8 +50,19 @@ class Task:
         # self.nodes = list(range(self.prb.getNNodes()))
 
     def _createWeightParam(self):
-        self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
-        self.weight_param.assign(self.weight)
+
+        # weight and dim must be the same dimension
+        if isinstance(self.weight, (float, int)):
+            self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
+            self.weight_param.assign(self.weight)
+
+        elif isinstance(self.weight, List):
+            self.weight_param = []
+            for i_dim in range(len(self.weight)):
+
+                temp_par = self.prb.createParameter(f'{self.name}_weight_{i_dim}', 1)
+                temp_par.assign(self.weight[i_dim])
+                self.weight_param.append(temp_par)
 
     def setNodes(self, nodes, erasing=True):
         self.nodes = nodes
