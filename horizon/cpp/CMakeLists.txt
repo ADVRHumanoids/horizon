@@ -1,6 +1,12 @@
 project(horizon)
 cmake_minimum_required(VERSION 3.0)
 
+if(DEFINED ENV{CONDA_PREFIX})
+
+  set(CMAKE_INSTALL_PREFIX $ENV{CONDA_PREFIX}/ CACHE PATH "bindings install prefix" FORCE)
+
+endif()
+
 # options
 option(HORIZON_PROFILING OFF "enable profiling features")
 
