@@ -43,6 +43,8 @@ class ProblemInterface:
         self.solver_bs = None
         self.solver_rti = None
 
+        self.bootstrap_solved = False
+
     def finalize(self, rti=True):
         """
         to be called after all variables have been created
@@ -88,7 +90,7 @@ class ProblemInterface:
         # we create the inv dynamics for resampling here 
         # to avoid runtime overhead
 
-        if (self.bootstrap_solved): # we need to need the 
+        if (self.bootstrap_solved): # we need to have the 
             # force map (in particular the keys) from the solution, so we wait for the bootstrap, 
             # since it's solved during the initialization phase and not 
             # at runtime
@@ -302,9 +304,11 @@ class ProblemInterface:
 class TaskInterface(ProblemInterface):
     def __init__(self,
                  prb,
-                 model):
+                 model,
+                 debug = False,
+                 verbose = False):
 
-        super().__init__(prb, model)
+        super().__init__(prb, model, debug, verbose)
 
         # here I register the the default tasks
         # todo: should I do it here?
@@ -348,7 +352,6 @@ class TaskInterface(ProblemInterface):
                         weight_dict[f.getName()] = weight_force
 
             self.setTaskFromDict(task_descr)
-
 
     def setTaskFromDict(self, task_description):
         # todo if task is dict... ducktyping
