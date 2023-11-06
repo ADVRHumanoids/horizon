@@ -1431,6 +1431,7 @@ class RecedingVariable(Variable):
             nodes: which nodes the values are applied on
             indices: which indices the values are applied on
         """
+
         # nodes
         if nodes is None:
             nodes = self._nodes
@@ -1487,34 +1488,58 @@ class RecedingParameter(Parameter):
            nodes: nodes at which the parameter is assigned
        """
         # nodes
+        # start_time = time.time()
 
         if nodes is None:
             nodes = self._nodes
             # nodes = misc.getNodesFromBinary(self._nodes_array)
+
         else:
             nodes = misc.checkNodes(nodes, self._nodes_array)
 
+        # print(f'time elapsed checking nodes: {time.time() - start_time}')
+
+        # start_time_1 = time.time()
+
         # THIS IS SADLY NECESSARY IF VARIABLE PREV ARE INVOLVED
-        pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+        if self.getOffset() != 0:
+            nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+
+        # print(f'time elapsed converting: {time.time() - start_time_1}')
+
+        # start_time_2 = time.time()
         val_checked = misc.checkValueEntry(val)
 
+        # print(f'time elapsed checking values: {time.time() - start_time_2}')
+
+        multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
+
+        if multiple_vals and val_checked.shape[1] != len(nodes):
+            raise Exception(f'Wrong dimension of parameter inserted.')
+
+        # start_time_3 = time.time()
         # indices
         if indices is None:
-            indices_vec = np.array(range(self._dim)).astype(int)
+            if val_checked.shape[0] != self._dim:
+                raise Exception(
+                    f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {self._dim})')
+
+            self._impl['val'][:, nodes] = val_checked
+
         else:
             indices_vec = np.atleast_1d(np.array(indices).astype(int))
 
-        if val_checked.shape[0] != indices_vec.size:
-            raise Exception(
-                f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
+            if val_checked.shape[0] != indices_vec.size:
+                raise Exception(
+                    f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
+
+            self._impl['val'][np.ix_(indices_vec, nodes)] = val_checked
 
         # if a matrix of values is being provided, check cols match len(nodes)
-        multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
 
-        if multiple_vals and val_checked.shape[1] != len(pos_nodes):
-            raise Exception(f'Wrong dimension of parameter inserted.')
         # todo this is because what I receive as val is 1-dimensional array which cannot be assigned to a matrix
-        self._impl['val'][np.ix_(indices_vec, pos_nodes)] = val_checked
+        # print(f'time elapsed implementing: {time.time() - start_time_3}')
+        # print(f'\033[91m time elapsed reassigning {self.getName()}: {time.time() - start_time}\033[0m')
 
     def shift(self):
 

@@ -1,3 +1,4 @@
+import numpy
 
 from horizon.problem import Problem
 from horizon.utils import utils, kin_dyn
@@ -14,6 +15,8 @@ class FullModelInverseDynamics:
 
     def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, sys_order_degree=2, **kwargs):
         # todo: adding contact dict
+        # todo: adding qdot_init? and more?
+        # probably should remove the q_init and base_init from here?
 
         if fixed_joint_map is None:
             fixed_joint_map = {}
@@ -24,6 +27,8 @@ class FullModelInverseDynamics:
         self.fixed_joint_map = fixed_joint_map
         self.id_fn = None
         self.floating_base = floating_base
+        self.__q_init = q_init
+        self.__base_init = base_init
 
         if sys_order_degree < 2:
             raise ValueError("The degree of the system must be at least 2.")
@@ -34,22 +39,15 @@ class FullModelInverseDynamics:
         self.nq = self.kd.nq()
         self.nv = self.kd.nv()
 
-        # manage starting position
-        # initial guess (also initial condition and nominal pose)
-        self.q0 = self.kd.mapToQ(q_init)
+        self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 
-        if floating_base is True:
-            self.q0[:7] = base_init
+        var_der_names = ['acceleration', 'jerk', 'snap', 'crackle', 'pop']
+
+        if self.floating_base:
             self.joint_names = self.kd.joint_names()[2:]
         else:
             self.joint_names = self.kd.joint_names()[1:]
 
-        self.v0 = np.zeros(self.nv)
-        self.a0 = np.zeros(self.nv)
-
-        self.kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
-
-        var_der_names = ['acceleration', 'jerk', 'snap', 'crackle', 'pop']
 
         # custom choices
         self.state_vec = OrderedDict()
@@ -73,7 +71,6 @@ class FullModelInverseDynamics:
         self.fmap = dict() #  map contact frames - forces (can be more contact frame for one contact)
         self.cmap = dict() # map contact frame - force
 
-
         # TODO: ------ hacks for retro-compatibility ------
         for var, value in self.state_vec.items():
             setattr(self, var, value)
@@ -86,6 +83,37 @@ class FullModelInverseDynamics:
             f_der_name = f"f" + "d" * ord + "dot"
             self._f_der_map[f_der_name] = dict()
 
+        # map of initial states
+        self.initial_state_map = OrderedDict()
+        self.initial_input_map = OrderedDict()
+
+        self.__init_initial_values()
+
+    def __init_initial_values(self):
+
+        # manage starting position
+        # create the initial value variables
+        # initialize only the position var as the q_init, the rest to zero
+        # TODO: forces are NOT considered here
+        for state_var_name, state_var in self.state_vec.items():
+            if state_var_name == 'q':
+                self.initial_state_map[state_var_name] = self.kd.mapToQ(self.__q_init)
+
+                if self.floating_base:
+                    self.initial_state_map[state_var_name][:7] = self.__base_init
+            else:
+
+                self.initial_state_map[state_var_name] = np.zeros(self.nv)
+
+        for input_var_name, input_var in self.input_vec.items():
+            self.initial_input_map[input_var_name] = np.zeros(self.nv)
+
+        # TODO: ------ hacks for retro-compatibility ------
+        for item_name, elem in self.initial_state_map.items():
+            setattr(self, f"{item_name}0", elem)
+
+        for item_name, elem in self.initial_input_map.items():
+            setattr(self, f"{item_name}0", elem)
 
 
     def fk(self, frame) -> Tuple[Union[cs.SX, cs.MX]]:
@@ -96,7 +124,21 @@ class FullModelInverseDynamics:
         fk_fn = self.kd.fk(frame)
         return fk_fn(self.input_vec['q'])
 
+    def getInitialState(self, var):
 
+        # if var is None:
+        #     np.concatenate(list(self.initial_state_map.values()))
+        if var in self.initial_state_map:
+            return self.initial_state_map[var]
+        else:
+            return None
+
+    def getInitialInput(self, var):
+
+        if var in self.initial_input_map:
+            return self.initial_input_map[var]
+        else:
+            return None
     def setContactFrame(self, contact_frame, contact_type, contact_params=dict()):
         '''
         set frame as a contact: create a contact force linked to the frame
@@ -272,6 +314,15 @@ class FullModelInverseDynamics:
 
     def getInput(self):
         return self.input_vec
+
+    def getVariable(self, var):
+
+        value = self.state_vec.get(var, None)
+
+        if value is None:
+            self.input_vec.get(var, None)
+
+        return value
 
     def computeTorqueValues(self, q, v, a, fmap):
 
@@ -641,7 +692,7 @@ if __name__ == '__main__':
                                      q_init=q_init,
                                      base_init=base_init,
                                      contact_dict=contact_dict,
-                                     sys_order_degree=2)
+                                     sys_order_degree=3)
 
     model._make_vertex_contact('r_sole', dict(vertex_frames=['r_foot_lower_left_link', 'r_foot_upper_left_link', 'r_foot_lower_right_link', 'r_foot_upper_right_link']))
     # model._make_point_contact('r_sole', dict())
@@ -652,8 +703,10 @@ if __name__ == '__main__':
     print(model.getContactMap())
     print(model.getForceMap())
 
-    print(model.getStateVariables())
-    print(model.getInputVariables())
+    print(model.getState())
+    print(model.getInput())
+
+    print(model.getInitialState('a'))
 
     # print(model.state_vars)
     # print(model.input_vars)

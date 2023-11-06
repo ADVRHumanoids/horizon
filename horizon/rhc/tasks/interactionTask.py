@@ -5,7 +5,7 @@ from horizon.problem import Problem
 import numpy as np
 from typing import Callable, Dict, Any, List
 import casadi as cs
-
+import time
 
 class InteractionTask(Task):
     def __init__(self,
@@ -197,6 +197,10 @@ class VertexContact(InteractionTask):
         self.fn_barrier = self.make_fn_barrier()
         self.fc_constr = self.make_friction_cone() if self.enable_fc else None
 
+        # self.forces_vec = dict()
+        # for f in self.forces:
+        #     self.forces_vec[f.getName()] = np.zeros(f.getDim())
+        #
         # initialize everything with nodes specified
         self.setNodes(self.nodes)
 
@@ -222,25 +226,46 @@ class VertexContact(InteractionTask):
 
     def setContact(self, nodes, erasing=True):
 
-        good_nodes = [n for n in nodes if n <= self.all_nodes[-1]]
-        # good_nodes = self.all_nodes
+        # start_time1 = time.time()
 
-        # start with all swing
         if erasing:
             self._set_zero(self.all_nodes)
 
-        for f in self.forces:
-            # no force bounds when in contact
-            f.setBounds(lb=np.full(f.getDim(), -np.inf),
-                        ub=np.full(f.getDim(), np.inf),
-                        nodes=good_nodes)
+        # end_time1 = time.time() - start_time1
+        # start_time2 = time.time()
+
+        if nodes:
+            good_nodes = [n for n in nodes if n <= self.all_nodes[-1]]
+
+            for f in self.forces:
+                # no force bounds when in contact
+                f.setBounds(lb=np.full(f.getDim(), -np.inf),
+                            ub=np.full(f.getDim(), np.inf),
+                            nodes=good_nodes)
+        else:
+            good_nodes = []
+
+        # end_time2 = time.time() - start_time2
+        # start_time3 = time.time()
 
         # add normal force constraint
         self.fn_barrier.setNodes(good_nodes, erasing=erasing)
 
+        # end_time3 = time.time() - start_time3
+        # start_time4 = time.time()
+
         # set friction cone
         if self.fc_constr:
             self.fc_constr.setNodes(good_nodes, erasing=erasing)
+
+        # end_time4 = time.time() - start_time4
+        # print(f"    -subtime-: time for erasing: {end_time1}")
+        # print(f"    -subtime-: time for setting forces: {end_time2}")
+        # print(f"    -subtime-: time for setting barrier: {end_time3}")
+        # print(f"    -subtime-: time for setting fc: {end_time4}")
+
+        # end_time6 = time.time() - start_time1
+        # print(f"time for setting nodes at {self.getName()}: {end_time6}")
 
     def getWrench(self):
         return self.forces
@@ -256,3 +281,4 @@ class VertexContact(InteractionTask):
             f.setBounds(lb=np.full(f.getDim(), 0),
                         ub=np.full(f.getDim(), 0),
                         nodes=nodes)
+
