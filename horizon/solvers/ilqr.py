@@ -176,7 +176,6 @@ class SolverILQR(Solver):
         self.solution_dict['iter_costs'] = np.array(self.iteration_costs)
         self.solution_dict['n_iter2sol'] = self.current_iteration
 
-
         return ret
     
     def getSolutionDict(self):

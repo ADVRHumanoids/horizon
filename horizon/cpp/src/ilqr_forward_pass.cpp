@@ -456,7 +456,6 @@ bool IterativeLQR::should_stop()
         return false;
     }
 
-
     // here we're feasible
 
     // exit if merit function directional derivative (normalized)
