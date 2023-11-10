@@ -1,6 +1,6 @@
 from re import sub
 import casadi as cs
-from typing import List, Iterable, Union, Sequence, Dict, Type
+from typing import List, Iterable, Union, Sequence, Dict, Type, Tuple
 import random, string
 from horizon.problem import Problem
 import numpy as np
@@ -37,7 +37,7 @@ class Task:
         return cls(**task_dict)
 
     @classmethod
-    def subtask_by_class(cls, subtask: Dict, classname: Type) -> 'classname':
+    def subtask_by_class(cls, subtask: Dict, classname: Union[Type, Tuple[Type]]) -> 'classname':
         ret = []
         for _, v in subtask.items():
             if isinstance(v, classname):

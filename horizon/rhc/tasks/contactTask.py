@@ -14,8 +14,9 @@ class ContactTask(Task):
 
         # todo : default interaction or cartesian task ?
         # todo : make tasks discoverable by name?  subtask: {'interaction': force_contact_1}
-        self.interaction_task: InteractionTask = Task.subtask_by_class(subtask, InteractionTask)
-        self.cartesian_task: CartesianTask = Task.subtask_by_class(subtask, CartesianTask) # CartesianTask RollingTask
+        self.dynamics_task: InteractionTask = Task.subtask_by_class(subtask, InteractionTask)
+        # allowed tasks are cartesian and rolling
+        self.kinematics_task: CartesianTask = Task.subtask_by_class(subtask, (CartesianTask, RollingTask)) # CartesianTask RollingTask
 
         # initialize data class
         super().__init__(*args, **kwargs)
@@ -28,5 +29,5 @@ class ContactTask(Task):
 
     def setNodes(self, nodes, erasing=True):
 
-        self.interaction_task.setContact(nodes, erasing=erasing)  # this is from taskInterface
-        self.cartesian_task.setNodes(nodes, erasing=erasing)  # state + starting from node 1  # this is from taskInterface
+        self.dynamics_task.setContact(nodes, erasing=erasing)  # this is from taskInterface
+        self.kinematics_task.setNodes(nodes, erasing=erasing)  # state + starting from node 1  # this is from taskInterface
