@@ -1,8 +1,4 @@
-import casadi as cs
-from urllib3 import Retry
-
-from horizon.problem import Problem
-from horizon.utils import utils, kin_dyn, mat_storer, resampler_trajectory
+from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
 from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
@@ -15,13 +11,11 @@ from horizon.rhc.tasks.posturalTask import PosturalTask
 from horizon.rhc.tasks.limitsTask import JointLimitsTask
 from horizon.rhc.tasks.regularizationTask import RegularizationTask
 from horizon.transcriptions import integrators
-from typing import List, Dict, Union, Tuple
 import numpy as np
 from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
 from horizon.ros.replay_trajectory import replay_trajectory
-import logging
 import time
 
 
