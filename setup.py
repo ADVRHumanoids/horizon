@@ -65,6 +65,7 @@ for pack in required_packages:
     try:
         import pack
     except ImportError:
+        print(f"package '{pack}' not found. Adding to install requires list.")
         install_requires.append(pack)
 
 setuptools.setup(
