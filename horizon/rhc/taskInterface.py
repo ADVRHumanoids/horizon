@@ -1,11 +1,8 @@
 from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
-
-from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
-from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
+from horizon.rhc.tasks.interactionTask import SurfaceContact, VertexContact
 from horizon.rhc.tasks.rollingTask import RollingTask
-from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.rhc.tasks.posturalTask import PosturalTask
 from horizon.rhc.tasks.limitsTask import JointLimitsTask
