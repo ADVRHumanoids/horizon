@@ -57,6 +57,16 @@ class CustomDevelop(develop):
         _pre_build(dir_name)
         develop.run(self)
 
+# this is a safeguard to prevent horizon to install again packages that are already present, but not installed with pip
+required_packages = ['casadi', 'numpy', 'matplotlib', 'scipy', 'casadi-kin-dyn', 'rospkg']
+
+install_requires = []
+for pack in required_packages:
+    try:
+        import pack
+    except ImportError:
+        install_requires.append(pack)
+
 setuptools.setup(
     name="casadi_horizon",
     version=get_version("horizon/__init__.py"),
@@ -66,7 +76,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/ADVRHumanoids/horizon",
     packages=['horizon', 'horizon.utils', 'horizon.solvers', 'horizon.transcriptions', 'horizon.examples', 'horizon.ros', 'horizon.rhc', 'horizon.rhc.tasks'],
-    install_requires=['casadi', 'numpy', 'matplotlib', 'scipy', 'casadi-kin-dyn', 'rospkg'],
+    install_requires=install_requires,
     python_requires=">=3.6",
     cmdclass={'build_py': CustomBuild,
               'develop': CustomDevelop},
