@@ -146,9 +146,9 @@ def main(args):
 
     # contact velocity is zero, and normal force is positive
     for i, frame in enumerate(contacts_name):
-        FK = cs.Function.deserialize(kindyn.fk(frame))
-        DFK = cs.Function.deserialize(kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED))
-        DDFK = cs.Function.deserialize(kindyn.frameAcceleration(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED))
+        FK = kindyn.fk(frame)
+        DFK = kindyn.frameVelocity(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
+        DDFK = kindyn.frameAcceleration(frame, cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED)
 
         p = FK(q=q)['ee_pos']
         v = DFK(q=q, qdot=q_dot)['ee_vel_linear']
