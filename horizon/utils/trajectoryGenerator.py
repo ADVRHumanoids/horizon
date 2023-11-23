@@ -7,9 +7,8 @@ from scipy.interpolate import splprep
 from numpy import linspace, sin, pi
 from scipy.interpolate import BPoly, CubicSpline
 
-
-
 class TrajectoryGenerator:
+
     def __init__(self):
         pass
 
@@ -68,7 +67,6 @@ class TrajectoryGenerator:
         y_bpoly = bpoly(xcurve)
 
         return y_bpoly
-
 
 if __name__ == '__main__':
 
