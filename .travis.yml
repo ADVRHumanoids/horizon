@@ -13,10 +13,6 @@ jobs:
       env: DISTRIBUTION="python"
     - dist: focal
       env: DISTRIBUTION="conda"
-    - dist: bionic
-      env: DISTRIBUTION="python"
-    - dist: bionic
-      env: DISTRIBUTION="conda"
 
 services:
   - docker

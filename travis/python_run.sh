@@ -8,13 +8,8 @@ cd $FOREST_DIR
 # required due to shell processes (that spawn independently every .sh file)!
 source setup.bash
 
-forest casadi $FOREST_ARGS
-forest pybind11 $FOREST_ARGS
-
-echo $CMAKE_PREFIX_PATH
-
-cd $HORIZON_DIR
-pip3 install -v .
+forest grow pybind11 $FOREST_ARGS
+forest grow horizon $FOREST_ARGS
 
 # run tests
 ./travis/test.sh

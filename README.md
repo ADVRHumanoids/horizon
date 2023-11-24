@@ -1,6 +1,16 @@
 # horizon ![travis](https://app.travis-ci.com/ADVRHumanoids/horizon.svg?branch=devel&status=passed)
 A framework for trajectory optimization and optimal control for robotics based on CasADi
 
+## Dependencies
+
+## Dependencies
+- [`casadi`](https://github.com/casadi/casadi) built from source (currently not compatible with pip version)
+    - required CMake options:
+        -   -DWITH_PYTHON=ON
+        -   -DWITH_PYTHON3=ON
+- [`casadi_kin_dyn`](https://github.com/ADVRHumanoids/casadi_kin_dyn.git)
+
+
 ## Install
 pip package: ```pip install casadi-horizon```  
 conda package: ```conda install horizon -c francesco_ruscelli```

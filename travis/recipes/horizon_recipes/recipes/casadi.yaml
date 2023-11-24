@@ -1,0 +1,19 @@
+clone:
+  type: git
+  server: github.com
+  repository: casadi/casadi.git
+  tag: main
+  recursive: true
+
+
+build:
+  type: cmake
+  args:
+  - -DWITH_PYTHON=ON
+  - -DWITH_PYTHON3=ON
+  - -DPYTHON_PREFIX={installdir}/lib/python3/dist-packages
+
+depends:
+  # - osqp
+  # - ipopt
+
