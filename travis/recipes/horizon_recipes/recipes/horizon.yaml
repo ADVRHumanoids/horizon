@@ -1,0 +1,13 @@
+clone:
+  type: git
+  server: github.com
+  repository: ADVRHumanoids/horizon
+  tag: install_requires
+  
+build:
+  type: custom
+  cmd:
+    - pip install -e {srcdir} --no-deps --verbose
+  
+depends:
+  - casadi_kin_dyn
