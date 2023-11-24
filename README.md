@@ -2,8 +2,6 @@
 A framework for trajectory optimization and optimal control for robotics based on CasADi
 
 ## Dependencies
-
-## Dependencies
 - [`casadi`](https://github.com/casadi/casadi): built from source (currently not compatible with pip version)
     - required CMake options:
         -   -DWITH_PYTHON=ON
