@@ -124,6 +124,8 @@ public:
 
     const std::vector<ForwardPassResult>& getIterationHistory() const;
 
+    const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
+
     VecConstRef state(int i) const;
 
     VecConstRef input(int i) const;
@@ -356,6 +358,8 @@ private:
     utils::ProfilingInfo _prof_info;
 
     std::vector<ForwardPassResult> _fp_res_history;
+
+    std::map<std::string, Eigen::MatrixXd> _constr_values;
 };
 
 

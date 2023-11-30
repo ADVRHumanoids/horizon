@@ -387,6 +387,10 @@ void IterativeLQR::setConstraint(std::vector<int> indices,
     // add to map
     _constr_map[inter_constraint.name()] = c;
 
+    // initialize constraint value map
+    int constr_dim = inter_constraint.size1_out(0);
+    _constr_values[inter_constraint.name()].setConstant(constr_dim, _N, std::numeric_limits<double>::quiet_NaN());
+
     // set param map
     c->param = _param_map;
 
@@ -593,6 +597,11 @@ const utils::ProfilingInfo& IterativeLQR::getProfilingInfo() const
 const std::vector<IterativeLQR::ForwardPassResult>& IterativeLQR::getIterationHistory() const
 {
     return _fp_res_history;
+}
+
+const std::map<std::string, Eigen::MatrixXd> &IterativeLQR::getConstraintsValues() const
+{
+    return _constr_values;
 }
 
 bool IterativeLQR::solve(int max_iter)

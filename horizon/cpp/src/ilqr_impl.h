@@ -135,9 +135,10 @@ struct IterativeLQR::Constraint
 
     void clear();
 
+    std::vector<ConstraintEntity::Ptr> items;
+
 private:
 
-    std::vector<ConstraintEntity::Ptr> items;
     Eigen::MatrixXd _C;
     Eigen::MatrixXd _D;
     Eigen::VectorXd _h;
