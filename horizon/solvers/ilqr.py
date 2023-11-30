@@ -184,6 +184,9 @@ class SolverILQR(Solver):
     def getConstraintsValues(self):
         return self.ilqr.getConstraintsValues()
 
+    def getCostsValues(self):
+        return self.ilqr.getCostsValues()
+
     def print_timings(self):
 
         prof_info = self.ilqr.getProfilingInfo()

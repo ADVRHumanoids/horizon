@@ -126,6 +126,8 @@ public:
 
     const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
 
+    const std::map<std::string, Eigen::VectorXd>& getCostsValues() const;
+
     VecConstRef state(int i) const;
 
     VecConstRef input(int i) const;
@@ -360,6 +362,7 @@ private:
     std::vector<ForwardPassResult> _fp_res_history;
 
     std::map<std::string, Eigen::MatrixXd> _constr_values;
+    std::map<std::string, Eigen::VectorXd> _cost_values;
 };
 
 

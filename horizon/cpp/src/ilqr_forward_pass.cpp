@@ -190,10 +190,26 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
 
     double cost = 0.0;
 
+    // reset constr value to nan
+    for(auto item : _cost_values)
+    {
+        item.second.setConstant(std::numeric_limits<double>::quiet_NaN());
+    }
+
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
         cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
+
+        // optionally (TBD) save values of single costs acting on this node
+        for(auto it : _cost[i].items)
+        {
+            if (_cost_values[it->getName()].size() != 0)
+            {
+                _cost_values[it->getName()](i) = it->getCostEvaluated();
+            }
+        }
+
     }
 
     // add final cost
