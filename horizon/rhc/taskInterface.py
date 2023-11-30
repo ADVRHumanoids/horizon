@@ -5,6 +5,7 @@ from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
 from horizon.rhc.tasks.rollingTask import RollingTask
+from horizon.rhc.tasks.zmpTask import ZmpTask
 from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.rhc.tasks.posturalTask import PosturalTask
@@ -250,6 +251,7 @@ class TaskInterface(ProblemInterface):
         task_factory.register('JointLimits', JointLimitsTask)
         task_factory.register('Regularization', RegularizationTask)
         task_factory.register('Rolling', RollingTask)
+        task_factory.register('Zmp', ZmpTask)
 
         # task list
         self.task_list = []
