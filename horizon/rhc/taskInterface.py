@@ -28,11 +28,14 @@ class ProblemInterface:
     def __init__(self,
                 prb,
                 model, 
+                max_solver_iter: int = 1, 
                 debug: bool = False, 
                 verbose: bool = False):
 
         self._debug = debug
         self._verbose = verbose
+
+        self.max_solver_iter = max_solver_iter
 
         self.rt_solve_time = -1.0
 
@@ -122,8 +125,8 @@ class ProblemInterface:
 
             self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, 0]
         
-        tau_i = self.res_id.call(self.solution['q'][:, 0], 
-                        self.solution['v'][:, 0], 
+        tau_i = self.res_id.call(self.solution['q'][:, 1], 
+                        self.solution['v'][:, 1], 
                         self.solution['a'][:, 0],
                         self.fmap_0)
                 
@@ -294,21 +297,29 @@ class ProblemInterface:
 
         if rti:
             scoped_opts_rti = self.si.opts.copy()
-            scoped_opts_rti['ilqr.enable_line_search'] = False
-            scoped_opts_rti['ilqr.max_iter'] = 1
+            
+            scoped_opts_rti['ilqr.max_iter'] = self.max_solver_iter
+
+            if self.max_solver_iter == 1:
+                
+                # real-time iteration -> no line-search necessary
+                scoped_opts_rti['ilqr.enable_line_search'] = False 
+            
             self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
 
         return self.solver_bs, self.solver_rti
 
-
 class TaskInterface(ProblemInterface):
     def __init__(self,
-                 prb,
-                 model,
-                 debug = False,
-                 verbose = False):
+                prb,
+                model,
+                max_solver_iter: int = 1,
+                debug = False,
+                verbose = False):
 
-        super().__init__(prb, model, debug, verbose)
+        super().__init__(prb, model, 
+                    max_solver_iter, 
+                    debug, verbose)
 
         # here I register the the default tasks
         # todo: should I do it here?
