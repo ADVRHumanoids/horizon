@@ -198,6 +198,12 @@ class SolverILQR(Solver):
     def getSolutionInput(self):
         return self.solution_dict['u_opt']
 
+    def getConstraintsValues(self):
+        return self.ilqr.getConstraintsValues()
+
+    def getCostsValues(self):
+        return self.ilqr.getCostsValues()
+
     def print_timings(self):
 
         prof_info = self.ilqr.getProfilingInfo()

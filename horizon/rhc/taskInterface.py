@@ -1,27 +1,24 @@
-import casadi as cs
-from urllib3 import Retry
-
-from horizon.problem import Problem
-from horizon.utils import utils, kin_dyn, mat_storer, resampler_trajectory
+from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
 from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
 from horizon.rhc.tasks.rollingTask import RollingTask
+from horizon.rhc.tasks.zmpTask import ZmpTask
 from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.rhc.tasks.posturalTask import PosturalTask
 from horizon.rhc.tasks.limitsTask import JointLimitsTask
 from horizon.rhc.tasks.regularizationTask import RegularizationTask
 from horizon.transcriptions import integrators
-from typing import List, Dict, Union, Tuple
 import numpy as np
 from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
+
 # from horizon.ros.replay_trajectory import replay_trajectory
-import logging
+
 import time
 
 class ProblemInterface:
@@ -334,6 +331,7 @@ class TaskInterface(ProblemInterface):
         task_factory.register('JointLimits', JointLimitsTask)
         task_factory.register('Regularization', RegularizationTask)
         task_factory.register('Rolling', RollingTask)
+        task_factory.register('Zmp', ZmpTask)
 
         # task list
         self.task_list = []

@@ -1,11 +1,10 @@
-#!/bin/bash
-set -ev
+#!/bin/bash -i
+pip3 install build twine hhcm-forest==1.1.14
+SRC_FOLDER=$PWD
+cd .. && mkdir forest_ws && cd forest_ws && forest init  # create forest ws for building
+# source setup.bash
+ln -s $SRC_FOLDER src/$(basename $SRC_FOLDER)  # symlink original source folder
 
-sudo pip3 install build twine hhcm_forest==0.0.26
-mkdir $BUILD_DIR
-mkdir $FOREST_DIR
-cd $FOREST_DIR
-forest --init
-source setup.bash
-ln -s $SRC_DIR src/$(basename $SRC_DIR)  # symlink original source folder
-forest -a git@github.com:advrhumanoids/multidof_recipes.git master -u --clone-protocol https  # get recipes
+# moving the recipes manually defined so as to freeze this build configuration
+echo "moving build recipes to $PWD"
+mv ../horizon/travis/recipes .
