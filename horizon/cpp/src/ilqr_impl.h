@@ -173,7 +173,7 @@ struct IterativeLQR::CostEntityBase
 
     virtual std::string getName() = 0;
 
-    virtual double getCostEvaluated() const { return _cost; }
+    virtual double getCostEvaluated() const { return _cost_eval; }
 
     virtual ~CostEntityBase() = default;
 
@@ -182,7 +182,7 @@ struct IterativeLQR::CostEntityBase
 protected:
 
     Eigen::VectorXd _q, _r;
-    double _cost;
+    double _cost_eval;
 };
 
 struct IterativeLQR::BoundAuglagCostEntity : CostEntityBase
