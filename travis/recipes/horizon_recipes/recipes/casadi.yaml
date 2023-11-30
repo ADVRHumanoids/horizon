@@ -13,6 +13,12 @@ build:
   - -DWITH_PYTHON3=ON
   - -DPYTHON_PREFIX={installdir}/lib/python3/dist-packages
 
+  # - -DWITH_OSQP=1
+  # - -DWITH_QPOASES=1
+  # - -DWITH_LAPACK=1
+  # - -DWITH_THREAD=1
+  # - -DWITH_IPOPT=1
+
 depends:
   # - osqp
   # - ipopt

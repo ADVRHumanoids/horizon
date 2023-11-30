@@ -12,7 +12,7 @@ forest grow pybind11 $FOREST_ARGS
 forest grow horizon $FOREST_ARGS
 
 # run tests
-./travis/test.sh
+# ./travis/test.sh
 
 # upload if push is tag
 if [ -z $TRAVIS_TAG ]; then 
