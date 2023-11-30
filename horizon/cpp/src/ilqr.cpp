@@ -233,6 +233,9 @@ void IterativeLQR::setCost(std::vector<int> indices, const casadi::Function& int
     // create cost entity
     auto c = std::make_shared<IntermediateCostEntity>();
 
+    // initialize constraint value map
+    _cost_values[inter_cost.name()].setConstant(_N, std::numeric_limits<double>::quiet_NaN());
+
     // add to map
     _cost_map[inter_cost.name()] = c;
 
@@ -285,6 +288,8 @@ void IterativeLQR::setResidual(std::vector<int> indices,
 
     // create cost entity
     auto c = std::make_shared<IntermediateCostEntity>();
+
+    _cost_values[residual.name()].setConstant(_N, std::numeric_limits<double>::quiet_NaN());
 
     // add to map
     _cost_map[residual.name()] = c;
@@ -602,6 +607,11 @@ const std::vector<IterativeLQR::ForwardPassResult>& IterativeLQR::getIterationHi
 const std::map<std::string, Eigen::MatrixXd> &IterativeLQR::getConstraintsValues() const
 {
     return _constr_values;
+}
+
+const std::map<std::string, Eigen::VectorXd> &IterativeLQR::getCostsValues() const
+{
+    return _cost_values;
 }
 
 bool IterativeLQR::solve(int max_iter)
@@ -998,6 +1008,8 @@ double IterativeLQR::BoundAuglagCostEntity::evaluate(VecConstRef x,
         value += _ulam.dot(_u_violation);
     }
 
+    _cost = value;
+
     return value;
 }
 
@@ -1026,6 +1038,11 @@ void IterativeLQR::BoundAuglagCostEntity::quadratize(VecConstRef x,
             R(i, i) += _u_violation(i) != 0.0 ? _rho : 0.0;
         }
     }
+}
+
+std::string IterativeLQR::BoundAuglagCostEntity::getName()
+{
+    return "auglag_cost";
 }
 
 void IterativeLQR::BoundAuglagCostEntity::update_lam(VecConstRef x, VecConstRef u, int k)
@@ -1082,7 +1099,9 @@ double IterativeLQR::IntermediateCostEntity::evaluate(VecConstRef x,
     set_param_inputs(param, k, l);
     l.call();
 
-    return l.getOutput(0).value();
+    _cost = l.getOutput(0).value();
+
+    return _cost;
 }
 
 void IterativeLQR::IntermediateCostEntity::quadratize(VecConstRef x,
@@ -1111,6 +1130,11 @@ void IterativeLQR::IntermediateCostEntity::quadratize(VecConstRef x,
     std::vector<Eigen::Ref<Eigen::MatrixXd>> out = {Q, R, P};
     ddl.call_accumulate(out);
 
+}
+
+std::string IterativeLQR::IntermediateCostEntity::getName()
+{
+    return l.function().name();
 }
 
 casadi::Function IterativeLQR::IntermediateCostEntity::Gradient(const casadi::Function& f)
@@ -1149,7 +1173,9 @@ double IterativeLQR::IntermediateResidualEntity::evaluate(VecConstRef x,
     set_param_inputs(param, k, res);
     res.call();
 
-    return res.getOutput(0).squaredNorm();
+    _cost = res.getOutput(0).squaredNorm();
+
+    return _cost;
 }
 
 void IterativeLQR::IntermediateResidualEntity::quadratize(VecConstRef x,
@@ -1191,6 +1217,11 @@ void IterativeLQR::IntermediateResidualEntity::quadratize(VecConstRef x,
     Q.noalias() += 2.0 * Jx.transpose()*Jx;
     R.noalias() += 2.0 * Ju.transpose()*Ju;
     P.noalias() += 2.0 * Ju.transpose()*Jx;
+}
+
+std::string IterativeLQR::IntermediateResidualEntity::getName()
+{
+    return res.function().name();
 }
 
 casadi::Function IterativeLQR::IntermediateResidualEntity::Jacobian(const casadi::Function &f)

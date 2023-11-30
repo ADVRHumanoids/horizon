@@ -49,6 +49,7 @@ PYBIND11_MODULE(pyilqr, m) {
             .def("getStateTrajectory", &IterativeLQR::getStateTrajectory)
             .def("getInputTrajectory", &IterativeLQR::getInputTrajectory)
             .def("getConstraintsValues", &IterativeLQR::getConstraintsValues)
+            .def("getCostsValues", &IterativeLQR::getCostsValues)
             .def("setInitialState", &IterativeLQR::setInitialState)
             .def("setInputInitialGuess", &IterativeLQR::setInputInitialGuess)
             .def("setStateInitialGuess", &IterativeLQR::setStateInitialGuess)
