@@ -289,7 +289,7 @@ void IterativeLQR::setResidual(std::vector<int> indices,
     // create cost entity
     auto c = std::make_shared<IntermediateCostEntity>();
 
-    _cost_values[residual.name()].setConstant(_N, std::numeric_limits<double>::quiet_NaN());
+//    _cost_values[residual.name()].setConstant(_N, std::numeric_limits<double>::quiet_NaN());
 
     // add to map
     _cost_map[residual.name()] = c;
@@ -356,6 +356,7 @@ void IterativeLQR::setResidual(std::vector<int> indices,
 
     c->setCost(cost_fn, grad_fn, hess_fn);
 
+    _cost_values[residual.name() + "_cost"].setConstant(_N, std::numeric_limits<double>::quiet_NaN());
 
     if(_verbose) std::cout << "adding residual '" << residual << "' at k = ";
 
@@ -1008,7 +1009,7 @@ double IterativeLQR::BoundAuglagCostEntity::evaluate(VecConstRef x,
         value += _ulam.dot(_u_violation);
     }
 
-    _cost = value;
+    _cost_eval = value;
 
     return value;
 }
@@ -1099,9 +1100,9 @@ double IterativeLQR::IntermediateCostEntity::evaluate(VecConstRef x,
     set_param_inputs(param, k, l);
     l.call();
 
-    _cost = l.getOutput(0).value();
+    _cost_eval = l.getOutput(0).value();
 
-    return _cost;
+    return _cost_eval;
 }
 
 void IterativeLQR::IntermediateCostEntity::quadratize(VecConstRef x,
@@ -1173,9 +1174,9 @@ double IterativeLQR::IntermediateResidualEntity::evaluate(VecConstRef x,
     set_param_inputs(param, k, res);
     res.call();
 
-    _cost = res.getOutput(0).squaredNorm();
+    _cost_eval = res.getOutput(0).squaredNorm();
 
-    return _cost;
+    return _cost_eval;
 }
 
 void IterativeLQR::IntermediateResidualEntity::quadratize(VecConstRef x,
