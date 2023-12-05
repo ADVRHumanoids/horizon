@@ -285,6 +285,7 @@ private:
     static DecompositionType str_to_decomp_type(const std::string& dt_str);
 
     bool _verbose;
+    bool _debug;
     bool _log;
     bool _rti;
 

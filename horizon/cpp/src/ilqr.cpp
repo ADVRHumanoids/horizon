@@ -84,6 +84,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
 {
     // set options _hxx_reg_base
     _verbose = value_or(opt, "ilqr.verbose", 0);
+    _debug = value_or(opt, "ilqr.debug", 0);
     _log = value_or(opt, "ilqr.log", 0);
     _rti = value_or(opt, "ilqr.rti", 0);
     _step_length = value_or(opt, "ilqr.step_length", 1.0);
@@ -664,7 +665,11 @@ bool IterativeLQR::solve(int max_iter)
         }
     }
 
-    std::cout << "max iteration reached \n";
+    if (_verbose) {
+        
+        std::cout << "max iteration reached \n";
+
+    }
 
     return false;
 }
