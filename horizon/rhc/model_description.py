@@ -332,6 +332,8 @@ class FullModelInverseDynamics:
         tau = self.id_fn.call(q, v, a, fmap)
         return tau
 
+    def getContacts(self):
+        return self.cmap.keys()
     # def getInput(self):
     #     return self.a
     #
