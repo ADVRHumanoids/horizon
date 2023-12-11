@@ -334,7 +334,7 @@ class FullModelInverseDynamics:
 
     def getContacts(self):
         return self.cmap.keys()
-gu
+
     # def getInput(self):
     #     return self.a
     #
