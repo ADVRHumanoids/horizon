@@ -46,7 +46,11 @@ class Task:
 
     def __post_init__(self):
         # todo: this is for simplicity
-        self.indices = np.array(self.indices) if self.indices is not None else None
+        if isinstance(self.indices, dict):
+            for elem in self.indices:
+                self.indices[elem] = np.array(self.indices[elem])
+        else:
+            self.indices = np.array(self.indices) if self.indices is not None else None
         # self.nodes = list(range(self.prb.getNNodes()))
 
     def _createWeightParam(self):
@@ -63,6 +67,13 @@ class Task:
                 temp_par = self.prb.createParameter(f'{self.name}_weight_{i_dim}', 1)
                 temp_par.assign(self.weight[i_dim])
                 self.weight_param.append(temp_par)
+
+        elif isinstance(self.weight, dict):
+            self.weight_param = dict()
+            for elem, w in self.weight.items():
+                temp_par = self.prb.createParameter(f'{self.name}_weight_{elem}', 1)
+                temp_par.assign(self.weight[elem])
+                self.weight_param[elem] = temp_par
 
     def setNodes(self, nodes, erasing=True):
         self.nodes = nodes
