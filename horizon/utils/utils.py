@@ -222,3 +222,32 @@ def double_integrator(q, v, a, kd=None):
 def barrier(x):
     return cs.if_else(x > 0, 0, x)
 
+
+def getRotationComponentAboutAxis(rotation, direction):
+    """
+    Use the swing-twist decomposition to get the component of a rotation
+    around the given axis.
+
+    N.B. assumes direction is normalized (to save work in calculating projection).
+    Args:
+        rotation:  quaternion
+        direction: 3d vector direction
+    Returns:
+        twist: The component of rotation about the axis as quaternion
+    """
+
+    rotationAxis = np.array([rotation[0], rotation[1], rotation[2]])
+    dotProd = direction.dot(rotationAxis)
+
+    # Shortcut calculation of `projection` requires `direction` to be normalized
+    projection = dotProd * direction
+    twist = np.array([projection[0], projection[1], projection[2], rotation[3]])
+
+    if dotProd < 0.0:
+        # Ensure `twist` points towards `direction`
+        twist[0] = -twist[0]
+        twist[1] = -twist[1]
+        twist[2] = -twist[2]
+        twist[3] = -twist[3]
+
+    return twist
