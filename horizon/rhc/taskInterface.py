@@ -17,6 +17,8 @@ from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
 
+import copy 
+
 # from horizon.ros.replay_trajectory import replay_trajectory
 
 import time
@@ -43,6 +45,9 @@ class ProblemInterface:
         self.solver_bs = None
         self.solver_rti = None
 
+        self.solution = {}
+        self.bootstrap_sol = {}
+
         self.bootstrap_solved = False
 
     def finalize(self, rti=True):
@@ -53,17 +58,35 @@ class ProblemInterface:
         self._create_solver(rti)
 
     def bootstrap(self):
+
+        # this is called sporadically: we don't really care
+        # about printing overheads here
         t = time.time()
         self.solver_bs.solve()
         elapsed = time.time() - t
         print(f'bootstrap solved in {elapsed} s')
+
         try:
             self.solver_rti.print_timings()
+
         except:
             pass
+
         self.solution = self.solver_bs.getSolutionDict()
 
+        # we backup a copy (needs to be deep to work properly)
+        # of the bootstrap, which can be used to reset the controller
+        # if needed
+
+        self.update_bootstrap_from_sol()
+
         self.bootstrap_solved = True
+
+    def update_bootstrap_from_sol(self):
+        
+        # updates bootstrap backup with latest available solution
+
+        self.bootstrap_sol = copy.deepcopy(self.solution)
 
     def rti(self):
         
@@ -118,10 +141,13 @@ class ProblemInterface:
         
         for frame, wrench in self.model.fmap.items():
             
-            # we update the force map from the latest solution
+            # we update the force maps from the latest solution
 
-            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, 0]
+            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, 0] # it's an input
+            # we get it from node 0
         
+        # compute torque with inverse dynamics (states from node 1, inputs from
+        # node 0)
         tau_i = self.res_id.call(self.solution['q'][:, 1], 
                         self.solution['v'][:, 1], 
                         self.solution['a'][:, 0],
@@ -130,7 +156,7 @@ class ProblemInterface:
         return tau_i.toarray()
     
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
-
+    
         if nodes is None:
             nodes = list(range(self.prb.getNNodes() + 1))
 
