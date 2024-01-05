@@ -347,4 +347,7 @@ class CartesianTask(Task):
         # necessary method for using this task as an item + reference in phaseManager
         self.ref.assign(val, nodes)
         return 1
+
+    def getCartesianType(self):
+        return self.cartesian_type
     
