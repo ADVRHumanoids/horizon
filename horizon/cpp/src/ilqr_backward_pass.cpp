@@ -61,16 +61,19 @@ void IterativeLQR::backward_pass()
         // infeasible warning
         if(residual.lpNorm<1>() > 1e-8)
         {
+            if (_debug) {
 
-            std::cout << "warn at k = 0: " << _constraint_to_go->dim() <<
+                std::cout << "warn at k = 0: " << _constraint_to_go->dim() <<
                          " constraints not satified, residual inf-norm is " <<
                          residual.lpNorm<Eigen::Infinity>() << "\n";
 
-            if(_log)
-            {
-                std::cout << "C = \n" << _constraint_to_go->C().format(2) << "\n" <<
-                             "h = " << _constraint_to_go->h().transpose().format(2) << "\n";
+                if(_log)
+                {
+                    std::cout << "C = \n" << _constraint_to_go->C().format(2) << "\n" <<
+                                "h = " << _constraint_to_go->h().transpose().format(2) << "\n";
+                }
             }
+            
         }
 
     }
