@@ -88,6 +88,15 @@ class ProblemInterface:
 
         self.bootstrap_sol = copy.deepcopy(self.solution)
 
+    def reset(self):
+        
+        # copies latest bootstrap into solution
+
+        self.solution = copy.deepcopy(self.bootstrap)
+        # resets the controller with the latest solution
+
+        self.load_initial_guess()
+
     def rti(self):
         
         if self._debug:
