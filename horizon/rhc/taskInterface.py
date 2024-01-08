@@ -92,7 +92,7 @@ class ProblemInterface:
         
         # copies latest bootstrap into solution
 
-        self.solution = copy.deepcopy(self.bootstrap)
+        self.solution = copy.deepcopy(self.bootstrap_sol)
         # resets the controller with the latest solution
 
         self.load_initial_guess()
