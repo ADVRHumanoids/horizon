@@ -51,7 +51,8 @@ dt = tf/ns
 # Set dynamics of the system and the relative dt.
 fd = kindyn.aba()  # this is the forward dynamics function
 qddot = fd(q=q, v=qdot, tau=tau)['a'] # qddot = M^-1(tau - h)
-xdot = utils.double_integrator(qdot, qddot) # xdot = [qdot, qddot]
+x = cs.vertcat(q, qdot)
+xdot = utils.double_integrator(q, qdot, qddot) # xdot = [qdot, qddot]
 prb.setDynamics(xdot)
 prb.setDt(dt)
 
@@ -89,13 +90,16 @@ q.setInitialGuess(q_init)
 qdot.setInitialGuess(qdot_init)
 tf.setInitialGuess(tf_init)
 
+tf_prev = tf.getVarOffset(-1)
+prb.createConstraint("tmp", tf_prev - tf, nodes=list(range(1, ns+1)))
+
 # ====================== Set CONSTRAINTS ===============================
 q_prev = q.getVarOffset(-1)
 qdot_prev = qdot.getVarOffset(-1)
 u_prev = u.getVarOffset(-1)
-x_prev, _ = utils.double_integrator(qdot_prev, fd(q=q_prev, v=qdot_prev, tau=cs.vertcat(u_prev, 0.))['a'])
-x_int = F_integrator(x0=x_prev, p=u_prev, time=dt)
-prb.createConstraint("multiple_shooting", x_int["xf"] - x, nodes=list(range(1, ns+1)), bounds=dict(lb=np.zeros(nv+nq), ub=np.zeros(nv+nq)))
+x_prev = cs.vertcat(q_prev, qdot_prev)
+x_int = F_integrator(x=x_prev, u=u_prev, dt=tf/ns)
+prb.createConstraint("multiple_shooting", x_int["f"] - x, nodes=list(range(1, ns+1)), bounds=dict(lb=np.zeros(nv+nq), ub=np.zeros(nv+nq)))
 
 prb.createFinalConstraint("up", q[1] - np.pi)
 prb.createFinalConstraint("final_qdot", qdot)
@@ -126,12 +130,13 @@ q_hist = solution["q"]
 tf_sol = solution["tf"]
 
 print(f'Tf: {solution["tf"].flatten()}')
+Tf = tf_sol[0][0]
 
 if plot_sol:
     # Horizon expose a plotter to simplify the generation of graphs
     # Once instantiated, variables and constraints can be plotted with ease
 
-    time = np.arange(0.0, solution["tf"] + 1e-6, solution["tf"] / ns)
+    time = np.arange(0.0, Tf + 1e-6, Tf / ns)
     plt.figure()
     plt.plot(time, solution["q"][0,:])
     plt.plot(time, solution["q"][1,:])
@@ -153,7 +158,9 @@ if rviz_replay:
 
     # visualize the robot in RVIZ
     joint_list= ["cart_joint", "pole_joint"]
-    replay_trajectory(tf_sol/ns, joint_list, solution['q']).replay(is_floating_base=False)
+    rep = replay_trajectory(Tf/ns, joint_list, solution['q'], kindyn=kindyn)
+    rep.sleep(1.)
+    rep.replay(is_floating_base=False)
 
 else:
     print("To visualize the robot trajectory, start the script with the '--replay' option.")
