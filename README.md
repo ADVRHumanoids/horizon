@@ -11,9 +11,28 @@ A framework for trajectory optimization and optimal control for robotics based o
 
 ## Install
 
-from source: (in the horizon folder) ```pip install .``` \
-pip package: ```pip install casadi-horizon``` \
-conda package: ```conda install horizon -c ftrancesco_ruscelli```
+### Suggested way:
+
+We suggest to use the `forest` tool to install the main dependencies of the controller more easily:
+```
+[sudo] pip3 install hhcm-forest
+mkdir forest_ws && cd forest_ws
+forest init
+echo ". ~/forest_ws/setup.bash" >> ~/.bashrc
+forest add-recipes git@github.com:advrhumanoids/multidof_recipes.git
+```
+Once `forest` has been sucessfully installed, you can now install horizon:
+```
+cd ~/forest_ws
+forest grow horizon
+```
+
+### Other options:
+from source: (in the horizon folder) ```pip install . --no-deps```
+
+
+~~pip package: ```pip install casadi-horizon```~~ *coming soon* \
+~~conda package: ```conda install horizon -c ftrancesco_ruscelli```~~ *coming soon*
 
 ## Documentations
 Don't forget to check the [**documentation**](https://advrhumanoids.github.io/horizon/)!  
