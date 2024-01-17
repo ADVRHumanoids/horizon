@@ -79,8 +79,8 @@ class RegularizationTask(Task):
             self.reg_fun.append(self.instantiator(f'reg_{self.name}_{v.getName()}', self.weight_param[v.getName()] * (
                         v[v_indices] - self.opt_reference_map[v.getName()]), nodes))
 
-        for f in self.reg_fun:
-            print(f"{f.getName()} (dim: {f.getDim()}): {f.getFunction()}")
+        # for f in self.reg_fun:
+        #     print(f"{f.getName()} (dim: {f.getDim()}): {f.getFunction()}")
 
 
     # todo: temporary
