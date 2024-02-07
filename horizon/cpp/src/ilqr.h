@@ -114,6 +114,8 @@ public:
 
     void setIterationCallback(const CallbackType& cb);
 
+    void reset();
+
     bool solve(int max_iter);
 
     const Eigen::MatrixXd& getStateTrajectory() const;

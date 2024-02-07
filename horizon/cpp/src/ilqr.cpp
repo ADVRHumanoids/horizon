@@ -616,6 +616,11 @@ const std::map<std::string, Eigen::VectorXd> &IterativeLQR::getCostsValues() con
     return _cost_values;
 }
 
+void IterativeLQR::reset()
+{
+    _hxx_reg = _hxx_reg_base;
+}
+
 bool IterativeLQR::solve(int max_iter)
 {
     // set cost value and constraint violation *before* the forward pass
@@ -629,6 +634,12 @@ bool IterativeLQR::solve(int max_iter)
 
     // reset counters
     _fp_accepted = 0;
+
+    // reset internal states if not rti mode
+    if(!_rti)
+    {
+        reset();
+    }
 
     // solve
     for(int i = 0; i < max_iter; i++)

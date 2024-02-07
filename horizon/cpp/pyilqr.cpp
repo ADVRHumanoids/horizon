@@ -53,6 +53,7 @@ PYBIND11_MODULE(pyilqr, m) {
             .def("setInitialState", &IterativeLQR::setInitialState)
             .def("setInputInitialGuess", &IterativeLQR::setInputInitialGuess)
             .def("setStateInitialGuess", &IterativeLQR::setStateInitialGuess)
+            .def("reset", &IterativeLQR::reset)
             ;
 
 }

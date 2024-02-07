@@ -32,7 +32,7 @@ class SolverILQR(Solver):
 
         # save max iter if any
         self.max_iter = self.opts.get('ilqr.max_iter', 100)
-        
+
         # num shooting interval
         self.N = prb.getNNodes() - 1  
 
