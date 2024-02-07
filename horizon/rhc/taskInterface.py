@@ -337,6 +337,8 @@ class ProblemInterface:
             scoped_opts_rti['ilqr.debug'] = self._debug # enables debugging in iLQR (basically
             # allows to retrieve costs and constraints values at runtime)
 
+            scoped_opts_rti['ilqr.rti'] = True
+
             if self.max_solver_iter == 1:
                 
                 # real-time iteration -> no line-search necessary
