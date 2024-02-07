@@ -179,6 +179,7 @@ class SolverILQR(Solver):
         self.solution_dict['opt_cost'] = self.iteration_costs[-1] if len(self.iteration_costs) else -1.0
         self.solution_dict['iter_costs'] = np.array(self.iteration_costs)
         self.solution_dict['n_iter2sol'] = self.current_iteration
+        self.solution_dict['residual_norm'] = self.getResidualNorm()
 
         return ret
     
@@ -207,6 +208,9 @@ class SolverILQR(Solver):
 
     def getCostsValues(self):
         return self.ilqr.getCostsValues()
+
+    def getResidualNorm(self):
+        return self.ilqr.getResidualNorm()
 
     def print_timings(self):
 

@@ -616,6 +616,12 @@ const std::map<std::string, Eigen::VectorXd> &IterativeLQR::getCostsValues() con
     return _cost_values;
 }
 
+const float IterativeLQR::getResidualNorm() const 
+{
+    return (_constraint_to_go->C()*_bp_res[0].dx +
+                    _constraint_to_go->h()).lpNorm<1>();
+}
+
 void IterativeLQR::reset()
 {
     _hxx_reg = _hxx_reg_base;

@@ -113,7 +113,7 @@ public:
     void setInputInitialGuess(const Eigen::MatrixXd& u0);
 
     void setIterationCallback(const CallbackType& cb);
-
+    
     void reset();
 
     bool solve(int max_iter);
@@ -129,6 +129,8 @@ public:
     const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
 
     const std::map<std::string, Eigen::VectorXd>& getCostsValues() const;
+
+    const float getResidualNorm() const;
 
     VecConstRef state(int i) const;
 
