@@ -97,6 +97,8 @@ class ProblemInterface:
 
         self.load_initial_guess()
 
+        self.solver_rti.reset() # resets solver internal state (useful in case of failure)
+
     def rti(self):
         
         if self._debug:

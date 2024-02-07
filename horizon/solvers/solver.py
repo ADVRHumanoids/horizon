@@ -56,7 +56,6 @@ class Solver(ABC):
         ret.type = type
         return ret
 
-
     def __init__(self, 
                  prb: Problem,
                  opts: Dict = None) -> None:
@@ -99,7 +98,6 @@ class Solver(ABC):
             self.configure_rti()
             del self.opts['realtime_iteration']
         
-
     def _getVarList(self, type):
         var_list = list()
         for var in self.prb.var_container.getVarList(offset=False):
@@ -291,6 +289,13 @@ class Solver(ABC):
         Returns:
             bool: success flag
         """
+        pass
+    
+    def reset(self):
+        """
+        Resets solver (to be overridden by child class)
+        """
+
         pass
 
     def getSolutionDict(self):

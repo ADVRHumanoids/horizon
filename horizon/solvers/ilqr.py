@@ -99,6 +99,10 @@ class SolverILQR(Solver):
 
         self.set_iteration_callback(self._sol_info_callback)
 
+    def reset(self):
+
+        self.ilqr.reset()
+        
     def save(self):
         data = self.prb.save()
         data['solver'] = dict()
