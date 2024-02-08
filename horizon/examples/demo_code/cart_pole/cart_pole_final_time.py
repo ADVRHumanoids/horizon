@@ -44,7 +44,7 @@ u = prb.createInputVariable("u", 1)
 tau = cs.vertcat(u, 0.)
 
 # Create final time variable so that the duration of the trajectory is included in the optimization problem
-tf = prb.createVariable("tf", 1)
+tf = prb.createSingleVariable("tf", 1)
 # the dt of the system is the final time (variable) divided by the number of nodes
 dt = tf/ns
 
@@ -90,9 +90,6 @@ q.setInitialGuess(q_init)
 qdot.setInitialGuess(qdot_init)
 tf.setInitialGuess(tf_init)
 
-tf_prev = tf.getVarOffset(-1)
-prb.createConstraint("tmp", tf_prev - tf, nodes=list(range(1, ns+1)))
-
 # ====================== Set CONSTRAINTS ===============================
 q_prev = q.getVarOffset(-1)
 qdot_prev = qdot.getVarOffset(-1)
@@ -130,7 +127,7 @@ q_hist = solution["q"]
 tf_sol = solution["tf"]
 
 print(f'Tf: {solution["tf"].flatten()}')
-Tf = tf_sol[0][0]
+Tf = tf_sol[0]
 
 if plot_sol:
     # Horizon expose a plotter to simplify the generation of graphs
