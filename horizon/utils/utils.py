@@ -77,7 +77,7 @@ def toRot(q):
     """
     Compute rotation matrix associated to given quaternion q
     Args:
-        q: quaternion (q[0] = qw  q[1] = qx  q[2] = qy  q[3] = qz
+        q: quaternion (q[0] = qx  q[1] = qy  q[2] = qz  q[3] = qw)
 
     Returns:
         R: rotation matrix
@@ -85,7 +85,11 @@ def toRot(q):
     """
 
     R = cs.SX.zeros(3, 3)
-    qi = q[1]; qj = q[2]; qk = q[3]; qr = q[0]
+    qi = q[0]
+    qj = q[1]
+    qk = q[2]
+    qr = q[3]
+
     R[0, 0] = 1. - 2. * (qj * qj + qk * qk)
     R[0, 1] = 2. * (qi * qj - qk * qr)
     R[0, 2] = 2. * (qi * qk + qj * qr)
