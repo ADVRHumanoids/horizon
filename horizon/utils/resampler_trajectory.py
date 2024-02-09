@@ -106,7 +106,7 @@ def second_order_resample_integrator(p, v, u, node_time, dt, dae):
         v_res: resampled velocity
         u_res: resampled input
     """
-    number_of_nodes = p.shape[1]
+    number_of_nodes = u.shape[1]
     node_time_array = np.zeros([number_of_nodes])
     if hasattr(node_time, "__iter__"):
         for i in range(1, number_of_nodes):
