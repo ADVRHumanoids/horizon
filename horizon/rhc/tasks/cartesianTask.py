@@ -1,9 +1,10 @@
-from cmath import sqrt
+# from cmath import sqrt
 from horizon.rhc.tasks.task import Task
 import casadi as cs
-from horizon.problem import Problem
+# from horizon.problem import Problem
 import numpy as np
-from scipy.spatial.transform import Rotation as scipy_rot
+# from scipy.spatial.transform import Rotation as scipy_rot
+
 
 # todo name is useless
 
@@ -17,6 +18,7 @@ class CartesianTask(Task):
         self.cartesian_type = 'position' if cartesian_type is None else cartesian_type
 
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
 
         self.indices = np.array([0, 1, 2]).astype(
             int) if self.indices is None else np.array(self.indices).astype(int)
@@ -28,7 +30,7 @@ class CartesianTask(Task):
         elif self.fun_type == 'residual':
             self.instantiator = self.prb.createResidual
 
-        self._initialize()
+        self.__initialize()
 
     # TODO
     # def _fk(self, frame, q, derivative=0):
@@ -117,8 +119,8 @@ class CartesianTask(Task):
             quat_2 = val2
 
         rot_err = quat_1[3] * quat_2[0:3] - \
-            quat_2[3] * quat_1[0:3] - \
-            cs.mtimes(self._skew(quat_2[0:3]), quat_1[0:3])
+                  quat_2[3] * quat_1[0:3] - \
+                  cs.mtimes(self._skew(quat_2[0:3]), quat_1[0:3])
 
         return rot_err
 
@@ -139,7 +141,7 @@ class CartesianTask(Task):
         R_skew = (R_err - R_err.T) / 2
 
         r = cs.vertcat(R_skew[2, 1], R_skew[0, 2], R_skew[1, 0])
-        
+
         sqrt_arg = 1 + cs.trace(R_err)
         sqrt_arg = cs.if_else(sqrt_arg > epsi, sqrt_arg, epsi)
         div = cs.sqrt(sqrt_arg)
@@ -147,7 +149,8 @@ class CartesianTask(Task):
 
         return rot_err
 
-    def _initialize(self):
+    def __initialize(self):
+        self.ref_matrix = None
         # todo this is wrong! how to get these variables?
         q = self.prb.getVariables('q')
         v = self.prb.getVariables('v')
@@ -167,7 +170,7 @@ class CartesianTask(Task):
             ee_p_base_t = ee_p_base['ee_pos']
             ee_p_base_r = ee_p_base['ee_rot']
 
-            ee_p_rel = ee_p_distal_t 
+            ee_p_rel = ee_p_distal_t
             ee_r_rel = ee_p_distal_r
 
             frame_name = f'{self.name}_{self.distal_link}_pos'
@@ -184,6 +187,8 @@ class CartesianTask(Task):
             self.pose_tgt.assign([0, 0, 0, 0, 0, 0, 1])
 
             self.ref = self.pose_tgt
+
+            # self.initial_ref_matrix = self.ref.getValues().copy()
 
             fun_trans = ee_p_rel - self.pose_tgt[:3]
             # todo check norm_2 with _compute_orientation_error2
@@ -205,8 +210,9 @@ class CartesianTask(Task):
             ee_p_distal_t = ee_p_distal['ee_pos']
             ee_p_distal_r = ee_p_distal['ee_rot']
 
+            # vel info
             dfk_distal = self.kin_dyn.frameVelocity(
-            self.distal_link, self.kd_frame)
+                self.distal_link, self.kd_frame)
             ee_v_distal_t = dfk_distal(q=q, qdot=v)['ee_vel_linear']
             ee_v_distal_r = dfk_distal(q=q, qdot=v)['ee_vel_angular']
             ee_v_distal = cs.vertcat(ee_v_distal_t, ee_v_distal_r)
@@ -222,14 +228,13 @@ class CartesianTask(Task):
 
                 ee_p_rel = ee_p_distal_t - ee_p_base_t
                 # ========================================================================
-                # vel info
+
 
                 dfk_base = self.kin_dyn.frameVelocity(
                     self.base_link, self.kd_frame)
                 ee_v_base_t = dfk_base(q=q, qdot=v)['ee_vel_linear']
                 ee_v_base_r = dfk_base(q=q, qdot=v)['ee_vel_angular']
 
-                
                 ee_v_base = cs.vertcat(ee_v_base_t, ee_v_base_r)
 
                 # express this velocity from world to base
@@ -265,7 +270,7 @@ class CartesianTask(Task):
             fun = ee_a[self.indices] - self.acc_tgt
 
         self.constr = self.instantiator(
-            f'{frame_name}_cartesian_task', self.weight * fun, nodes=self.nodes)
+            f'{frame_name}_cartesian_task', self.weight_param * fun, nodes=self.nodes)
 
         # todo should I keep track of the nodes here?
         #  in other words: should be setNodes resetting?
@@ -275,40 +280,6 @@ class CartesianTask(Task):
 
     def setRef(self, ref_traj):
 
-        # todo shouldn't just ignore None, right?
-        if ref_traj is None:
-            return False
-
-        ref_matrix = np.array(ref_traj)
-
-        # if ref_matrix.ndim == 2 and ref_matrix.shape[1] != len(self.nodes):
-        #     raise ValueError(f'Wrong nodes dimension inserted: ({self.ref.shape[1]} != {len(self.nodes)})')
-        # elif ref_matrix.ndim == 1 and len(self.nodes) > 1:
-        #     raise ValueError(f'Wrong nodes dimension inserted: ({self.ref.shape[1]} != {len(self.nodes)})')
-
-        self.ref.assign(ref_matrix, self.nodes)  # <==== SET TARGET
-
-        return True
-
-    def setNodes(self, nodes):
-        super().setNodes(nodes)
-
-        if not nodes:
-            self.nodes = []
-            self.constr.setNodes(self.nodes)
-            return 0
-
-        # print('=============================================')
-
-        # core
-        self.constr.setNodes(self.nodes[1:])  # <==== SET NODES
-
-        # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
-        # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
-        # print('===================================')
-
-    def addReference(self, ref_traj):
-
         '''
         possible alternative implementation of reference:
             - adding a reference to the task addReference()
@@ -317,7 +288,66 @@ class CartesianTask(Task):
         if ref_traj is None:
             return False
 
-        ref_matrix = np.array(ref_traj)
+        # horrible
+        self.ref_matrix = np.atleast_2d(np.array(ref_traj))
+        self.addReference()
 
         return True
 
+    def setNodes(self, nodes, erasing=True):
+        super().setNodes(nodes, erasing=erasing)
+
+        # print(f"cartesian task '{self.getName()}': ", self.nodes)
+        if not nodes:
+            self.nodes = []
+            self.constr.setNodes(self.nodes, erasing=erasing)
+            return 0
+
+        # print('=============================================')
+
+        # core
+        self.constr.setNodes(self.nodes[0:], erasing=erasing)  # <==== SET NODES
+        if self.ref_matrix is not None:
+            self.addReference()
+
+        # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
+        # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
+        # print('===================================')
+
+    def addReference(self):  # , ref_traj):
+
+        # todo shouldn't just ignore None, right?
+        # if ref_traj is None:
+        #     return False
+
+        # ref_matrix = np.array(ref_traj)
+
+        # if ref_matrix.ndim == 2 and ref_matrix.shape[1] != len(self.nodes):
+        #     raise ValueError(f'Wrong nodes dimension inserted: ({self.ref.shape[1]} != {len(self.nodes)})')
+        # elif ref_matrix.ndim == 1 and len(self.nodes) > 1:
+        #     raise ValueError(f'Wrong nodes dimension inserted: ({self.ref.shape[1]} != {len(self.nodes)})')
+        # what if self.nodes is empty?
+        if self.nodes:
+            if hasattr(self.nodes, "__iter__"):
+                self.ref.assign(self.ref_matrix[:, :len(self.nodes)], self.nodes)  # <==== SET TARGET
+            else:
+                self.ref.assign(self.ref_matrix, self.nodes)
+
+        return True
+
+    def getDim(self):
+        # todo: if its position is seven, if its velocity is 6 (now it's one because BUGS)
+        return 7
+
+    def getValues(self):
+        # necessary method for using this task as an item + reference in phaseManager
+        return self.ref.getValues()
+
+    def assign(self, val, nodes=None):
+        # necessary method for using this task as an item + reference in phaseManager
+        self.ref.assign(val, nodes)
+        return 1
+
+    def getCartesianType(self):
+        return self.cartesian_type
+    

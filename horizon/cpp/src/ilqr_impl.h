@@ -135,9 +135,10 @@ struct IterativeLQR::Constraint
 
     void clear();
 
+    std::vector<ConstraintEntity::Ptr> items;
+
 private:
 
-    std::vector<ConstraintEntity::Ptr> items;
     Eigen::MatrixXd _C;
     Eigen::MatrixXd _D;
     Eigen::VectorXd _h;
@@ -170,11 +171,18 @@ struct IterativeLQR::CostEntityBase
                             Eigen::MatrixXd& R,
                             Eigen::MatrixXd& P) = 0;
 
+    virtual std::string getName() = 0;
+
+    virtual double getCostEvaluated() const { return _cost_eval; }
+
     virtual ~CostEntityBase() = default;
+
+
 
 protected:
 
     Eigen::VectorXd _q, _r;
+    double _cost_eval;
 };
 
 struct IterativeLQR::BoundAuglagCostEntity : CostEntityBase
@@ -195,6 +203,8 @@ struct IterativeLQR::BoundAuglagCostEntity : CostEntityBase
                     Eigen::MatrixXd& Q,
                     Eigen::MatrixXd& R,
                     Eigen::MatrixXd& P) override;
+
+    std::string getName();
 
     void update_lam(VecConstRef x, VecConstRef u, int k);
 
@@ -221,6 +231,8 @@ struct IterativeLQR::IntermediateCostEntity : CostEntityBase
 {
     typedef std::shared_ptr<IntermediateCostEntity> Ptr;
 
+
+
     // set cost
     void setCost(casadi::Function l,
                  casadi::Function dl,
@@ -237,6 +249,8 @@ struct IterativeLQR::IntermediateCostEntity : CostEntityBase
                     Eigen::MatrixXd& Q,
                     Eigen::MatrixXd& R,
                     Eigen::MatrixXd& P) override;
+
+    std::string getName();
 
     static casadi::Function Gradient(const casadi::Function& f);
     static casadi::Function Hessian(const casadi::Function& df);
@@ -268,6 +282,8 @@ struct IterativeLQR::IntermediateResidualEntity : CostEntityBase
                     Eigen::MatrixXd& Q,
                     Eigen::MatrixXd& R,
                     Eigen::MatrixXd& P) override;
+
+    std::string getName();
 
     static casadi::Function Jacobian(const casadi::Function& f);
 
@@ -301,9 +317,10 @@ struct IterativeLQR::IntermediateCost
 
     void clear();
 
+    std::vector<CostEntityBase::Ptr> items;
+
 private:
 
-    std::vector<CostEntityBase::Ptr> items;
     Eigen::MatrixXd _Q, _R, _P;
     Eigen::VectorXd _q, _r;
 };

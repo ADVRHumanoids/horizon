@@ -1,4 +1,6 @@
 from casadi_kin_dyn import pycasadi_kin_dyn as cas_kin_dyn
+
+import horizon.problem
 from horizon.utils import kin_dyn
 from horizon.transcriptions import integrators
 import numpy as np
@@ -63,7 +65,7 @@ def resample_input(input, node_time, dt):
     Returns:
         input_res: resampled input
     """
-    number_of_nodes = input.shape[1]+1
+    number_of_nodes = input.shape[1]
     node_time_array = np.zeros([number_of_nodes])
     if hasattr(node_time, "__iter__"):
         for i in range(1, number_of_nodes):
@@ -247,6 +249,167 @@ def resampler_old(state_vec, input_vec, nodes_dt, desired_dt, dae, f_int=None):
     state_res[:, -1] = states[:, -1]
 
     return state_res
+
+class Resampler:
+    def __init__(self,  state_dim, input_dim, n_nodes, nodes_dt, desired_dt, dae, f_int=None):
+
+        # initialize everything with the right dimension of vectors
+        self.state_dim = state_dim
+        self.input_dim = input_dim
+        self.n_nodes = n_nodes
+
+        self.nodes_dt = nodes_dt
+        self.desired_dt = desired_dt
+
+        # construct array of times for each node (nodes could be of different time length)
+        self.node_time_array = np.zeros([self.n_nodes])
+        if hasattr(self.nodes_dt, "__iter__"):
+            # if a list of times is passed, construct from this list (used when variable time node)
+            for i in range(1, self.n_nodes):
+                self.node_time_array[i] = self.node_time_array[i - 1] + self.nodes_dt[i - 1]
+        else:
+            # if a number is passed, construct from this number (used when constant time node)
+            for i in range(1, self.n_nodes):
+                self.node_time_array[i] = self.node_time_array[i - 1] + self.nodes_dt
+
+        # number of nodes in resampled trajectory
+        self.n_nodes_res = int(round(self.node_time_array[-1] / self.desired_dt)) + 1
+
+        # initialize resampled trajectories
+        self.state_res = np.empty([self.state_dim, self.n_nodes_res])  # state: number of resampled nodes
+        self.input_res = np.empty([self.input_dim, self.n_nodes_res - 1])  # input: number of resampled nodes - 1
+
+        if f_int is None:
+            self.F_integrator = integrators.RK4(dae, cs.SX)
+        else:
+            self.F_integrator = f_int
+
+    def resample(self, state_vec, input_vec):
+
+        if isinstance(state_vec, np.ndarray):
+            self.states = np.array(state_vec)
+
+        if isinstance(input_vec, np.ndarray):
+            self.inputs = np.array(input_vec)
+
+        # the first node of the resampled trajectory has the same value as the original trajectory
+        self.state_res[:, 0] = self.states[:, 0]
+        # input_res[:, 0] = inputs[:, 0]
+
+        t = 0.
+        node = 0
+
+        # first state/input is the initial state/input
+        for i in range(1, self.n_nodes_res):
+
+            # advance t with desired dt
+            t += self.desired_dt
+
+            # use previous state and constant input to compute following state
+            state_prev = self.state_res[:, i-1]
+            input_prev = self.inputs[:, node]
+            dt = self.desired_dt
+
+            # if t exceed current node, recompute from new node
+            while t > self.node_time_array[node + 1] and t < self.node_time_array[-1]:
+
+                # compute exceeding time
+                new_dt = t - self.node_time_array[node + 1]
+                # forward node
+                node += 1
+
+                # integrate from the node just exceed with the relative input for the exceeding time
+                state_prev = self.states[:, node]
+                input_prev = self.inputs[:, node]
+                dt = new_dt
+
+            # integrate the state using the input at the desired node
+            state_int = self.F_integrator(state_prev, input_prev, dt)[0].toarray().flatten()
+
+            self.state_res[:, i] = state_int
+
+            # if last resampled value is beyond or last original node, use last original value
+            if t >= self.node_time_array[-1]:
+                self.state_res[:, i] = self.states[:, -1]
+                break
+
+        return self.state_res
+
+    def linear_resample(self, state_vec):
+        self.states = state_vec
+        input_res = np.empty([self.input_dim, self.n_nodes_res])
+        self.state_res[:, 0] = self.states[:, 0]
+
+        t = 0
+        node = 0
+        state_prev = self.state_res[:, node]
+
+        for i in range(1, self.n_nodes_res):
+            t += self.desired_dt
+
+            if hasattr(self.nodes_dt, "__iter__"):
+                slope = (self.states[:, node + 1] - self.states[:, node]) / self.nodes_dt[node]
+            else:
+                slope = (self.states[:, node + 1] - self.states[:, node]) / self.nodes_dt
+
+            while t > self.node_time_array[node + 1] and t < self.node_time_array[-1]:
+                node += 1
+
+                # integrate from the node just exceed with the relative input for the exceeding time
+                state_prev = self.states[:, node]
+
+            # integrate the state using the input at the desired node
+            # TODO: fix quaternion linear interpolation (use slerp)
+            state_int = state_prev + slope * (t - self.node_time_array[node])
+
+            self.state_res[:, i] = state_int
+            input_res[:, i] = np.hstack((np.zeros(6), slope[7:10], np.zeros(3), slope[14:17], np.zeros(3))).T
+
+            # if last resampled value is beyond or last original node, use last original value
+            if t >= self.node_time_array[-1]:
+                self.state_res[:, i] = self.states[:, -1]
+                break
+
+        return self.state_res, input_res
+
+
+def linear_resampler(vec, dt, dt_res):
+    inputs = vec
+
+    n_nodes_res = int(round(dt / dt_res))
+    input_res = np.empty([inputs.shape[0], n_nodes_res])
+
+    node_time_array = np.array([i * dt for i in range(inputs.shape[1])])
+
+    input_res[:, 0] = inputs[:, 0]
+
+    t = 0
+    node = 0
+    input_prev = input_res[:, node]
+
+    for i in range(1, n_nodes_res):
+        t += dt_res
+
+
+        slope = (inputs[:, node + 1] - inputs[:, node]) / dt
+
+        while t > node_time_array[node + 1] and t < node_time_array[-1]:
+            node += 1
+
+            # integrate from the node just exceed with the relative input for the exceeding time
+            input_prev = inputs[:, node]
+
+        # integrate the state using the input at the desired node
+        input_int = input_prev + slope * (t - node_time_array[node])
+
+        input_res[:, i] = input_int
+
+        # if last resampled value is beyond or last original node, use last original value
+        if t >= node_time_array[-1]:
+            input_res[:, i] = inputs[:, -1]
+            break
+
+    return input_res
 
 def resampler(state_vec, input_vec, nodes_dt, desired_dt, dae, f_int=None):
 

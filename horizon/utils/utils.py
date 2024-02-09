@@ -77,7 +77,7 @@ def toRot(q):
     """
     Compute rotation matrix associated to given quaternion q
     Args:
-        q: quaternion
+        q: quaternion (q[0] = qw  q[1] = qx  q[2] = qy  q[3] = qz
 
     Returns:
         R: rotation matrix
@@ -85,7 +85,7 @@ def toRot(q):
     """
 
     R = cs.SX.zeros(3, 3)
-    qi = q[0]; qj = q[1]; qk = q[2]; qr = q[3]
+    qi = q[1]; qj = q[2]; qk = q[3]; qr = q[0]
     R[0, 0] = 1. - 2. * (qj * qj + qk * qk)
     R[0, 1] = 2. * (qi * qj - qk * qr)
     R[0, 2] = 2. * (qi * qk + qj * qr)
@@ -97,6 +97,52 @@ def toRot(q):
     R[2, 2] = 1. - 2. * (qi * qi + qj * qj)
 
     return R
+
+def angular_velocities(q1, q2, dt):
+    return (2 / dt) * np.array([
+        q1[3]*q2[0] - q1[1]*q2[3] - q1[1]*q2[2] + q1[2]*q2[1],
+        q1[3]*q2[1] + q1[1]*q2[2] - q1[1]*q2[3] - q1[2]*q2[0],
+        q1[3]*q2[2] - q1[1]*q2[1] + q1[1]*q2[0] - q1[2]*q2[3]])
+
+def matrix_to_quaternion(matrix):
+    # Ensure the matrix is a valid rotation matrix
+    assert np.isclose(np.linalg.det(matrix), 1.0), "Input matrix is not a valid rotation matrix"
+
+    # Extract the components of the rotation matrix
+    r11, r12, r13 = matrix[0, 0], matrix[0, 1], matrix[0, 2]
+    r21, r22, r23 = matrix[1, 0], matrix[1, 1], matrix[1, 2]
+    r31, r32, r33 = matrix[2, 0], matrix[2, 1], matrix[2, 2]
+
+    # Calculate the trace of the matrix
+    trace = r11 + r22 + r33
+
+    if trace > 0:
+        s = 0.5 / np.sqrt(trace + 1.0)
+        w = 0.25 / s
+        x = (r32 - r23) * s
+        y = (r13 - r31) * s
+        z = (r21 - r12) * s
+    elif r11 > r22 and r11 > r33:
+        s = 2.0 * np.sqrt(1.0 + r11 - r22 - r33)
+        w = (r32 - r23) / s
+        x = 0.25 * s
+        y = (r12 + r21) / s
+        z = (r13 + r31) / s
+    elif r22 > r33:
+        s = 2.0 * np.sqrt(1.0 + r22 - r11 - r33)
+        w = (r13 - r31) / s
+        x = (r12 + r21) / s
+        y = 0.25 * s
+        z = (r23 + r32) / s
+    else:
+        s = 2.0 * np.sqrt(1.0 + r33 - r11 - r22)
+        w = (r21 - r12) / s
+        x = (r13 + r31) / s
+        y = (r23 + r32) / s
+        z = 0.25 * s
+
+    # Return the quaternion in the x, y, z, w order as a numpy array
+    return np.array([x, y, z, w])
 
 def rotationMatrixToQuaterion(R):
     """
@@ -219,35 +265,29 @@ def double_integrator(q, v, a, kd=None):
     return cs.vertcat(qdot_fn(q, v), a)
 
 
+def double_integrator_jerk(q, v, a, j, fdot, kd=None):
+    if kd is None:
+        xdot = cs.vertcat(v, a, j)
+        return xdot
+
+    qdot_fn = kd.qdot()
+
+    return cs.vertcat(qdot_fn(q, v), a, j, *fdot)
+
+def single_integrator(q, v, kd=None):
+
+    if kd is None:
+        xdot = v
+        return xdot
+
+    qdot_fn = kd.qdot()
+
+    return qdot_fn(q, v)
+
+
 def barrier(x):
     return cs.if_else(x > 0, 0, x)
 
+def barrier1(x):
+    return cs.if_else(x < 0, 0, x)
 
-def getRotationComponentAboutAxis(rotation, direction):
-    """
-    Use the swing-twist decomposition to get the component of a rotation
-    around the given axis.
-
-    N.B. assumes direction is normalized (to save work in calculating projection).
-    Args:
-        rotation:  quaternion
-        direction: 3d vector direction
-    Returns:
-        twist: The component of rotation about the axis as quaternion
-    """
-
-    rotationAxis = np.array([rotation[0], rotation[1], rotation[2]])
-    dotProd = direction.dot(rotationAxis)
-
-    # Shortcut calculation of `projection` requires `direction` to be normalized
-    projection = dotProd * direction
-    twist = np.array([projection[0], projection[1], projection[2], rotation[3]])
-
-    if dotProd < 0.0:
-        # Ensure `twist` points towards `direction`
-        twist[0] = -twist[0]
-        twist[1] = -twist[1]
-        twist[2] = -twist[2]
-        twist[3] = -twist[3]
-
-    return twist

@@ -1,30 +1,26 @@
-import casadi as cs
-from urllib3 import Retry
-
-from horizon.problem import Problem
-from horizon.utils import utils, kin_dyn, mat_storer, resampler_trajectory
+from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
 from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
 from horizon.rhc.tasks.rollingTask import RollingTask
+from horizon.rhc.tasks.zmpTask import ZmpTask
 from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.rhc.tasks.posturalTask import PosturalTask
 from horizon.rhc.tasks.limitsTask import JointLimitsTask
 from horizon.rhc.tasks.regularizationTask import RegularizationTask
-from typing import List, Dict, Union, Tuple
+from horizon.transcriptions import integrators
 import numpy as np
 from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
 from horizon.ros.replay_trajectory import replay_trajectory
-import logging
 import time
 
 
-class TaskInterface:
+class ProblemInterface:
     def __init__(self,
                  prb,
                  model):
@@ -32,35 +28,17 @@ class TaskInterface:
         # get the model
         self.prb = prb
         self.model = model
-        
-        
-        # here I register the the default tasks
-        # todo: should I do it here?
-        # uniform the names of these tasks
-        task_factory.register('Cartesian', CartesianTask)
-        task_factory.register('Contact', ContactTask)
-        task_factory.register('Wrench', SurfaceContact)
-        task_factory.register('VertexForce', VertexContact)
-        task_factory.register('Postural', PosturalTask)
-        task_factory.register('JointLimits', JointLimitsTask)
-        task_factory.register('Regularization', RegularizationTask)
-        task_factory.register('Rolling', RollingTask)
 
+        self.solver_bs = None
+        self.solver_rti = None
 
-        # self.a0 = np.zeros(self.nv)
-
-        # task list
-        self.task_list = []
-        
-
-    def finalize(self):
+    def finalize(self, rti=True):
         """
         to be called after all variables have been created
         """
         self.model.setDynamics()
-        self._create_solver()
+        self._create_solver(rti)
 
-    
     def bootstrap(self):
         t = time.time()
         self.solver_bs.solve()
@@ -72,32 +50,40 @@ class TaskInterface:
             pass
         self.solution = self.solver_bs.getSolutionDict()
 
-    
     def rti(self):
-                
+
         t = time.time()
-        self.solver_rti.solve()
+        check = self.solver_rti.solve()
         elapsed = time.time() - t
         print(f'rti solved in {elapsed} s')
 
         self.solution = self.solver_rti.getSolutionDict()
 
+        return check
 
-    def resample(self, dt_res):
-        
+    def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
+
+        if nodes is None:
+            nodes = list(range(self.prb.getNNodes() + 1))
+
+        if dae is None:
+            integrator = self.prb.getIntegrator()
+        else:
+            integrator = integrators.EULER(dae)
+
         u_res = resampler_trajectory.resample_input(
-            self.solution['u_opt'], 
-            self.prb.getDt(), 
+            self.solution['u_opt'][:, [index for index in nodes if index < self.prb.getNNodes() - 1]],
+            self.prb.getDt(),
             dt_res)
 
         x_res = resampler_trajectory.resampler(
-            self.solution['x_opt'], 
-            self.solution['u_opt'], 
-            self.prb.getDt(), 
-            dt_res, 
+            self.solution['x_opt'][:, [index for index in nodes if index < self.prb.getNNodes()]],
+            self.solution['u_opt'][:, [index for index in nodes if index < self.prb.getNNodes() - 1]],
+            self.prb.getDt(),
+            dt_res,
             dae=None,
-            f_int=self.prb.getIntegrator())
-            
+            f_int=integrator)
+
         self.solution['dt_res'] = dt_res
         self.solution['x_opt_res'] = x_res
         self.solution['u_opt_res'] = u_res
@@ -105,14 +91,12 @@ class TaskInterface:
         for s in self.prb.getState():
             sname = s.getName()
             off, dim = self.prb.getState().getVarIndex(sname)
-            self.solution[f'{sname}_res'] = x_res[off:off+dim, :]
+            self.solution[f'{sname}_res'] = x_res[off:off + dim, :]
 
         for s in self.prb.getInput():
             sname = s.getName()
             off, dim = self.prb.getInput().getVarIndex(sname)
-            self.solution[f'{sname}_res'] = u_res[off:off+dim, :]
-
-        # get tau resampled
+            self.solution[f'{sname}_res'] = u_res[off:off + dim, :]
 
         # new fmap with resampled forces
         if self.model.fmap:
@@ -125,34 +109,37 @@ class TaskInterface:
             for frame, wrench in self.model.fmap.items():
                 fmap_res[frame] = self.solution[f'{wrench.getName()}_res']
 
-            tau = np.zeros([self.model.tau.shape[0], self.prb.getNNodes() -1])
-            tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]])
+            # get tau resampled
+            if resample_tau:
+                tau = np.zeros([self.model.tau.shape[0], self.prb.getNNodes() - 1])
+                tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]])
 
-            id = kin_dyn.InverseDynamics(self.model.kd, fmap_res.keys(), self.model.kd_frame)
+                id = kin_dyn.InverseDynamics(self.model.kd, fmap_res.keys(), self.model.kd_frame)
 
                 # id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
                 # self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
                 # self.prb.createIntermediateConstraint('dynamics', self.tau[:6])
 
-            # todo: this is horrible. id.call should take matrices, I should not iter over each node
+                # todo: this is horrible. id.call should take matrices, I should not iter over each node
 
-            for i in range(tau.shape[1]):
-                fmap_i = dict()
-                for frame, wrench in fmap.items():
-                    fmap_i[frame] = wrench[:, i]
-                tau_i = id.call(self.solution['q'][:, i], self.solution['v'][:, i], self.solution['a'][:, i], fmap_i)
-                tau[:, i] = tau_i.toarray().flatten()
+                for i in range(tau.shape[1]):
+                    fmap_i = dict()
+                    for frame, wrench in fmap.items():
+                        fmap_i[frame] = wrench[:, i]
+                    tau_i = id.call(self.solution['q'][:, i], self.solution['v'][:, i], self.solution['a'][:, i],
+                                    fmap_i)
+                    tau[:, i] = tau_i.toarray().flatten()
 
-            for i in range(tau_res.shape[1]):
-                fmap_res_i = dict()
-                for frame, wrench in fmap_res.items():
-                    fmap_res_i[frame] = wrench[:, i]
-                tau_res_i = id.call(self.solution['q_res'][:, i], self.solution['v_res'][:, i], self.solution['a_res'][:, i], fmap_res_i)
-                tau_res[:, i] = tau_res_i.toarray().flatten()
+                for i in range(tau_res.shape[1]):
+                    fmap_res_i = dict()
+                    for frame, wrench in fmap_res.items():
+                        fmap_res_i[frame] = wrench[:, i]
+                    tau_res_i = id.call(self.solution['q_res'][:, i], self.solution['v_res'][:, i],
+                                        self.solution['a_res'][:, i], fmap_res_i)
+                    tau_res[:, i] = tau_res_i.toarray().flatten()
 
-            self.solution['tau'] = tau
-            self.solution['tau_res'] = tau_res
-
+                self.solution['tau'] = tau
+                self.solution['tau_res'] = tau_res
 
     def save_solution(self, filename):
         import copy
@@ -175,20 +162,18 @@ class TaskInterface:
         sol_to_save['dt'] = self.prb.getDt()
         ms.store(sol_to_save)
 
-
     def load_solution(self, filename):
         ms = mat_storer.matStorer(filename)
         ig = ms.load()
         self.load_initial_guess(from_dict=ig)
 
-    
     def load_initial_guess(self, from_dict=None):
         if from_dict is None:
             from_dict = self.solution
 
         x_opt = from_dict['x_opt']
         u_opt = from_dict['u_opt']
-        
+
         self.prb.getState().setInitialGuess(x_opt)
         self.prb.getInput().setInitialGuess(u_opt)
         self.prb.setInitialState(x0=x_opt[:, 0])
@@ -218,6 +203,60 @@ class TaskInterface:
         repl.sleep(1.)
         repl.replay(is_floating_base=True, base_link='pelvis')
 
+    def setSolverOptions(self, solver_options):
+        solver_type = solver_options.pop('type')
+        is_receding = solver_options.pop('receding', False)
+
+        self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
+
+    def _create_solver(self, rti=True):
+
+        if self.si.type != 'ilqr':
+            # todo get options from yaml
+            th = Transcriptor.make_method('multiple_shooting', self.prb)
+
+        # todo if receding is true ....
+        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
+
+        try:
+            self.solver_bs.set_iteration_callback()
+        except:
+            pass
+
+        if rti:
+            scoped_opts_rti = self.si.opts.copy()
+            scoped_opts_rti['ilqr.enable_line_search'] = False
+            scoped_opts_rti['ilqr.max_iter'] = 1
+            self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
+
+        return self.solver_bs, self.solver_rti
+
+
+class TaskInterface(ProblemInterface):
+    def __init__(self,
+                 prb,
+                 model):
+
+        super().__init__(prb, model)
+
+        # here I register the the default tasks
+        # todo: should I do it here?
+        # todo: name of task should be inherited from the task class itself:
+        #  --> task_factory.register(CartesianTask.signature(), CartesianTask)
+        # uniform the names of these tasks
+        task_factory.register('Cartesian', CartesianTask)
+        task_factory.register('Contact', ContactTask)
+        task_factory.register('Wrench', SurfaceContact)
+        task_factory.register('VertexForce', VertexContact)
+        task_factory.register('Postural', PosturalTask)
+        task_factory.register('JointLimits', JointLimitsTask)
+        task_factory.register('Regularization', RegularizationTask)
+        task_factory.register('Rolling', RollingTask)
+        task_factory.register('Zmp', ZmpTask)
+
+        # task list
+        self.task_list = []
+
     # a possible method could read from yaml and create the task list
     def setTaskFromYaml(self, yaml_config):
 
@@ -235,15 +274,27 @@ class TaskInterface:
                     weight_dict['v'] = weight_dict.pop('velocity')
                 if 'acceleration' in weight_dict:
                     weight_dict['a'] = weight_dict.pop('acceleration')
-
                 # todo this is wrong: if new forces are added, this is not adding them into the Task
                 if 'force' in weight_dict:
                     weight_force = weight_dict.pop('force')
                     for f in self.model.fmap.values():
                         weight_dict[f.getName()] = weight_force
 
-            self.setTaskFromDict(task_descr)
+            if 'indices' in task_descr and isinstance(task_descr['indices'], dict):
+                indices_dict = task_descr['indices']
+                if 'position' in indices_dict:
+                    indices_dict['q'] = indices_dict.pop('position')
+                if 'velocity' in indices_dict:
+                    indices_dict['v'] = indices_dict.pop('velocity')
+                if 'acceleration' in indices_dict:
+                    indices_dict['a'] = indices_dict.pop('acceleration')
+                # todo this is wrong: if new forces are added, this is not adding them into the Task
+                if 'force' in indices_dict:
+                    indices_force = indices_dict.pop('force')
+                    for f in self.model.fmap.values():
+                        indices_dict[f.getName()] = indices_force
 
+            self.setTaskFromDict(task_descr)
 
     def setTaskFromDict(self, task_description):
         # todo if task is dict... ducktyping
@@ -256,7 +307,7 @@ class TaskInterface:
 
         # todo this should probably go in each single task definition --> i don't have the info from the ti then
         shortcuts = {
-            'nodes': {'final': self.prb.getNNodes() - 1, 'all': range(self.prb.getNNodes())},
+            'nodes': {'final': self.prb.getNNodes() - 1, 'all': list(range(self.prb.getNNodes()))},
             # todo: how to choose the value to substitute depending on the item? (indices of q: self.model.nq, indices of f: self.f.size ...)
             # 'indices': {'floating_base': range(7), 'joints': range(7, self.model.nq + 1)}
         }
@@ -267,7 +318,8 @@ class TaskInterface:
 
         task = task_factory.create(task_specific)
 
-        self.setTask(task)
+        # todo: check if here it is necessary
+        # self.setTask(task)
 
         return task
 
@@ -304,7 +356,6 @@ class TaskInterface:
             subtask_description_list = task_description_copy.pop(
                 'subtask') if 'subtask' in task_description_copy else []
 
-
             # inherit from parent:
             for subtask_description in subtask_description_list:
 
@@ -316,14 +367,14 @@ class TaskInterface:
                             break
                 # child inherit from parent the values, if not present
                 # parent define the context for the child: child can override it
-                
+
                 # todo: better handling of parameter propagation
                 # for key, value in task_description_copy.items():
                 #     if key not in subtask_description and key != 'subtask':
                 #         subtask_description[key] = value
 
                 s_t = self.getTask(subtask_description['name'])
-                
+
                 if s_t is None:
                     s_t = self.generateTaskFromDict(subtask_description)
 
@@ -357,30 +408,3 @@ class TaskInterface:
     # todo
     def setTaskOptions(self):
         pass
-
-    def setSolverOptions(self, solver_options):
-        solver_type = solver_options.pop('type')
-        is_receding = solver_options.pop('receding', False)
-
-        self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
-
-    def _create_solver(self):
-
-        if self.si.type != 'ilqr':
-            # todo get options from yaml
-            th = Transcriptor.make_method('multiple_shooting', self.prb)
-
-        # todo if receding is true ....
-        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
-        
-        try:
-            self.solver_bs.set_iteration_callback()
-        except:
-            pass
-
-        scoped_opts_rti = self.si.opts.copy()
-        scoped_opts_rti['ilqr.enable_line_search'] = False
-        scoped_opts_rti['ilqr.max_iter'] = 1
-        self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
-
-        return self.solver_bs, self.solver_rti

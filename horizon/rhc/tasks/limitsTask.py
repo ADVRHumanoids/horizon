@@ -13,6 +13,10 @@ class JointLimitsTask(Task):
         self._bound_scaling = 1.0 if bound_scaling is None else bound_scaling
 
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
+
+        self.indices = np.array(list(range(self.kin_dyn.nq()))).astype(int) if self.indices is None else np.array(
+            self.indices).astype(int)
 
         if self.fun_type == 'constraint':
             self._initialize_bounds()
@@ -41,7 +45,7 @@ class JointLimitsTask(Task):
         self.q_min = self._getQMin()[self.indices]
         self.q_max = self._getQMax()[self.indices]
 
-        self.q.setBounds(self.q_min, self.q_max, self.initial_nodes)
+        self.q.setBounds(self.q_min, self.q_max, self.nodes)
 
     def _initialize_cost(self):
 
@@ -53,8 +57,8 @@ class JointLimitsTask(Task):
         self.q_min_cost = barrier_fun(self.q - self.q_min)
         self.q_max_cost = barrier_fun(- self.q + self.q_max)
 
-        self.prb.createCost(f'j_lim_min', self.weight * self.q_min_cost)
-        self.prb.createCost(f'j_lim_max', self.weight * self.q_max_cost)
+        self.prb.createCost(f'j_lim_min', self.weight_param * self.q_min_cost)
+        self.prb.createCost(f'j_lim_max', self.weight_param * self.q_max_cost)
 
     def setRef(self, qmin, qmax):
 
@@ -70,7 +74,7 @@ class JointLimitsTask(Task):
         self.q_max = qmax
 
         if self.fun_type == 'constraint':
-            self.q.setBounds(self.q_min, self.q_max, self.initial_nodes)
+            self.q.setBounds(self.q_min, self.q_max, self.nodes)
         elif self.fun_type == 'cost':
             self.q_min_cost.setBounds(self.q_min, self.q_max, self.nodes)
             self.q_max_cost.setBounds(self.q_min, self.q_max, self.nodes)
@@ -148,8 +152,8 @@ class TorqueLimitsTask(Task):
 
     def _initialize_cost(self):
         pass
-        # self.prb.createCost(f'j_lim_min', self.weight * self.q_min_cost)
-        # self.prb.createCost(f'j_lim_max', self.weight * self.q_max_cost)
+        # self.prb.createCost(f'j_lim_min', self.weight_param * self.q_min_cost)
+        # self.prb.createCost(f'j_lim_max', self.weight_param * self.q_max_cost)
 
     def setRef(self, var_min, var_max):
 

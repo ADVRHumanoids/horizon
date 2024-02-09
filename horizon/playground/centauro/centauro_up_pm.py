@@ -1,22 +1,25 @@
+import copy
 import logging
 import os
 import numpy as np
 from horizon.rhc.taskInterface import TaskInterface
 from horizon.problem import Problem
 from horizon.rhc.model_description import *
+from phase_manager import pymanager, pyphase
 from horizon.rhc.tasks.interactionTask import InteractionTask
 from horizon.utils.actionManager import ActionManager, Step
 from casadi_kin_dyn import py3casadi_kin_dyn
 import casadi as cs
+from horizon.utils import trajectoryGenerator
 import rospy
-
+from horizon.utils.analyzer import ProblemAnalyzer
 rospy.init_node('centauro_up_node')
 # set up model
 path_to_examples = os.path.abspath(os.path.dirname(__file__) + "/../../examples")
 os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
 
-urdffile = os.path.join(path_to_examples, 'urdf', 'centauro.urdf')
-# urdffile = os.path.join(path_to_examples, 'urdf', 'centauro_big_wheels.urdf')
+# urdffile = os.path.join(path_to_examples, 'urdf', 'centauro.urdf')
+urdffile = os.path.join(path_to_examples, 'urdf', 'centauro_big_wheels.urdf')
 urdf = open(urdffile, 'r').read()
 rospy.set_param('/robot_description', urdf)
 
@@ -106,8 +109,8 @@ kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
 q_init = {k: v for k, v in q_init.items() if k not in fixed_joint_map.keys()}
 
 # set up problem
-N = 100
-tf = 10.0
+N = 50
+tf = 5.0
 dt = tf / N
 
 prb = Problem(N, receding=True)  # logging_level=logging.DEBUG
@@ -130,40 +133,75 @@ model = FullModelInverseDynamics(problem=prb,
 ti = TaskInterface(prb=prb,
                    model=model)
 
-ti.setTaskFromYaml(os.path.dirname(__file__) + '/centauro_config.yaml')
+ti.setTaskFromYaml(os.path.dirname(__file__) + '/centauro_config_pm.yaml')
 
-f0 = np.array([0, 0, 280, 0, 0, 0])
+
+f0 = np.array([0, 0, kd.mass()/4])
+f0_flight = np.array([0, 0, 0])
 init_force = ti.getTask('joint_regularization')
 # init_force.setRef(1, f0)
 # init_force.setRef(2, f0)
+# init_force.setRef(3, f0)
+# init_force.setRef(4, f0)
+#
+# init_force.setRef(1, f0_flight, nodes=range(20, 31))
+# init_force.setRef(2, f0_flight, nodes=range(20, 31))
+
 
 final_base_x = ti.getTask('final_base_xy')
-final_base_x.setRef(np.array([[.6, 0, 0, 0, 0, 0, 1]]).T)
+final_base_x.setRef(np.array([[2., 0, 0, 0, 0, 0, 1]]).T)
 
 
-# final_base_y = ti.getTask('base_posture')
-# final_base_y.setRef([0, 0, 0.718565, 0, 0, 0, 1])
+# base_posture = ti.getTask('base_posture')
+# base_posture.setRef(np.array([[0, 0, 0.718565, 0, 0, 0, 1]]).T)
+tg = trajectoryGenerator.TrajectoryGenerator()
 
-opts = dict()
-am = ActionManager(ti, opts)
-goal_step = [0.0, 0.0, 0.3]
-n_start_step = 30
-n_goal_step = 35
+pm = pymanager.PhaseManager(N)
 
-# am._walk([10, 40], [0, 3])
-am._step(Step(frame='contact_1', k_start=n_start_step, k_goal=n_goal_step, goal=goal_step))
-am._step(Step(frame='contact_2', k_start=n_start_step, k_goal=n_goal_step, goal=goal_step))
+c_phases = dict()
+for c_name, forces in model.cmap.items():
+    print(f'adding phase for ee: {c_name}')
+    c_phases[c_name] = pm.addTimeline(f'{c_name}_timeline')
 
-# contact_1 = ti.getTask('foot_contact_contact_1')
-# contact_1.setNodes(list(range(5)) + list(range(15, 50)))
+for c_name, forces in model.cmap.items():
 
-# rolling_1 = ti.getTask('rolling_contact_1')
-# rolling_1.setNodes(list(range(5)) + list(range(15, 50)))
+    # stance phase
+    stance_duration = 5
+    stance_phase = pyphase.Phase(stance_duration, f'stance_{c_name}')
+    stance_phase.addItem(ti.getTask(f'foot_{c_name}'))
+    c_phases[c_name].registerPhase(stance_phase)
 
-# todo: horrible API
-# l_contact.setNodes(list(range(5)) + list(range(15, 50)))
-# r_contact.setNodes(list(range(0, 25)) + list(range(35, 50)))
+    # flight phase
+    flight_duration = 3
+    flight_phase = pyphase.Phase(flight_duration, f'flight_{c_name}')
+    init_z_foot = model.kd.fk(c_name)(q=model.q0)['ee_pos'].elements()[2]
+    final_z_foot = init_z_foot + 0.03
+    ref_trj = np.zeros(shape=[7, flight_duration])
+    ref_trj[2, :] = np.atleast_2d(
+        tg.from_derivatives(flight_duration, init_z_foot, final_z_foot, 0.05, [None, 0, None]))
+    flight_phase.addItemReference(ti.getTask(f'foot_z_{c_name}'), ref_trj)
+    c_phases[c_name].registerPhase(flight_phase)
 
+for c_name, forces in model.cmap.items():
+    stance = c_phases[c_name].getRegisteredPhase(f'stance_{c_name}')
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+    c_phases[c_name].addPhase(stance)
+
+flight_contact = ['contact_1'] # 'contact_2'
+
+initial_phase_action = 6
+for flight_c_name in flight_contact:
+    flight = c_phases[flight_c_name].getRegisteredPhase(f'flight_{flight_c_name}')
+    c_phases[flight_c_name].addPhase(flight, initial_phase_action)
+    # initial_phase_action += 1
 
 # ===============================================================
 # ===============================================================
@@ -181,10 +219,10 @@ a = ti.prb.getVariables('a')
 # ti.prb.createIntermediateResidual('min_angular_mom', 0.1 * dh_ang)
 
 # continuity of forces
-continuity_force_w = 5e-2
-for f_name, f_var in model.fmap.items():
-    f_var_prev = f_var.getVarOffset(-1)
-    prb.createIntermediateResidual(f'continuity_force_{f_name}', continuity_force_w * (f_var - f_var_prev), range(1, prb.getNNodes() - 2))
+# continuity_force_w = 5e-2
+# for f_name, f_var in model.fmap.items():
+#     f_var_prev = f_var.getVarOffset(-1)
+#     prb.createIntermediateResidual(f'continuity_force_{f_name}', continuity_force_w * (f_var - f_var_prev), range(1, prb.getNNodes() - 2))
 
 q.setBounds(ti.model.q0, ti.model.q0, nodes=0)
 v.setBounds(ti.model.v0, ti.model.v0, nodes=0)
@@ -194,6 +232,14 @@ q.setInitialGuess(ti.model.q0)
 for cname, cforces in ti.model.cmap.items():
     for c in cforces:
         c.setInitialGuess(f0[:c.size1()])
+
+        if cname == 'contact_1':
+            c.setInitialGuess(f0_flight, nodes=range(20, 23))
+
+        # if cname == 'contact_2':
+        #     c.setInitialGuess(f0_flight, nodes=range(20, 23))
+
+
 
 replay_motion = True
 plot_sol = not replay_motion
@@ -208,91 +254,16 @@ ti.prb.createFinalConstraint('final_v', v)
 from horizon.ros import replay_trajectory
 
 ti.finalize()
+
+pa = ProblemAnalyzer(prb)
+pa.print()
+# exit()
+
 ti.bootstrap()
 solution = ti.solution
 ti.resample(0.001)
-# ti.save_solution('centauro_up.mat')
+# ti.save_solution('centauro_up_pm.mat')
 ti.replay_trajectory()
-exit()
-
-# n_nodes = ti.prb.getNNodes()
-# nodes_vec = np.zeros([n_nodes])
-#
-# for i in range(1, n_nodes):
-#     nodes_vec[i] = nodes_vec[i - 1] + ti.prb.getDt()
-#
-# num_samples = ti.solution['tau_res'].shape[1]
-# dt_res = ti.solution['dt_res']
-#
-# nodes_vec_res = np.zeros([num_samples + 1])
-# for i in range(1, num_samples + 1):
-#     nodes_vec_res[i] = nodes_vec_res[i - 1] + dt_res
-#
-#
-# tau_sol_res = ti.solution['tau_res']
-# tau_sol_base = tau_sol_res[:6, :]
-#
-#
-# from matplotlib import pyplot as plt
-# threshold = 5
-# ## get index of values greater than a given threshold for each dimension of the vector, and remove all the duplicate values (given by the fact that there are more dimensions)
-# indices_exceed = np.unique(np.argwhere(np.abs(tau_sol_base) > threshold)[:, 1])
-# # these indices corresponds to some nodes ..
-# values_exceed = nodes_vec_res[indices_exceed]
-#
-# ## search for duplicates and remove them, both in indices_exceed and values_exceed
-# indices_duplicates = np.where(np.in1d(values_exceed, nodes_vec))
-# value_duplicates = values_exceed[indices_duplicates]
-#
-# values_exceed = np.delete(values_exceed, np.where(np.in1d(values_exceed, value_duplicates)))
-# indices_exceed = np.delete(indices_exceed, indices_duplicates)
-#
-# ## base vector nodes augmented with new nodes + sort
-# nodes_vec_augmented = np.concatenate((nodes_vec, values_exceed))
-# nodes_vec_augmented.sort(kind='mergesort')
-#
-# plot_tau_base = True
-# if plot_tau_base:
-#     plt.figure()
-#     for dim in range(6):
-#         plt.plot(nodes_vec_res[:-1], np.array(tau_sol_res[dim, :]))
-#     plt.title('tau on base')
-#
-#
-#     plt.hlines([threshold], nodes_vec[0], nodes_vec[-1], linestyles='dashed', colors='k', linewidth=0.4)
-#     plt.hlines([-threshold], nodes_vec[0], nodes_vec[-1], linestyles='dashed', colors='k', linewidth=0.4)
-#
-#     plt.show()
-
-# print(nodes_vec_augmented.shape)
-# from horizon.utils import refiner
-
-# ref = refiner.Refiner(prb, nodes_vec_augmented, ti.solver_bs)
-#
-# ref.resetProblem()
-# ref.resetFunctions()
-# ref.resetVarBounds()
-# ref.resetInitialGuess()
-# ref.addProximalCosts()
-# ref.solveProblem()
-# sol_var, sol_cnsrt, sol_dt = ref.getSolution()
-#
-# new_prb = ref.getAugmentedProblem()
-
-# ms = mat_storer.matStorer(f'refiner_spot_jump.mat')
-# sol_cnsrt_dict = dict()
-# for name, item in new_prb.getConstraints().items():
-#     lb, ub = item.getBounds()
-#     lb_mat = np.reshape(lb, (item.getDim(), len(item.getNodes())), order='F')
-#     ub_mat = np.reshape(ub, (item.getDim(), len(item.getNodes())), order='F')
-#     sol_cnsrt_dict[name] = dict(val=sol_cnsrt[name], lb=lb_mat, ub=ub_mat, nodes=item.getNodes())
-#
-# from horizon.variables import Variable, SingleVariable, Parameter, SingleParameter
-
-# info_dict = dict(n_nodes=new_prb.getNNodes(), times=nodes_vec_augmented, dt=sol_dt)
-# ms.store({**sol_var, **sol_cnsrt_dict, **info_dict})
-# =========================================================================
-
 
 
 

@@ -190,10 +190,27 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
 
     double cost = 0.0;
 
+    // reset constr value to nan
+    for(auto& item : _cost_values)
+    {
+        item.second.setConstant(std::numeric_limits<double>::quiet_NaN());
+    }
+
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
         cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
+
+        // optionally (TBD) save values of single costs acting on this node
+        for(auto it : _cost[i].items)
+        {
+            // not updating items uninitialized (item vs item_cost)
+            if (_cost_values[it->getName()].size() != 0)
+            {
+                _cost_values[it->getName()](i) = it->getCostEvaluated();
+            }
+        }
+
     }
 
     // add final cost
@@ -228,6 +245,12 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
 
     double constr = 0.0;
 
+    // reset constr value to nan
+    for(auto& item : _constr_values)
+    {
+        item.second.setConstant(std::numeric_limits<double>::quiet_NaN());
+    }
+
     // intermediate constraint violation
     for(int i = 0; i < _N; i++)
     {
@@ -239,6 +262,12 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
         _constraint[i].evaluate(xtrj.col(i), utrj.col(i), i);
         _fp_res->constraint_values[i] = _constraint[i].h().lpNorm<1>();
         constr += _fp_res->constraint_values[i];
+
+        // optionally (TBD) save values of single constraints acting on this node
+        for(auto it : _constraint[i].items)
+        {
+            _constr_values[it->f.function().name()].col(i) = it->h();
+        }
 
     }
 

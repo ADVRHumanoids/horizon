@@ -205,21 +205,21 @@ for c in contacts:
 #     c_phases[c].addPhase(stance)
 #
 #
-# range_trot_1 = range(4, 25, 2)
-# range_trot_2 = range(5, 26, 2)
-#
-# lift_contact = 'lh_foot'
-# for i in range_trot_1:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'rh_foot'
-# for i in range_trot_2:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'lf_foot'
-# for i in range_trot_2:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
-# lift_contact = 'rf_foot'
-# for i in range_trot_1:
-#     c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+range_trot_1 = range(4, 25, 2)
+range_trot_2 = range(5, 26, 2)
+
+lift_contact = 'lh_foot'
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'rh_foot'
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'lf_foot'
+for i in range_trot_2:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
+lift_contact = 'rf_foot'
+for i in range_trot_1:
+    c_phases[lift_contact].addPhase(c_phases[lift_contact].getRegisteredPhase(f'flight_{lift_contact}'), i)
 
 # for name, timeline in c_phases.items():
     # print('timeline:', timeline.getName())

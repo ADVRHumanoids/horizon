@@ -2,9 +2,9 @@ import logging
 import os
 import numpy as np
 from horizon.rhc.taskInterface import TaskInterface
-from horizon.utils.actionManager import ActionManager
+from horizon.utils import trajectoryGenerator, utils
 from horizon.problem import Problem
-from horizon.rhc.PhaseManager import PhaseManager, Phase
+from horizon.rhc.RecedingHorizon import RecedingHorizon
 from horizon.solvers import Solver
 from horizon.rhc.model_description import FullModelInverseDynamics
 from casadi_kin_dyn import pycasadi_kin_dyn
@@ -14,36 +14,8 @@ import time
 import phase_manager.pyphase as pyphase
 import phase_manager.pymanager as pymanager
 import math
-
-
-def barrier(x):
-    return cs.sum1(cs.if_else(x > 0, 0, x ** 2))
-
-
-def _trj(tau):
-    return 64. * tau ** 3 * (1 - tau) ** 3
-
-def compute_polynomial_trajectory(k_start, nodes, nodes_duration, p_start, p_goal, clearance, dim=None):
-
-    if dim is None:
-        dim = [0, 1, 2]
-
-    # todo check dimension of parameter before assigning it
-
-    traj_array = np.zeros(len(nodes))
-
-    start = p_start[dim]
-    goal = p_goal[dim]
-
-    index = 0
-    for k in nodes:
-        tau = (k - k_start) / nodes_duration
-        trj = _trj(tau) * clearance
-        trj += (1 - tau) * start + tau * goal
-        traj_array[index] = trj
-        index = index + 1
-
-    return np.array(traj_array)
+import rospy
+import subprocess
 
 # set up problem
 ns = 50
@@ -60,6 +32,12 @@ transcription_opts = dict(integrator='RK4')
 path_to_examples = os.path.dirname('../../examples/')
 urdffile = os.path.join(path_to_examples, 'urdf', 'centauro.urdf')
 urdf = open(urdffile, 'r').read()
+
+
+rospy.set_param('/robot_description', urdf)
+bashCommand = 'rosrun robot_state_publisher robot_state_publisher'
+process = subprocess.Popen(bashCommand.split(), start_new_session=True)
+
 
 contacts = ['contact_1', 'contact_2', 'contact_3', 'contact_4']
 
@@ -175,6 +153,7 @@ model.setContactFrame('contact_2', 'vertex', dict(vertex_frames=['contact_2']))
 model.setContactFrame('contact_3', 'vertex', dict(vertex_frames=['contact_3']))
 model.setContactFrame('contact_4', 'vertex', dict(vertex_frames=['contact_4']))
 
+# set initial state and initial guess
 model.q.setBounds(model.q0, model.q0, 0)
 model.v.setBounds(model.v0, model.v0, 0)
 
@@ -207,11 +186,11 @@ prb.createResidual("min_v", 1e-1 * model.v)
 # final posture
 prb.createFinalResidual("min_qf", 1e1 * (model.q[7:] - model.q0[7:]))
 
-jlim_cost = barrier(model.q[8:10] - (-2.55)) + \
-            barrier(model.q[14:16] - (-2.55)) + \
-            barrier(model.q[20:22] - (-2.55))
+jlim_cost = utils.barrier(model.q[8:10] - (-2.55)) + \
+            utils.barrier(model.q[14:16] - (-2.55)) + \
+            utils.barrier(model.q[20:22] - (-2.55))
 
-prb.createCost(f'jlim', 100 * jlim_cost)
+prb.createResidual(f'jlim', 100 * jlim_cost)
 
 # joint acceleration
 prb.createIntermediateResidual("min_q_ddot", 1e-2 * model.a)
@@ -241,8 +220,8 @@ for i, frame in enumerate(contacts):
     contact = prb.createConstraint(f"{frame}_vel", ee_v, nodes=[])  # ee_v # cs.vertcat(ee_v, ee_v_ang)
     contact_rot = prb.createResidual(f"{frame}_rot_vel", 1 * ee_v_ang, nodes=[])
     # unilateral forces
-    fcost = barrier(model.fmap[frame][2] - 100.0)  # fz > 10
-    unil = prb.createIntermediateCost(f'{frame}_unil', 1e-3 * fcost, nodes=[])
+    fcost = utils.barrier(model.fmap[frame][2] - 100.0)  # fz > 10
+    unil = prb.createIntermediateResidual(f'{frame}_unil', 1e-3 * fcost, nodes=[])
 
     # clearance
     contact_pos[frame] = FK(q=model.q0)['ee_pos']
@@ -262,28 +241,30 @@ base_goal = [x_goal, y_goal, math.atan2(y_goal, x_goal)]
 
 ptgt.assign(base_goal)
 
+rhc = RecedingHorizon(prb, model)
 
-cplusplus = True
+# rhc.addPhase?
+# rhc.createPhase?
+# rhc.getContactPhase?
+rhc.addInput(f'line_{c}', phase)
 
-opts =dict()
-# opts['logging_level']=logging.DEBUG
-if cplusplus:
-    pm = pymanager.PhaseManager(ns)
-else:
-    pm = PhaseManager(nodes=ns, opts=opts)
 
-c_phases = dict()
-for c in contacts:
-     c_phases[c] = pm.addTimeline(f'{c}_timeline')
+
+# opts =dict()
+# pm = pymanager.PhaseManager(ns)
 #
+# c_phases = dict()
+# for c in contacts:
+#      c_phases[c] = pm.addTimeline(f'{c}_timeline')
+
+tg = trajectoryGenerator.TrajectoryGenerator()
+
 i = 0
 for c in contacts:
     # stance phase
     stance_duration = 10
-    if cplusplus:
-        stance_phase = pyphase.Phase(stance_duration, f"stance_{c}")
-    else:
-        stance_phase = Phase(f'stance_{c}', stance_duration)
+
+    stance_phase = pyphase.Phase(stance_duration, f"stance_{c}")
 
     stance_phase.addConstraint(prb.getConstraints(f'{c}_vel'))
     stance_phase.addCost(prb.getCosts(f'{c}_rot_vel'))
@@ -292,10 +273,7 @@ for c in contacts:
 #
 #     # flight phase
     flight_duration = 10
-    if cplusplus:
-        flight_phase = pyphase.Phase(flight_duration, f"flight_{c}")
-    else:
-        flight_phase = Phase(f'flight_{c}', flight_duration)
+    flight_phase = pyphase.Phase(flight_duration, f"flight_{c}")
 
     flight_phase.addVariableBounds(prb.getVariables(f'f_{c}'),  np.array([[0, 0, 0]] * flight_duration).T, np.array([[0, 0, 0]] * flight_duration).T)
     flight_phase.addConstraint(prb.getConstraints(f'{c}_clea'))
@@ -303,12 +281,11 @@ for c in contacts:
     # vertical take-off
     flight_phase.addConstraint(prb.getConstraints(f'{c}_vert'), nodes=[0, flight_duration-1])  # nodes=[0, 1, 2]
 
-    z_trj = np.atleast_2d(compute_polynomial_trajectory(0, range(flight_duration), flight_duration, contact_pos[c], contact_pos[c], 0.1, dim=2))
+    z_trj = np.atleast_2d(tg.from_derivatives(flight_duration, contact_pos[c].elements()[2], contact_pos[c].elements()[2], 0.1, [None, 0, None]))
 
     flight_phase.addParameterValues(prb.getParameters(f'{c}_z_des'), z_trj)
     c_phases[c].registerPhase(flight_phase)
 
-    print(flight_phase.getConstraints())
 
 for c in contacts:
     stance = c_phases[c].getRegisteredPhase(f'stance_{c}')

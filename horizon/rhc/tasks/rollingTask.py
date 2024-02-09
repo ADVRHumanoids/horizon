@@ -10,6 +10,7 @@ class RollingTask(Task):
         self.radius = radius
 
         super().__init__(*args, **kwargs)
+        self._createWeightParam()
 
         self.indices = np.array([0, 1, 2]).astype(
             int) if self.indices is None else np.array(self.indices).astype(int)
@@ -89,18 +90,31 @@ class RollingTask(Task):
         q = self.prb.getVariables('q')
         v = self.prb.getVariables('v')
 
+        fk_distal = self.kin_dyn.fk(self.frame)
+        ee_p_distal_r = fk_distal(q=q)['ee_rot']
+
         dfk_distal = self.kin_dyn.frameVelocity(self.frame, self.kd_frame)
         ee_v_distal_t = dfk_distal(q=q, qdot=v)['ee_vel_linear']
         ee_v_distal_r = dfk_distal(q=q, qdot=v)['ee_vel_angular']
 
         # normal of plane where rolling happens
-        world_contact_plane_normal = np.array([0.0001, 0., 1.])
+        # world_contact_plane_normal = np.array([0.0001, 0., 1.])
+
+        # get component along gravity
+        g_ver = np.array([0., 0., -1.])
+        wheel_ver = ee_p_distal_r.T @ g_ver
+
+        # print(wheel_ver)
+        wheel_ver[2] = 0.
+        wheel_ver = wheel_ver / cs.norm_2(wheel_ver)
 
         # rot velocity (in world) of wheel
         omega = ee_v_distal_r
 
         # radius of wheel
-        r = - world_contact_plane_normal * self.radius
+        # r = - world_contact_plane_normal * self.radius
+        wheel_ver = ee_p_distal_r @ wheel_ver
+        r = self.radius @ wheel_ver
 
         # velocity of point contact between wheel and plane
         v_contact_point = ee_v_distal_t + cs.cross(omega, r)
@@ -111,9 +125,9 @@ class RollingTask(Task):
     def _initialize(self):
 
         fun = self._velocity_formulation()
-        self.constr = self.instantiator(f'{self.name}_rolling_task', self.weight * fun, nodes=self.nodes)
+        self.constr = self.instantiator(f'{self.name}_rolling_task', self.weight_param * fun, nodes=self.nodes)
 
 
-    def setNodes(self, nodes):
-        self.constr.setNodes(nodes)
+    def setNodes(self, nodes, erasing=True):
+        self.constr.setNodes(nodes, erasing)
 

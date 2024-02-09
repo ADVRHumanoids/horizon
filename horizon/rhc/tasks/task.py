@@ -1,6 +1,6 @@
 from re import sub
 import casadi as cs
-from typing import List, Iterable, Union, Sequence, Dict, Type
+from typing import List, Iterable, Union, Sequence, Dict, Type, Tuple
 import random, string
 from horizon.problem import Problem
 import numpy as np
@@ -37,7 +37,7 @@ class Task:
         return cls(**task_dict)
 
     @classmethod
-    def subtask_by_class(cls, subtask: Dict, classname: Type) -> 'classname':
+    def subtask_by_class(cls, subtask: Dict, classname: Union[Type, Tuple[Type]]) -> 'classname':
         ret = []
         for _, v in subtask.items():
             if isinstance(v, classname):
@@ -46,12 +46,41 @@ class Task:
 
     def __post_init__(self):
         # todo: this is for simplicity
-        self.indices = np.array(self.indices) if self.indices is not None else None
+        if isinstance(self.indices, dict):
+            for elem in self.indices:
+                self.indices[elem] = np.array(self.indices[elem])
+        else:
+            self.indices = np.array(self.indices) if self.indices is not None else None
         # self.nodes = list(range(self.prb.getNNodes()))
 
-    def setNodes(self, nodes):
+    def _createWeightParam(self):
+
+        # weight and dim must be the same dimension
+        if isinstance(self.weight, (float, int)):
+            self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
+            self.weight_param.assign(self.weight)
+
+        elif isinstance(self.weight, List):
+            self.weight_param = []
+            for i_dim in range(len(self.weight)):
+
+                temp_par = self.prb.createParameter(f'{self.name}_weight_{i_dim}', 1)
+                temp_par.assign(self.weight[i_dim])
+                self.weight_param.append(temp_par)
+
+        elif isinstance(self.weight, dict):
+            self.weight_param = dict()
+            for elem, w in self.weight.items():
+                temp_par = self.prb.createParameter(f'{self.name}_weight_{elem}', 1)
+                temp_par.assign(self.weight[elem])
+                self.weight_param[elem] = temp_par
+
+    def setNodes(self, nodes, erasing=True):
         self.nodes = nodes
         self.n_active = len(self.nodes)
+
+    def setWeight(self, val, nodes=None, indices=None):
+        self.weight_param.assign(val, nodes, indices)
 
     def setIndices(self, indices):
         self.indices = indices
@@ -67,3 +96,6 @@ class Task:
 
     def getType(self):
         return self.type
+
+    def getWeight(self):
+        return self.weight_param.getValues()

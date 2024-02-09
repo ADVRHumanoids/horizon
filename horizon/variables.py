@@ -11,14 +11,18 @@ import pprint
 from abc import ABC, abstractmethod
 import itertools
 
+
 def getRanges(i):
     for a, b in itertools.groupby(enumerate(i), lambda pair: pair[1] - pair[0]):
         b = list(b)
         yield b[0][1], b[-1][1]
+
+
 '''
 now the StateVariable is only abstract at the very beginning.
 Formerly
 '''
+
 
 # todo create function checker to check if nodes are in self.nodes and if everything is ok with the input (no dict, no letters...)
 
@@ -59,7 +63,7 @@ class AbstractVariable(ABC):
 
         # offset of a variable is used to point to the desired previous/next implemented
         # Example:
-            # offset 1 of variable x --> refers to implemented variable x at the next node
+        # offset 1 of variable x --> refers to implemented variable x at the next node
         self._offset = 0
 
     def getDim(self) -> int:
@@ -89,13 +93,14 @@ class AbstractVariable(ABC):
     #     view = AbstractVariableView(self, item)
     #     return view
 
+
 class AbstractVariableView:
     def __init__(self, parent: AbstractVariable, var_slice, indices):
 
         # dynamically add casadi_type as base class
         class AVVClass(self.__class__, parent._abstract_casadi_type):
             pass
-        
+
         self.__class__ = AVVClass
 
         # initialize base class
@@ -196,6 +201,7 @@ class OffsetTemplate(AbstractVariable):  # note parametrize casadi type!!!
 
         return (self.__class__, (self.parent_name, self._tag, self._dim, self._offset, self._impl,))
 
+
 # todo add also absolute position of variable
 #   not only relative position (offseted to the present one)
 
@@ -208,6 +214,7 @@ class SingleParameter(AbstractVariable):
     The assigned value is the same along the horizon, since this parameter is node-independent.
     The Parameter is abstract, and gets implemented automatically.
     """
+
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         """
         Initialize the Single Parameter: a node-independent parameter which is not projected over the horizon.
@@ -260,7 +267,7 @@ class SingleParameter(AbstractVariable):
         if nodes is None:
             val_impl = self._impl[val_type]
         else:
-            nodes, _ = misc.checkNodes(nodes, self._nodes_array)
+            nodes = misc.checkNodes(nodes, self._nodes_array)
             num_nodes = int(np.sum(self._nodes_array[nodes]))
             val_impl = cs.repmat(self._impl[val_type], 1, num_nodes)
 
@@ -336,6 +343,7 @@ class SingleParameter(AbstractVariable):
         view = SingleParameterView(self, par_slice, item)
         return view
 
+
 class SingleParameterView(AbstractVariableView):
     def __init__(self, parent: SingleParameter, var_slice, indices):
         super().__init__(parent, var_slice, indices)
@@ -351,11 +359,13 @@ class SingleParameterView(AbstractVariableView):
         indices = np.array(range(self._parent._dim))[self._indices]
         self._parent.assign(vals, indices=indices)
 
+
 class Parameter(AbstractVariable):
     """
     Parameter of Horizon Problem.
     It is used for parametric problems: it is a symbolic variable in the optimization problem but it is not optimized. Rather, it is kept parametric and can be assigned before solving the problem.
     """
+
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         """
         Initialize the Parameter: an abstract parameter projected over the horizon.
@@ -451,6 +461,7 @@ class Parameter(AbstractVariable):
             nodes = misc.checkNodes(nodes, self._nodes_array)
 
         # todo: this can be removed in recedingFunctions
+        # ... NOT REALLY, SINCE VAR_PREV MUST BE HANDLED
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
 
         val = misc.checkValueEntry(val)
@@ -464,7 +475,8 @@ class Parameter(AbstractVariable):
         val_checked = misc.checkValueEntry(val)
 
         if val_checked.shape[0] != indices_vec.size:
-            raise Exception(f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
+            raise Exception(
+                f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
 
         # if a matrix of values is being provided, check cols match len(nodes)
         multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
@@ -558,7 +570,8 @@ class Parameter(AbstractVariable):
             createTag = lambda name, node: name + str(node) if node is not None else name
 
             new_tag = createTag(self._tag, node)
-            par = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl, self._casadi_type, self._abstract_casadi_type)
+            par = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl,
+                                 self._casadi_type, self._abstract_casadi_type)
 
             self._par_offset[node] = par
         return par
@@ -585,6 +598,7 @@ class Parameter(AbstractVariable):
             instance of this element serialized
         """
         return (self.__class__, (self._tag, self._dim, self._nodes,))
+
 
 class ParameterView(AbstractVariableView):
     def __init__(self, parent: SingleParameter, var_slice, indices):
@@ -616,12 +630,14 @@ class ParameterView(AbstractVariableView):
 
         return par_impl
 
+
 class SingleVariable(AbstractVariable):
     """
     Single Variable of Horizon Problem: generic variable of the optimization problem.
     The single variable is the same along the horizon, since it is node-independent.
     The Variable is abstract, and gets implemented automatically.
     """
+
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         """
         Initialize the Single Variable: a node-independent variable which is not projected over the horizon.
@@ -836,12 +852,14 @@ class SingleVariable(AbstractVariable):
 
     def toParameter(self):
         # self, tag, dim, nodes_array, casadi_type, abstract_casadi_type
-        return SingleParameter(self._tag, self.getDim(), self._nodes_array, self._casadi_type, self._abstract_casadi_type)
+        return SingleParameter(self._tag, self.getDim(), self._nodes_array, self._casadi_type,
+                               self._abstract_casadi_type)
 
     def __getitem__(self, item):
         var_slice = super().__getitem__(item)
         view = SingleVariableView(self, var_slice, item)
         return view
+
 
 class SingleVariableView(AbstractVariableView):
     def __init__(self, parent: SingleVariable, var_slice, indices):
@@ -896,6 +914,7 @@ class SingleVariableView(AbstractVariableView):
         """
         self._setVals('w0', val)
 
+
 class Variable(AbstractVariable):
     """
     Variable of Horizon Problem: generic variable of the optimization problem.
@@ -906,6 +925,7 @@ class Variable(AbstractVariable):
 
         Implemented variable "x" --> x_0, x_1, ... x_N-1, x_N
     """
+
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         """
         Initialize the Variable.
@@ -955,7 +975,8 @@ class Variable(AbstractVariable):
 
         val_checked = misc.checkValueEntry(val)
         if val_checked.shape[0] != indices_vec.size:
-            raise Exception(f'Wrong dimension of variable values inserted: {val_checked.shape[0]} instead of {indices_vec.size}')
+            raise Exception(
+                f'Wrong dimension of variable values inserted: {val_checked.shape[0]} instead of {indices_vec.size}')
 
         self._impl[val_type][np.ix_(np.atleast_1d(indices_vec), pos_nodes)] = val_checked
 
@@ -1032,7 +1053,8 @@ class Variable(AbstractVariable):
             createTag = lambda name, node: name + str(node) if node is not None else name
 
             new_tag = createTag(self._tag, node)
-            var = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl, self._casadi_type, self._abstract_casadi_type)
+            var = OffsetTemplate(self._tag, new_tag, self._dim, int(node), self._nodes_array, self._impl,
+                                 self._casadi_type, self._abstract_casadi_type)
 
             self.var_offset[node] = var
         return var
@@ -1060,6 +1082,7 @@ class Variable(AbstractVariable):
 
         self._nodes_array = node_array
         self._project()
+
     # def _project(self):
     #     """
     #     Implements the variable along the horizon nodes.
@@ -1101,7 +1124,6 @@ class Variable(AbstractVariable):
         var_ub = np.full((proj_dim[0], proj_dim[1]), np.inf)
         var_w0 = np.zeros([proj_dim[0], proj_dim[1]])
 
-
         new_var_impl['var'] = var_impl
         new_var_impl['lb'] = var_lb
         new_var_impl['ub'] = var_ub
@@ -1134,8 +1156,8 @@ class Variable(AbstractVariable):
             # for node in nodes:
             #     if self._nodes_array[node] == 1:
             #         checked_nodes.append(node)
-                    # pos_in_vec.append(i)
-                # i += 1
+            # pos_in_vec.append(i)
+            # i += 1
             # checked_nodes, not_impl_nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(checked_nodes, self._nodes_array)
@@ -1150,7 +1172,6 @@ class Variable(AbstractVariable):
         # vals[:, pos_in_vec] = self._impl[val_type][:, pos_nodes]
         # TODO: before was like this:
         vals = self._impl[val_type][:, pos_nodes]
-
 
         return vals
 
@@ -1262,6 +1283,7 @@ class Variable(AbstractVariable):
             instance of this element serialized
         """
         return (self.__class__, (self._tag, self._dim, self._nodes_array,))
+
 
 class VariableView(AbstractVariableView):
     def __init__(self, parent: Variable, var_slice, indices):
@@ -1391,6 +1413,7 @@ class VariableView(AbstractVariableView):
     def getVarOffset(self, node):
         return self._parent.getVarOffset(node)[self._indices, :]
 
+
 class RecedingVariable(Variable):
     def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
         super().__init__(tag, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
@@ -1408,6 +1431,7 @@ class RecedingVariable(Variable):
             nodes: which nodes the values are applied on
             indices: which indices the values are applied on
         """
+
         # nodes
         if nodes is None:
             nodes = self._nodes
@@ -1425,7 +1449,8 @@ class RecedingVariable(Variable):
         val_checked = misc.checkValueEntry(val)
 
         if val_checked.shape[0] != indices_vec.size:
-            raise Exception(f'Wrong dimension of variable values inserted: {val_checked.shape[0]} instead of {indices_vec.size}')
+            raise Exception(
+                f'Wrong dimension of variable values inserted: {val_checked.shape[0]} instead of {indices_vec.size}')
 
         self._impl[val_type][np.ix_(np.atleast_1d(indices_vec), nodes)] = val_checked
 
@@ -1463,33 +1488,58 @@ class RecedingParameter(Parameter):
            nodes: nodes at which the parameter is assigned
        """
         # nodes
+        # start_time = time.time()
 
         if nodes is None:
             nodes = self._nodes
             # nodes = misc.getNodesFromBinary(self._nodes_array)
+
         else:
             nodes = misc.checkNodes(nodes, self._nodes_array)
 
-        # pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+        # print(f'time elapsed checking nodes: {time.time() - start_time}')
+
+        # start_time_1 = time.time()
+
+        # THIS IS SADLY NECESSARY IF VARIABLE PREV ARE INVOLVED
+        if self.getOffset() != 0:
+            nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+
+        # print(f'time elapsed converting: {time.time() - start_time_1}')
+
+        # start_time_2 = time.time()
         val_checked = misc.checkValueEntry(val)
 
-        # indices
-        if indices is None:
-            indices_vec = np.array(range(self._dim)).astype(int)
-        else:
-            indices_vec = np.atleast_1d(np.array(indices).astype(int))
+        # print(f'time elapsed checking values: {time.time() - start_time_2}')
 
-        if val_checked.shape[0] != indices_vec.size:
-            raise Exception(f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
-
-        # if a matrix of values is being provided, check cols match len(nodes)
         multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
 
         if multiple_vals and val_checked.shape[1] != len(nodes):
             raise Exception(f'Wrong dimension of parameter inserted.')
-        # todo this is because what I receive as val is 1-dimensional array which cannot be assigned to a matrix
-        self._impl['val'][np.ix_(indices_vec, nodes)] = val_checked
 
+        # start_time_3 = time.time()
+        # indices
+        if indices is None:
+            if val_checked.shape[0] != self._dim:
+                raise Exception(
+                    f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {self._dim})')
+
+            self._impl['val'][:, nodes] = val_checked
+
+        else:
+            indices_vec = np.atleast_1d(np.array(indices).astype(int))
+
+            if val_checked.shape[0] != indices_vec.size:
+                raise Exception(
+                    f'Wrong dimension of parameter values inserted: ({val_checked.shape[0]} != {indices_vec.size})')
+
+            self._impl['val'][np.ix_(indices_vec, nodes)] = val_checked
+
+        # if a matrix of values is being provided, check cols match len(nodes)
+
+        # todo this is because what I receive as val is 1-dimensional array which cannot be assigned to a matrix
+        # print(f'time elapsed implementing: {time.time() - start_time_3}')
+        # print(f'\033[91m time elapsed reassigning {self.getName()}: {time.time() - start_time}\033[0m')
 
     def shift(self):
 
@@ -1514,6 +1564,7 @@ class InputVariable(Variable):
 
         Implemented variable "x" --> x_0, x_1, ... x_N-1
     """
+
     def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type):
         """
         Initialize the Input Variable.
@@ -1524,6 +1575,7 @@ class InputVariable(Variable):
             nodes: should always be N-1, where N is the number of horizon nodes
         """
         super().__init__(tag, dim, nodes, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+
 
 class StateVariable(Variable):
     """
@@ -1545,7 +1597,9 @@ class StateVariable(Variable):
             dim: dimension of the variable
             nodes: should always be N, where N is the number of horizon nodes
         """
-        super(StateVariable, self).__init__(tag, dim, nodes, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        super(StateVariable, self).__init__(tag, dim, nodes, casadi_type=casadi_type,
+                                            abstract_casadi_type=abstract_casadi_type)
+
 
 class RecedingInputVariable(RecedingVariable):
     def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type):
@@ -1573,12 +1627,12 @@ class RecedingStateVariable(RecedingVariable):
         super().__init__(tag, dim, nodes, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
 
 
-
 class AbstractAggregate(ABC):
     """
     Abstract Aggregate of the Horizon Problem.
     Used to store more variables of the same nature.
     """
+
     def __init__(self, *args: AbstractVariable):
         """
         Initialize the Abstract Aggregate.
@@ -1586,7 +1640,7 @@ class AbstractAggregate(ABC):
         Args:
             *args: abstract variables of the same nature
         """
-        self.var_list : List[AbstractVariable] = [item for item in args]
+        self.var_list: List[AbstractVariable] = [item for item in args]
 
     def getVars(self, abstr=False):
         """
@@ -1613,6 +1667,7 @@ class AbstractAggregate(ABC):
         Aggregate can be accessed with indexing.
         """
         return self.var_list[ind]
+
 
 class OffsetAggregate(AbstractAggregate):
     """
@@ -1645,11 +1700,13 @@ class OffsetAggregate(AbstractAggregate):
         offset = sum(v.getDim() for v in self.var_list[:i])
         return offset, self.var_list[i].getDim()
 
+
 class Aggregate(AbstractAggregate):
     """
     Aggregate of the Horizon Problem.
     Used to store more variables of the same nature.
     """
+
     def __init__(self, *args):
         """
         Initialize the Aggregate.
@@ -1674,7 +1731,7 @@ class Aggregate(AbstractAggregate):
 
     def getVarIndex(self, name):
         """
-        Return offset and dimension for the variable with given name, 
+        Return offset and dimension for the variable with given name,
         that must belong to this aggregate. The resulting pair is such
         that the following code returns the variable's SX value
             off, dim = self.getVarIndex(name='myvar')
@@ -1714,10 +1771,8 @@ class Aggregate(AbstractAggregate):
         # todo make this a little better
         for i in range(len(self.var_list)):
             if var_name == self.var_list[i].getName():
-
                 del self.var_list[i]
                 break
-
 
     def setBounds(self, lb, ub, nodes=None):
         """
@@ -1742,7 +1797,7 @@ class Aggregate(AbstractAggregate):
         idx = 0
         for var in self:
             nv = var.shape[0]
-            var.setLowerBounds(lb[idx:idx+nv], nodes)
+            var.setLowerBounds(lb[idx:idx + nv], nodes)
             idx += nv
 
     def setUpperBounds(self, ub, nodes=None):
@@ -1756,7 +1811,7 @@ class Aggregate(AbstractAggregate):
         idx = 0
         for var in self:
             nv = var.shape[0]
-            var.setUpperBounds(ub[idx:idx+nv], nodes)
+            var.setUpperBounds(ub[idx:idx + nv], nodes)
             idx += nv
 
     def setInitialGuess(self, v0, nodes=None):
@@ -1768,9 +1823,9 @@ class Aggregate(AbstractAggregate):
         idx = 0
         for var in self:
             nv = var.shape[0]
-            var.setInitialGuess(v0[idx:idx+nv], nodes)
-            idx += nv    
-    
+            var.setInitialGuess(v0[idx:idx + nv], nodes)
+            idx += nv
+
     def getBounds(self, node=None):
         """
         Getter for the bounds of the variables in the aggregate.
@@ -1840,11 +1895,13 @@ class Aggregate(AbstractAggregate):
 
         return np.vstack(ig_list)
 
+
 class StateAggregate(Aggregate):
     """
     State Aggregate of the Horizon Problem.
     Used to store all the state variables.
     """
+
     def __init__(self, *args: StateVariable):
         """
         Initialize the State Aggregate.
@@ -1854,11 +1911,13 @@ class StateAggregate(Aggregate):
         """
         super().__init__(*args)
 
+
 class InputAggregate(Aggregate):
     """
     Input (Control) Aggregate of the Horizon Problem.
     Used to store all the control variables.
     """
+
     def __init__(self, *args: InputVariable):
         """
         Initialize the Input (Control) Aggregate.
@@ -1867,6 +1926,7 @@ class InputAggregate(Aggregate):
             *args: instances of input (control) variables
         """
         super().__init__(*args)
+
 
 # todo what if this is completely useless? at the end of the day, I need this Container for:
 #   .getVarAbstrDict() --> get all abstract variables (special attention for the past variables)
@@ -1890,15 +1950,18 @@ class InputAggregate(Aggregate):
 default_abstract_casadi_type = cs.SX
 default_casadi_type = cs.MX
 
+
 class ItemContainer:
     def __init__(self, item):
         self.item = item
+
 
 class VariablesContainer:
     """
     Container of all the variables of Horizon.
     It is used internally by the Problem to get the abstract and implemented variables.
     """
+
     def __init__(self, is_receding, logger=None):
         """
         Initialize the Variable Container.
@@ -1955,7 +2018,8 @@ class VariablesContainer:
             else:
                 var_type = Variable
 
-        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type,
+                             abstract_casadi_type=abstract_casadi_type)
         return var
 
     def setStateVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):
@@ -1975,7 +2039,8 @@ class VariablesContainer:
         else:
             var_type = StateVariable
 
-        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type,
+                             abstract_casadi_type=abstract_casadi_type)
         return var
 
     def setInputVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):
@@ -1995,8 +2060,8 @@ class VariablesContainer:
         else:
             var_type = InputVariable
 
-
-        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type,
+                             abstract_casadi_type=abstract_casadi_type)
         return var
 
     def setSingleVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):
@@ -2011,7 +2076,8 @@ class VariablesContainer:
             casadi_type: type of implemented variable of horizon (casadi SX or MX)
         """
 
-        var = self.createVar(SingleVariable, name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        var = self.createVar(SingleVariable, name, dim, nodes_array, casadi_type=casadi_type,
+                             abstract_casadi_type=abstract_casadi_type)
         return var
 
     def setParameter(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):
@@ -2052,7 +2118,8 @@ class VariablesContainer:
             casadi_type: type of implemented variable of horizon (casadi SX or MX)
         """
 
-        par = SingleParameter(name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        par = SingleParameter(name, dim, nodes_array, casadi_type=casadi_type,
+                              abstract_casadi_type=abstract_casadi_type)
         self._pars[name] = par
 
         if self._logger:
@@ -2173,7 +2240,7 @@ class VariablesContainer:
             if isinstance(var, SingleVariable):
                 pass
             elif isinstance(var, InputVariable):
-                var._setNNodes(list(range(self._nodes-1))) # todo is this right?
+                var._setNNodes(list(range(self._nodes - 1)))  # todo is this right?
             elif isinstance(var, StateVariable):
                 var._setNNodes(list(range(self._nodes)))
             elif isinstance(var, Variable):
@@ -2224,14 +2291,13 @@ class VariablesContainer:
     # def __reduce__(self):
     #     return (self.__class__, (self.nodes, self.logger, ))
 
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     x = Variable('x', 4, [1, 1, 0, 1, 1, 1], casadi_type=cs.SX, abstract_casadi_type=cs.SX)
     x_par = x.toParameter()
 
     print(isinstance(x, SingleVariable), x)
     print(isinstance(x_par, SingleParameter), x_par)
-
 
     exit()
     # N = 10
@@ -2341,7 +2407,7 @@ if __name__ == '__main__':
     print(slice_x.getVarOffset(-1))
 
     exit()
-    x.setBounds([-1,-1,-1], [1,1,1], nodes=3)
+    x.setBounds([-1, -1, -1], [1, 1, 1], nodes=3)
     print(x.getBounds())
 
     # ub = np.array([[1,2,3], [1,2,3]])
@@ -2364,8 +2430,6 @@ if __name__ == '__main__':
     # print(x.getImpl(1))
     # print(x.getImpl(2))
     # x_prev = x.getVarOffset(-3)
-
-
 
     # VARIABLE
     # x = Variable('x', 3, [0, 1, 2, 3, 4, 5, 6])

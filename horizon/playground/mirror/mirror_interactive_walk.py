@@ -152,7 +152,7 @@ model.v.setBounds(model.v0, model.v0, 0)
 
 model.q.setInitialGuess(model.q0)
 
-f0 = [0, 0, kd.mass()/4 * 9.8]
+f0 = [0, 0, kd.mass()/3 * 9.8]
 for f_name, f_var in model.fmap.items():
     f_var.setInitialGuess(f0)
 
