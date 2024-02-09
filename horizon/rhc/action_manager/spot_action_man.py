@@ -272,6 +272,10 @@ solution = solver_bs.getSolutionDict()
 import subprocess, rospy
 from horizon.ros import replay_trajectory
 
+rospy.set_param('/robot_description', urdf)
+bashCommand = 'rosrun robot_state_publisher robot_state_publisher'
+subprocess.Popen(bashCommand.split(), start_new_session=True)
+
 # os.environ['ROS_PACKAGE_PATH'] += ':' + path_to_examples
 # subprocess.Popen(["roslaunch", path_to_examples + "/replay/launch/launcher.launch", 'robot:=spot'])
 # rospy.loginfo("'spot' visualization started.")

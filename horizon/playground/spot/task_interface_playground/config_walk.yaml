@@ -4,7 +4,7 @@ solver:
   ilqr.alpha_min: 0.01
   ilqr.step_length_threshold: 1e-9
   ilqr.line_search_accept_ratio: 1e-4
-  ilqr.verbose: True
+  ilqr.verbose: False
 
 # todo add MinVelocity JointVelocity
 #regularization:

@@ -193,7 +193,7 @@ class TaskInterface:
         self.prb.getInput().setInitialGuess(u_opt)
         self.prb.setInitialState(x0=x_opt[:, 0])
 
-    def replay_trajectory(self):
+    def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
 
         # single replay
         joint_names = self.model.kd.joint_names()
@@ -212,7 +212,9 @@ class TaskInterface:
                                  frame_force_mapping,
                                  self.model.kd_frame,
                                  self.model.kd,
-                                 fixed_joint_map=self.model.fixed_joint_map)
+                                 fixed_joint_map=self.model.fixed_joint_map,
+                                 trajectory_markers=trajectory_markers,
+                                 trajectory_markers_opts=trajectory_markers_opts)
         repl.sleep(1.)
         repl.replay(is_floating_base=True, base_link='pelvis')
 

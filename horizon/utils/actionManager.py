@@ -92,7 +92,7 @@ class ActionManager:
             dfk = self.ti.model.kd.frameVelocity(frame, self.ti.model.kd_frame)
 
             # save foot height
-            self.default_foot_z[frame] = (fk(q=self.ti.model.q0)['ee_pos'][2]).toarray()
+            self.default_foot_z[frame] = (fk(q=self.ti.model.q0)['ee_pos'][2]).elements()[0]
 
         self.k0 = 0
 

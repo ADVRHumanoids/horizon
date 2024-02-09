@@ -306,3 +306,18 @@ class CartesianTask(Task):
         # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
         # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
         # print('===================================')
+
+    def addReference(self, ref_traj):
+
+        '''
+        possible alternative implementation of reference:
+            - adding a reference to the task addReference()
+            -
+        '''
+        if ref_traj is None:
+            return False
+
+        ref_matrix = np.array(ref_traj)
+
+        return True
+

@@ -9,8 +9,9 @@ import numpy as np
 import casadi as cs
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.utils.tf_broadcaster import TFBroadcaster
+import subprocess
 
-urdf_path = rospkg.RosPack().get_path('repair_urdf') + '/urdf/repair.urdf'
+urdf_path = 'repair_full.urdf'
 urdf = open(urdf_path, 'r').read()
 rospy.set_param('/robot_description', urdf)
 
@@ -18,13 +19,15 @@ solver_type = 'ipopt'  # ilqr
 transcription_method = 'multiple_shooting'  # can choose between 'multiple_shooting' and 'direct_collocation'
 transcription_opts = dict(integrator='RK4')  # integrator used by the multiple_shooting
 
+bashCommand = 'rosrun robot_state_publisher robot_state_publisher'
+subprocess.Popen(bashCommand.split(), start_new_session=True)
+
 solver_opt = dict(type=solver_type)
 
 def add_cartesian_tasks_vel():
     cart_vel_1 = {'type': 'Cartesian',
                   'distal_link': 'arm_1_tcp',
                   'name': 'arm_1_tcp_ee_vel_world',
-                  'indices': [0, 1, 2, 3, 4, 5],
                   'indices': [0, 1, 2, 3, 4, 5],
                   'nodes': range(1, N),
                   'cartesian_type': 'velocity'}
@@ -65,11 +68,13 @@ def add_cartesian_tasks_pos():
     ee_cart_2 = ti.setTaskFromDict(cart_2)
 
     # goal_vec = [0, 0, 0., 0, 0, 0, 1]
-    goal_vec = [0.5, -0.2, 0.5, 0, 0, 0, 1]
+    goal_vec = [0.5, -0.3, 0.5, 0, 0, 0, 1]
     # goal_vec = [0.5, -0.2, 0.5, 0, 0.7071068, 0, 0.7071068]
+    # goal_vec_1 = [0., 0.3, 0., 0, 0., 0., 1]  # 90deg on the y
     goal_vec_1 = [0., 0.3, 0., 0, 0.7071068, 0, 0.7071068]  # 90deg on the y
-    goal_vec_1 = [0., 0.3, 0., 0, 0, 0.3826834, 0.9238795]  # 45deg on the x
+    # goal_vec_1 = [0., 0.3, 0., 0, 0, 0.3826834, 0.9238795]  # 45deg on the x
     # goal_vec = [0.5, -0.2, 0.5, 0.2705981, 0.2705981, 0, 0.9238795]
+
 
     tf = TFBroadcaster()
     tf.publish('arm_1_tcp_ee_goal', goal_vec)
@@ -81,20 +86,21 @@ def add_cartesian_tasks_pos():
 # robot model
 q_init = {}
 
-q_init[f'arm_1_joint_1'] = 0.
-q_init[f'arm_1_joint_2'] = -0.76
-q_init[f'arm_1_joint_3'] = 1.5
-q_init[f'arm_1_joint_4'] = -1.3
-q_init[f'arm_1_joint_5'] = 0.
-q_init[f'arm_1_joint_6'] = -0.4
-q_init[f'arm_1_joint_7'] = 0.
-q_init[f'arm_2_joint_1'] = 0.
-q_init[f'arm_2_joint_2'] = -0.76
-q_init[f'arm_2_joint_3'] = -1.5
-q_init[f'arm_2_joint_4'] = -1.3
-q_init[f'arm_2_joint_5'] = 0.
-q_init[f'arm_2_joint_6'] = -0.4
-q_init[f'arm_2_joint_7'] = 0.
+q_init[f'arm_1_joint_1'] = 0
+q_init[f'arm_1_joint_2'] = 0.68
+q_init[f'arm_1_joint_3'] = 1.26
+q_init[f'arm_1_joint_4'] = -1.38
+q_init[f'arm_1_joint_5'] = -0.8
+q_init[f'arm_1_joint_6'] = -0.45
+q_init[f'arm_1_joint_7'] = -1.45
+
+q_init[f'arm_2_joint_1'] = 0
+q_init[f'arm_2_joint_2'] = -0.68
+q_init[f'arm_2_joint_3'] = -1.26
+q_init[f'arm_2_joint_4'] = -1.38
+q_init[f'arm_2_joint_5'] = 0.8
+q_init[f'arm_2_joint_6'] = 0.45
+q_init[f'arm_2_joint_7'] = 1.45
 
 kd = pycasadi_kin_dyn.CasadiKinDyn(urdf)
 kd_frame = pycasadi_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED
@@ -114,10 +120,24 @@ model = FullModelInverseDynamics(problem=prb,
                                  q_init=q_init,
                                  floating_base=False)
 
+print(kd.joint_names())
 ti = TaskInterface(prb, model)
 
+contacts = ['arm_1_tcp', 'arm_2_tcp']
+
+for contact in contacts:
+    FK = kd.fk(contact)
+    pos_t = FK(q=model.q0)['ee_pos']
+    pos_l = FK(q=model.q0)['ee_rot']
+    print(pos_t)
+    print(pos_l)
+    print("=====================")
+
+#
+
 # cartesian_task
-add_cartesian_tasks_vel()
+# add_cartesian_tasks_vel()
+add_cartesian_tasks_pos()
 
 
 q = ti.prb.getVariables('q')

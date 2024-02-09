@@ -10,6 +10,18 @@ import numpy as np
 import casadi as cs
 import random
 
+
+def createPlotGrid(n_rows_max, n_plots, title):
+    cols = n_plots if n_plots < n_rows_max else n_rows_max
+
+    rows = int(math.ceil(n_plots / cols))
+
+    gs = gridspec.GridSpec(rows, cols)
+    fig = plt.figure()
+    fig.suptitle(title)
+
+    return fig, gs
+
 class PlotterHorizon:
     def __init__(self, prb: Problem, solution=None, opts=None, logger=None):
 
@@ -21,17 +33,7 @@ class PlotterHorizon:
     def setSolution(self, solution):
         self.solution = solution
 
-    def _createPlotGrid(self, n_rows_max, n_plots, title):
 
-        cols = n_plots if n_plots < n_rows_max else n_rows_max
-
-        rows = int(math.ceil(n_plots / cols))
-
-        gs = gridspec.GridSpec(rows, cols)
-        fig = plt.figure()
-        fig.suptitle(title)
-
-        return fig, gs
 
     def _plotVar(self, val, ax, abstract_var, markers, show_bounds, legend, dim):
         var_dim_select = set(range(val.shape[0]))
@@ -117,7 +119,7 @@ class PlotterHorizon:
 
         if gather:
 
-            fig, gs = self._createPlotGrid(gather, len(selected_sol), 'Variables')
+            fig, gs = createPlotGrid(gather, len(selected_sol), 'Variables')
             i = 0
             for key, val in selected_sol.items():
                 ax = fig.add_subplot(gs[i])
@@ -167,7 +169,7 @@ class PlotterHorizon:
 
         if self.prb.getConstraints():
             if gather:
-                fig, gs = self._createPlotGrid(gather, len(self.prb.getConstraints()), 'Functions')
+                fig, gs = createPlotGrid(gather, len(self.prb.getConstraints()), 'Functions')
 
                 i = 0
                 for name, fun in self.prb.getConstraints().items():

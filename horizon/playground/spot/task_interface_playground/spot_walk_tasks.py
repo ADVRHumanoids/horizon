@@ -154,12 +154,12 @@ while True:
     iteration = iteration + 1
     print(iteration)
 
-    tic = time.time()
     am.execute(solution)
-
+    tic = time.time()
     ti.solver_rti.solve()
+    elapsed_time_solving = time.time() - tic
+    print('solve:', elapsed_time_solving)
     solution = ti.solver_rti.getSolutionDict()
-    print('cycle:', time.time() - tic)
     repl.frame_force_mapping = {cname: solution[f.getName()] for cname, f in ti.model.fmap.items()}
     repl.publish_joints(solution['q'][:, 0])
     repl.publishContactForces(rospy.Time.now(), solution['q'][:, 0], 0)
