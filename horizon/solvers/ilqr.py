@@ -119,7 +119,7 @@ class SolverILQR(Solver):
         if cb is None:
             self.ilqr.setIterationCallback(self._iter_callback)
         else:
-            print('setting custom iteration callback')
+            # print('setting custom iteration callback')
             self.ilqr.setIterationCallback(cb)
 
     def _sol_info_callback(self, fpres):
