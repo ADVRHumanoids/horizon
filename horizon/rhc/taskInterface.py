@@ -1,3 +1,4 @@
+import code
 from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
 from casadi_kin_dyn import pycasadi_kin_dyn
@@ -29,10 +30,15 @@ class ProblemInterface:
                 model, 
                 max_solver_iter: int = 1, 
                 debug: bool = False, 
-                verbose: bool = False):
+                verbose: bool = False,
+                codegen_workdir: str = "/tmp/tyhio",
+                codegen_verbose: bool = False):
 
         self._debug = debug
         self._verbose = verbose
+        self._codegen_verbose = codegen_verbose
+
+        self._codegen_workdir = codegen_workdir
 
         self.max_solver_iter = max_solver_iter
 
@@ -322,6 +328,13 @@ class ProblemInterface:
             th = Transcriptor.make_method('multiple_shooting', self.prb)
 
         # todo if receding is true ....
+        scoped_opts_bs = self.si.opts.copy()
+        scoped_opts_bs['ilqr.debug'] = self._debug
+        scoped_opts_bs['ilqr.verbose'] = self._verbose
+        scoped_opts_bs['ilqr.codegen_verbose'] = self._codegen_verbose
+        scoped_opts_bs['ilqr.log_iterations'] = False
+        scoped_opts_bs['ilqr.codegen_workdir'] = self._codegen_workdir
+
         self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
 
         try:
@@ -330,19 +343,18 @@ class ProblemInterface:
             pass
 
         if rti:
+
             scoped_opts_rti = self.si.opts.copy()
             
             scoped_opts_rti['ilqr.max_iter'] = self.max_solver_iter
-
             scoped_opts_rti['ilqr.debug'] = self._debug # enables debugging in iLQR (basically
             # allows to retrieve costs and constraints values at runtime)
-
+            scoped_opts_rti['ilqr.verbose'] = self._verbose
+            scoped_opts_rti['ilqr.codegen_verbose'] = self._codegen_verbose
             scoped_opts_rti['ilqr.rti'] = True
-
             scoped_opts_rti['ilqr.log_iterations'] = False # debugging iLQR logs
-
+            scoped_opts_rti['ilqr.codegen_workdir'] = self._codegen_workdir
             if self.max_solver_iter == 1:
-                
                 # real-time iteration -> no line-search necessary
                 scoped_opts_rti['ilqr.enable_line_search'] = False 
             
@@ -356,11 +368,15 @@ class TaskInterface(ProblemInterface):
                 model,
                 max_solver_iter: int = 1,
                 debug = False,
-                verbose = False):
+                verbose = False,
+                codegen_workdir: str = "/tmp/tyhio",
+                codegen_verbose: bool = False):
 
         super().__init__(prb, model, 
                     max_solver_iter, 
-                    debug, verbose)
+                    debug, verbose,
+                    codegen_workdir,
+                    codegen_verbose)
 
         # here I register the the default tasks
         # todo: should I do it here?
