@@ -502,14 +502,18 @@ bool IterativeLQR::should_stop()
     // is too close to zero
     if(std::fabs(_fp_res->f_der) < merit_der_threshold*(1 + _fp_res->cost))
     {
-        std::cout << "exiting due to small merit derivative \n";
+        if (_verbose) {
+            std::cout << "exiting due to small merit derivative \n";
+        }
         return true;
     }
 
     // exit if step size (normalized) is too short
     if(_fp_res->step_length < step_length_threshold*(1 + _utrj.norm()))
     {
-        std::cout << "exiting due to small control increment \n";
+        if (_verbose) {
+            std::cout << "exiting due to small control increment \n";
+        }
         return true;
     }
 
