@@ -86,6 +86,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _verbose = value_or(opt, "ilqr.verbose", 0);
     _debug = value_or(opt, "ilqr.debug", 0);
     _log = value_or(opt, "ilqr.log", 0);
+    _log_iterations = value_or(opt, "ilqr.log_iterations", 0);
     _rti = value_or(opt, "ilqr.rti", 0);
     _step_length = value_or(opt, "ilqr.step_length", 1.0);
 

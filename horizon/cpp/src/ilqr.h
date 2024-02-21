@@ -290,6 +290,7 @@ private:
 
     bool _verbose;
     bool _debug;
+    bool _log_iterations;
     bool _log;
     bool _rti;
 
