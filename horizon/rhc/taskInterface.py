@@ -99,14 +99,13 @@ class ProblemInterface:
 
         self.solver_rti.reset() # resets solver internal state (useful in case of failure)
 
-    def rti(self,
-            idx: int):
+    def rti(self):
         
         if self._debug:
 
             t = time.time()
 
-        check = self.solver_rti.solve(idx)
+        check = self.solver_rti.solve()
 
         if self._debug:
 

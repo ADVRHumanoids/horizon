@@ -99,6 +99,8 @@ class SolverILQR(Solver):
 
         self.set_iteration_callback(self._sol_info_callback)
 
+        self._mem_usage = 0.0
+
     def reset(self):
 
         self.ilqr.reset()
@@ -155,7 +157,6 @@ class SolverILQR(Solver):
         self._update_nodes()
 
         # solve
-
         ret = self.ilqr.solve(self.max_iter)
 
         # get solution
