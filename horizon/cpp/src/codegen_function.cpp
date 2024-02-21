@@ -80,7 +80,8 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
 
 
 
-casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string dir)
+casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string dir,
+                                    bool verbose)
 {    
     // save cwd
     RestoreCwd rcwd = get_current_dir_name();
@@ -102,9 +103,11 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     std::string fname = f.name() + "_generated_" + std::to_string(hash);
 
     if(access((fname + ".so").c_str(), F_OK) == 0)
-    {
-        std::cout << "exists: loading " << fname << "... \n";
-
+    {   
+        if (verbose) {
+            std::cout << "exists: loading " << fname << "... \n";
+        }
+        
         auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
 
         if(!handle)
@@ -128,7 +131,9 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     // else, generate and compile
     f.generate(fname + ".c");
 
-    std::cout << "not found: compiling " << fname << "... \n";
+    if (verbose) {
+        std::cout << "not found: compiling " << fname << "... \n";
+    }
 
     int ret = system(("clang -fPIC -shared -O3 -march=native " + fname + ".c -o " + fname + ".so").c_str());
 
@@ -138,8 +143,10 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
         return f;
     }
 
-    std::cout << "loading " << fname << "... \n";
-
+    if (verbose) {
+        std::cout << "loading " << fname << "... \n";
+    }
+    
     auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
 
     if(!handle)

@@ -87,6 +87,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _debug = value_or(opt, "ilqr.debug", 0);
     _log = value_or(opt, "ilqr.log", 0);
     _log_iterations = value_or(opt, "ilqr.log_iterations", 0);
+    _codegen_verbose = value_or(opt, "ilqr.codegen_verbose", 0);
     _rti = value_or(opt, "ilqr.rti", 0);
     _step_length = value_or(opt, "ilqr.step_length", 1.0);
 
@@ -142,8 +143,8 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     // codegen if needed
     if(_codegen_enabled)
     {
-        fdyn = utils::codegen(fdyn, _codegen_workdir);
-        fdyn_jac = utils::codegen(fdyn_jac, _codegen_workdir);
+        fdyn = utils::codegen(fdyn, _codegen_workdir, _codegen_verbose);
+        fdyn_jac = utils::codegen(fdyn_jac, _codegen_workdir, _codegen_verbose);
     }
 
     for(auto& d : _dyn)
@@ -255,9 +256,9 @@ void IterativeLQR::setCost(std::vector<int> indices, const casadi::Function& int
     // codegen if required (we skip it for quadratic costs)
     if(_codegen_enabled)
     {
-        cost = utils::codegen(cost, _codegen_workdir);
-        grad = utils::codegen(grad, _codegen_workdir);
-        hess = utils::codegen(hess, _codegen_workdir);
+        cost = utils::codegen(cost, _codegen_workdir, _codegen_verbose);
+        grad = utils::codegen(grad, _codegen_workdir, _codegen_verbose);
+        hess = utils::codegen(hess, _codegen_workdir, _codegen_verbose);
     }
 
     c->setCost(cost,
@@ -309,8 +310,8 @@ void IterativeLQR::setResidual(std::vector<int> indices,
     // codegen if required (we skip it for quadratic costs)
     if(_codegen_enabled)
     {
-        res = utils::codegen(res, _codegen_workdir);
-        jac = utils::codegen(jac, _codegen_workdir);
+        res = utils::codegen(res, _codegen_workdir, _codegen_verbose);
+        jac = utils::codegen(jac, _codegen_workdir, _codegen_verbose);
     }
 
     // local syms to evaluate residual and jacobian
@@ -410,8 +411,8 @@ void IterativeLQR::setConstraint(std::vector<int> indices,
 
     if(_codegen_enabled)
     {
-        ic_fn = utils::codegen(ic_fn, _codegen_workdir);
-        ic_jac = utils::codegen(ic_jac, _codegen_workdir);
+        ic_fn = utils::codegen(ic_fn, _codegen_workdir, _codegen_verbose);
+        ic_jac = utils::codegen(ic_jac, _codegen_workdir, _codegen_verbose);
     }
 
     c->setConstraint(ic_fn,

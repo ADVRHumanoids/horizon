@@ -293,7 +293,8 @@ private:
     bool _log_iterations;
     bool _log;
     bool _rti;
-
+    bool _codegen_verbose;
+    
     const int _nx;
     const int _nu;
     const int _N;
