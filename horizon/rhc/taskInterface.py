@@ -99,13 +99,14 @@ class ProblemInterface:
 
         self.solver_rti.reset() # resets solver internal state (useful in case of failure)
 
-    def rti(self):
+    def rti(self,
+            idx: int):
         
         if self._debug:
 
             t = time.time()
 
-        check = self.solver_rti.solve()
+        check = self.solver_rti.solve(idx)
 
         if self._debug:
 
@@ -338,6 +339,8 @@ class ProblemInterface:
             # allows to retrieve costs and constraints values at runtime)
 
             scoped_opts_rti['ilqr.rti'] = True
+
+            scoped_opts_rti['ilqr.log_iterations'] = False # debugging iLQR logs
 
             if self.max_solver_iter == 1:
                 
