@@ -335,7 +335,7 @@ class ProblemInterface:
         scoped_opts_bs['ilqr.log_iterations'] = False
         scoped_opts_bs['ilqr.codegen_workdir'] = self._codegen_workdir
 
-        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
+        self.solver_bs = Solver.make_solver(self.si.type, self.prb, scoped_opts_bs)
 
         try:
             self.solver_bs.set_iteration_callback()
