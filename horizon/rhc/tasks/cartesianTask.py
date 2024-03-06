@@ -1,5 +1,6 @@
 # from cmath import sqrt
 from horizon.rhc.tasks.task import Task
+from horizon.utils.utils import quat_to_rot
 import casadi as cs
 # from horizon.problem import Problem
 import numpy as np
@@ -64,51 +65,6 @@ class CartesianTask(Task):
 
         quat = rot_to_fun_quat(R)
         return quat
-
-    def _quat_to_rot(self, quat):
-        """
-        Covert a quaternion into a full three-dimensional rotation matrix
-        [method specific for casadi function]
-
-        Input
-        :param quat: A 4 element array representing the quaternion (im(quat), re(quat))
-
-        Output
-        :return: A Casadi 3x3 element matrix representing the full 3D rotation matrix.
-                 This rotation matrix converts a point in the local reference
-                 frame to a point in the global reference frame.
-        """
-        # Extract the values from Q
-        q1 = quat[0]
-        q2 = quat[1]
-        q3 = quat[2]
-        q0 = quat[3]
-
-        # First row of the rotation matrix
-        r00 = 2 * (q0 * q0 + q1 * q1) - 1
-        r01 = 2 * (q1 * q2 - q0 * q3)
-        r02 = 2 * (q1 * q3 + q0 * q2)
-
-        r0 = cs.horzcat(r00, r01, r02)
-
-        # Second row of the rotation matrix
-        r10 = 2 * (q1 * q2 + q0 * q3)
-        r11 = 2 * (q0 * q0 + q2 * q2) - 1
-        r12 = 2 * (q2 * q3 - q0 * q1)
-
-        r1 = cs.horzcat(r10, r11, r12)
-
-        # Third row of the rotation matrix
-        r20 = 2 * (q1 * q3 - q0 * q2)
-        r21 = 2 * (q2 * q3 + q0 * q1)
-        r22 = 2 * (q0 * q0 + q3 * q3) - 1
-
-        r2 = cs.horzcat(r20, r21, r22)
-
-        # 3x3 rotation matrix
-        rot_matrix = cs.vertcat(r0, r1, r2)
-
-        return rot_matrix
 
     def _skew(self, vec):
         skew_op = np.zeros([3, 3])
@@ -201,9 +157,9 @@ class CartesianTask(Task):
         fun_trans = ee_p_rel - self.pose_tgt[:3]
         # todo check norm_2 with _compute_orientation_error2
 
-        # fun_lin = cs.norm_2(self._compute_orientation_error(ee_p_r, self._quat_to_rot(self.pose_tgt[3:])))
-        fun_lin = self._compute_orientation_error2(ee_r_rel, self._quat_to_rot(self.pose_tgt[3:]))
-        # fun_lin = self._compute_orientation_error(ee_r_rel, self._quat_to_rot(self.pose_tgt[3:]))
+        # fun_lin = cs.norm_2(self._compute_orientation_error(ee_p_r, quat_to_rot(self.pose_tgt[3:])))
+        fun_lin = self._compute_orientation_error2(ee_r_rel, quat_to_rot(self.pose_tgt[3:]))
+        # fun_lin = self._compute_orientation_error(ee_r_rel, quat_to_rot(self.pose_tgt[3:]))
 
         # todo this is ugly, but for now keep it
         #   find a way to check if also rotation is involved
