@@ -117,6 +117,8 @@ double IterativeLQR::compute_cost_slope()
         dx = _dyn[i].A()*dx + _dyn[i].B()*du + _dyn[i].d;
     }
 
+    der += _cost[_N].q().dot(dx);
+
     return der;
 }
 
@@ -420,6 +422,23 @@ bool IterativeLQR::line_search(int iter)
         alpha *= step_reduction_factor;
     }
 
+    // // update cost and merit slope
+    // linearize_quadratize();
+    
+    // _fp_res->f_der = compute_cost_slope();
+    
+    // std::tie(mu_f, mu_c) = compute_merit_weights(
+    //         _fp_res->f_der,
+    //         _fp_res->defect_norm,
+    //         _fp_res->constraint_violation);
+
+    // _fp_res->merit_der = compute_merit_slope(cost_der,
+    //         mu_f, mu_c,
+    //         _fp_res->defect_norm,
+    //         _fp_res->constraint_violation);
+
+    
+    // report result and handle regularization
     if(!_fp_res->accepted)
     {
         report_result(*_fp_res);
@@ -428,7 +447,6 @@ bool IterativeLQR::line_search(int iter)
         _fp_accepted = 0;
         return false;
     }
-
 
     if(_enable_line_search &&
             _fp_res->alpha > 0.1)
@@ -439,6 +457,8 @@ bool IterativeLQR::line_search(int iter)
 
     _xtrj = _fp_res->xtrj;
     _utrj = _fp_res->utrj;
+
+    
 
     // save result in history
     _fp_res_history.push_back(*_fp_res);
@@ -460,7 +480,6 @@ void IterativeLQR::reset_iterate_filter()
 
 bool IterativeLQR::should_stop()
 {
-
     const double constraint_violation_threshold = _constraint_violation_threshold;
     const double defect_norm_threshold = _defect_norm_threshold;
     const double merit_der_threshold = _merit_der_threshold;
@@ -490,7 +509,7 @@ bool IterativeLQR::should_stop()
 
     // exit if merit function directional derivative (normalized)
     // is too close to zero
-    if(std::fabs(_fp_res->f_der) < merit_der_threshold*(1 + _fp_res->cost))
+    if(std::fabs(_fp_res->merit_der) < merit_der_threshold*(1 + _fp_res->merit))
     {
         std::cout << "exiting due to small merit derivative \n";
         return true;
