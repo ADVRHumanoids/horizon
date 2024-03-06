@@ -127,6 +127,8 @@ class RollingTask(Task):
         fun = self._velocity_formulation()
         self.constr = self.instantiator(f'{self.name}_rolling_task', self.weight_param * fun, nodes=self.nodes)
 
+    def getFunction(self):
+        return self.constr
 
     def setNodes(self, nodes, erasing=True):
         self.constr.setNodes(nodes, erasing)
