@@ -8,17 +8,11 @@ bool IterativeLQR::forward_pass(double alpha)
     // reset values
     _fp_res->accepted = false;
     _fp_res->alpha = alpha;
-    _fp_res->step_length = 0.0;
     _fp_res->hxx_reg = _hxx_reg;
 
-    // initialize forward pass with initial state
-    _fp_res->xtrj.col(0) = alpha*_bp_res[0].dx + state(0);
-
-    // do forward pass
-    for(int i = 0; i < _N; i++)
-    {
-        forward_pass_iter(i, alpha);
-    }
+    // compute step
+    _fp_res->xtrj.noalias() = _xtrj + _dx*alpha;
+    _fp_res->utrj.noalias() = _utrj + _du*alpha;
 
     // set cost value and constraint violation after the forward pass
     _fp_res->cost = compute_cost(_fp_res->xtrj, _fp_res->utrj);
@@ -29,64 +23,6 @@ bool IterativeLQR::forward_pass(double alpha)
     return true;
 }
 
-void IterativeLQR::forward_pass_iter(int i, double alpha)
-{
-    TIC(forward_pass_inner)
-
-    // note!
-    // this function will update the control at t = i, and
-    // the state at t = i+1
-
-    // some shorthands
-    const auto xnext = state(i+1);
-    const auto xi = state(i);
-    const auto ui = input(i);
-    const auto xi_upd = _fp_res->xtrj.col(i);
-    auto& tmp = _tmp[i];
-    tmp.dx = xi_upd - xi;
-
-    // dynamics
-    const auto& dyn = _dyn[i];
-    const auto& A = dyn.A();
-    const auto& B = dyn.B();
-    const auto& d = dyn.d;
-
-    // backward pass solution
-    const auto& res = _bp_res[i];
-    const auto& L = res.Lu;
-
-    // update control
-    tmp.du = alpha * res.lu;
-
-    if(_closed_loop_forward_pass)
-    {
-        tmp.du += L * tmp.dx;
-    }
-
-    _fp_res->utrj.col(i) = ui + tmp.du;
-
-    // update next state
-    auto xnext_upd = xnext + A*tmp.dx + B*tmp.du + alpha*d;
-    _fp_res->xtrj.col(i+1) = xnext_upd;
-
-#if false
-    // compute largest multiplier..
-    // ..for dynamics (lam_x = S*dx + s)
-    tmp.lam_x = _value[i].S*tmp.dx + _value[i].s;
-    _fp_res->lam_x_max = std::max(_fp_res->lam_x_max, tmp.lam_x.cwiseAbs().maxCoeff());
-
-    // ..for constraints (lam_g = TBD)
-    if(res.nc > 0)
-    {
-        tmp.lam_g = res.glam + res.Gu*(l + L*tmp.dx) + res.Gx*tmp.dx;
-        _fp_res->lam_g_max = std::max(_fp_res->lam_g_max, tmp.lam_g.cwiseAbs().maxCoeff());
-    }
-#endif
-
-    // compute step length
-    _fp_res->step_length += tmp.du.cwiseAbs().sum();
-
-}
 
 double IterativeLQR::compute_merit_slope(double cost_slope,
                                          double mu_f,
@@ -107,16 +43,14 @@ double IterativeLQR::compute_cost_slope()
 
     double der = 0.;
 
-    Eigen::VectorXd dx, du;
-    dx = _bp_res[0].dx;
-
     for(int i = 0; i < _N; i++)
     {
-        du = _bp_res[i].lu + _bp_res[i].Lu*dx;
+        auto du = _du.col(i);
+        auto dx = _dx.col(i);
         der += _cost[i].r().dot(du) + _cost[i].q().dot(dx);
-        dx = _dyn[i].A()*dx + _dyn[i].B()*du + _dyn[i].d;
     }
 
+    auto dx = _dx.col(_N);
     der += _cost[_N].q().dot(dx);
 
     return der;
@@ -158,17 +92,12 @@ std::pair<double, double> IterativeLQR::compute_merit_weights(
 
     for(int i = 0; i < _N; i++)
     {
-        auto& res = _bp_res[i];
-
         // compute largest multiplier..
-        // ..for dynamics (lam_x = S*dx + s)
-        _lam_x.col(i) = _value[i].s;
         lam_x_max = std::max(lam_x_max, _lam_x.col(i).cwiseAbs().maxCoeff());
 
         // ..for constraints (lam_g = TBD)
-        if(res.glam.size() > 0)
+        if(_lam_g[i].size() > 0)
         {
-            _lam_g[i] = res.glam;
             lam_g_max = std::max(lam_g_max, _lam_g[i].cwiseAbs().maxCoeff());
         }
     }
@@ -201,7 +130,7 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
-        cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
+        cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i) / _N;
 
         // optionally (TBD) save values of single costs acting on this node
         for(auto it : _cost[i].items)
@@ -220,7 +149,7 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // todo: enforce this!
     cost += _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
 
-    return cost / _N;
+    return cost;
 }
 
 double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
@@ -263,7 +192,7 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
 
         _constraint[i].evaluate(xtrj.col(i), utrj.col(i), i);
         _fp_res->constraint_values[i] = _constraint[i].h().lpNorm<1>();
-        constr += _fp_res->constraint_values[i];
+        constr += _fp_res->constraint_values[i] / _N;
 
         // optionally (TBD) save values of single constraints acting on this node
         for(auto it : _constraint[i].items)
@@ -275,10 +204,10 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
 
     // state and input equality constraint violation
     auto xeq = _x_lb.array() == _x_ub.array();
-    constr += xeq.select(_x_lb - xtrj, 0).lpNorm<1>();
+    constr += xeq.select(_x_lb - xtrj, 0).lpNorm<1>() / _N;
 
     auto ueq = _u_lb.array() == _u_ub.array();
-    constr += ueq.select(_u_lb - utrj, 0).lpNorm<1>();
+    constr += ueq.select(_u_lb - utrj, 0).lpNorm<1>() / _N;
 
     // add final constraint violation
     if(_constraint[_N].is_valid())
@@ -290,7 +219,7 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
         constr += _fp_res->constraint_values[_N];
     }
 
-    return constr / _N;
+    return constr;
 }
 
 double IterativeLQR::compute_defect(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
@@ -324,6 +253,9 @@ bool IterativeLQR::line_search(int iter)
     const double alpha_min = _alpha_min;
     double alpha = _step_length;
     const double eta = _line_search_accept_ratio;
+
+    // fill newton step length
+    _fp_res->step_length = std::sqrt(_dx.squaredNorm() + _du.squaredNorm());
 
 
     // compute merit function weights
@@ -364,7 +296,12 @@ bool IterativeLQR::line_search(int iter)
         report_result(*_fp_res);
     }
 
-
+    // maybe we can stop
+    if(should_stop())
+    {
+        report_result(*_fp_res);
+        return true;
+    }
 
     // run line search
     while(alpha >= alpha_min)
@@ -422,23 +359,6 @@ bool IterativeLQR::line_search(int iter)
         alpha *= step_reduction_factor;
     }
 
-    // // update cost and merit slope
-    // linearize_quadratize();
-    
-    // _fp_res->f_der = compute_cost_slope();
-    
-    // std::tie(mu_f, mu_c) = compute_merit_weights(
-    //         _fp_res->f_der,
-    //         _fp_res->defect_norm,
-    //         _fp_res->constraint_violation);
-
-    // _fp_res->merit_der = compute_merit_slope(cost_der,
-    //         mu_f, mu_c,
-    //         _fp_res->defect_norm,
-    //         _fp_res->constraint_violation);
-
-    
-    // report result and handle regularization
     if(!_fp_res->accepted)
     {
         report_result(*_fp_res);
@@ -447,6 +367,7 @@ bool IterativeLQR::line_search(int iter)
         _fp_accepted = 0;
         return false;
     }
+
 
     if(_enable_line_search &&
             _fp_res->alpha > 0.1)
@@ -457,8 +378,6 @@ bool IterativeLQR::line_search(int iter)
 
     _xtrj = _fp_res->xtrj;
     _utrj = _fp_res->utrj;
-
-    
 
     // save result in history
     _fp_res_history.push_back(*_fp_res);
@@ -480,6 +399,7 @@ void IterativeLQR::reset_iterate_filter()
 
 bool IterativeLQR::should_stop()
 {
+
     const double constraint_violation_threshold = _constraint_violation_threshold;
     const double defect_norm_threshold = _defect_norm_threshold;
     const double merit_der_threshold = _merit_der_threshold;
