@@ -93,7 +93,7 @@ class GaitManagerROS:
 
         if self.__operation_mode == OperationMode.CRAWL:
             if self.__gm.contact_phases['contact_1'].getEmptyNodes() > 0:
-                self.__gm.crawl()
+                self.__gm.crawl(vref=self.__base_vel_ref[[0, 1, 5]])
 
         if self.__operation_mode == OperationMode.TROT:
             if self.__gm.contact_phases['contact_1'].getEmptyNodes() > 0:

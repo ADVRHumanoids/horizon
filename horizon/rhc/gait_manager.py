@@ -55,11 +55,61 @@ class GaitManager:
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
 
-    def crawl(self):
-        cycle_list_1 = [0, 1, 1, 1]
-        cycle_list_2 = [1, 1, 1, 0]
-        cycle_list_3 = [1, 0, 1, 1]
-        cycle_list_4 = [1, 1, 0, 1]
+    def crawl(self, vref=[0, 0, 1]):
+
+        vx, vy, omega = vref
+        Rmax = 1
+        
+        if vx**2 + vy**2 <= Rmax*omega**2:
+
+            # turning gait
+            if omega > 0:
+
+                cycle_list_1 = [0, 1, 1, 1]
+                cycle_list_2 = [1, 1, 0, 1]
+                cycle_list_3 = [1, 1, 1, 0]
+                cycle_list_4 = [1, 0, 1, 1]
+            else:
+
+                cycle_list_1 = [0, 1, 1, 1]
+                cycle_list_2 = [1, 0, 1, 1]
+                cycle_list_3 = [1, 1, 1, 0]
+                cycle_list_4 = [1, 1, 0, 1]
+
+        else:
+
+            if vx > abs(vy): 
+                
+                # forward
+                cycle_list_1 = [1, 1, 0, 1]  # rl
+                cycle_list_2 = [0, 1, 1, 1]  # fl
+                cycle_list_3 = [1, 1, 1, 0]  # rr
+                cycle_list_4 = [1, 0, 1, 1]  # fr
+
+            elif vx < -abs(vy):
+
+                # backward
+                cycle_list_1 = [0, 1, 1, 1]  # fl
+                cycle_list_2 = [1, 1, 0, 1]  # rl
+                cycle_list_3 = [1, 0, 1, 1]
+                cycle_list_4 = [1, 1, 1, 0]
+
+            elif vy > abs(vx):
+
+                # left
+                cycle_list_1 = [1, 0, 1, 1]
+                cycle_list_2 = [0, 1, 1, 1]
+                cycle_list_3 = [1, 1, 1, 0]
+                cycle_list_4 = [1, 1, 0, 1]
+                
+            else:
+
+                # right
+                cycle_list_1 = [0, 1, 1, 1]
+                cycle_list_2 = [1, 0, 1, 1]
+                cycle_list_3 = [1, 1, 0, 1]
+                cycle_list_4 = [1, 1, 1, 0]
+
         self.cycle(cycle_list_1)
         self.cycle(cycle_list_2)
         self.cycle(cycle_list_3)
