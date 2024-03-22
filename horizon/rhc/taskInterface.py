@@ -30,13 +30,9 @@ class ProblemInterface:
                 model, 
                 max_solver_iter: int = 1, 
                 debug: bool = False, 
-                verbose: bool = False,
-                codegen_workdir: str = "/tmp/tyhio",
-                codegen_verbose: bool = False):
+                codegen_workdir: str = "/tmp/tyhio"):
 
         self._debug = debug
-        self._verbose = verbose
-        self._codegen_verbose = codegen_verbose
 
         self._codegen_workdir = codegen_workdir
 
@@ -108,21 +104,23 @@ class ProblemInterface:
     def rti(self):
         
         if self._debug:
+            self._rti_db()
+        else:
+            self._rti_min()
+    
+    def _rti_db(self):
 
-            t = time.time()
+        t = time.time()
+        check = self.solver_rti.solve()
+        self.rt_solve_time = time.time() - t
+        print(f'rti solved in {self.rt_solve_time} s')            
+        self.solution = self.solver_rti.getSolutionDict()
+        return check
+    
+    def _rti_min(self):
 
         check = self.solver_rti.solve()
-
-        if self._debug:
-
-            self.rt_solve_time = time.time() - t
-
-        if self._debug and self._verbose:
-
-            print(f'rti solved in {self.rt_solve_time} s')
-
         self.solution = self.solver_rti.getSolutionDict()
-
         return check
 
     def init_inv_dyn_for_res(self):
@@ -330,8 +328,8 @@ class ProblemInterface:
         # todo if receding is true ....
         scoped_opts_bs = self.si.opts.copy()
         scoped_opts_bs['ilqr.debug'] = self._debug
-        scoped_opts_bs['ilqr.verbose'] = self._verbose
-        scoped_opts_bs['ilqr.codegen_verbose'] = self._codegen_verbose
+        scoped_opts_bs['ilqr.verbose'] = self._debug
+        scoped_opts_bs['ilqr.codegen_verbose'] = self._debug
         scoped_opts_bs['ilqr.log_iterations'] = False
         scoped_opts_bs['ilqr.codegen_workdir'] = self._codegen_workdir
 
@@ -349,8 +347,8 @@ class ProblemInterface:
             scoped_opts_rti['ilqr.max_iter'] = self.max_solver_iter
             scoped_opts_rti['ilqr.debug'] = self._debug # enables debugging in iLQR (basically
             # allows to retrieve costs and constraints values at runtime)
-            scoped_opts_rti['ilqr.verbose'] = self._verbose
-            scoped_opts_rti['ilqr.codegen_verbose'] = self._codegen_verbose
+            scoped_opts_rti['ilqr.verbose'] = self._debug
+            scoped_opts_rti['ilqr.codegen_verbose'] = self._debug
             scoped_opts_rti['ilqr.rti'] = True
             scoped_opts_rti['ilqr.log_iterations'] = False # debugging iLQR logs
             scoped_opts_rti['ilqr.codegen_workdir'] = self._codegen_workdir
@@ -368,15 +366,12 @@ class TaskInterface(ProblemInterface):
                 model,
                 max_solver_iter: int = 1,
                 debug = False,
-                verbose = False,
-                codegen_workdir: str = "/tmp/tyhio",
-                codegen_verbose: bool = False):
+                codegen_workdir: str = "/tmp/tyhio"):
 
         super().__init__(prb, model, 
                     max_solver_iter, 
-                    debug, verbose,
-                    codegen_workdir,
-                    codegen_verbose)
+                    debug,
+                    codegen_workdir)
 
         # here I register the the default tasks
         # todo: should I do it here?
