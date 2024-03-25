@@ -30,9 +30,11 @@ class ProblemInterface:
                 model, 
                 max_solver_iter: int = 1, 
                 debug: bool = False, 
+                verbose: bool = False,
                 codegen_workdir: str = "/tmp/tyhio"):
 
         self._debug = debug
+        self._verbose = verbose
 
         self._codegen_workdir = codegen_workdir
 
@@ -328,8 +330,8 @@ class ProblemInterface:
         # todo if receding is true ....
         scoped_opts_bs = self.si.opts.copy()
         scoped_opts_bs['ilqr.debug'] = self._debug
-        scoped_opts_bs['ilqr.verbose'] = self._debug
-        scoped_opts_bs['ilqr.codegen_verbose'] = self._debug
+        scoped_opts_bs['ilqr.verbose'] = self._verbose
+        scoped_opts_bs['ilqr.codegen_verbose'] = self._verbose
         scoped_opts_bs['ilqr.log_iterations'] = False
         scoped_opts_bs['ilqr.codegen_workdir'] = self._codegen_workdir
 
@@ -347,7 +349,7 @@ class ProblemInterface:
             scoped_opts_rti['ilqr.max_iter'] = self.max_solver_iter
             scoped_opts_rti['ilqr.debug'] = self._debug # enables debugging in iLQR (basically
             # allows to retrieve costs and constraints values at runtime)
-            scoped_opts_rti['ilqr.verbose'] = self._debug
+            scoped_opts_rti['ilqr.verbose'] = self._verbose
             scoped_opts_rti['ilqr.codegen_verbose'] = self._debug
             scoped_opts_rti['ilqr.rti'] = True
             scoped_opts_rti['ilqr.log_iterations'] = False # debugging iLQR logs
@@ -366,11 +368,13 @@ class TaskInterface(ProblemInterface):
                 model,
                 max_solver_iter: int = 1,
                 debug = False,
+                verbose = False,
                 codegen_workdir: str = "/tmp/tyhio"):
 
         super().__init__(prb, model, 
                     max_solver_iter, 
                     debug,
+                    verbose,
                     codegen_workdir)
 
         # here I register the the default tasks
