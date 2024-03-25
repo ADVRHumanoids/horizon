@@ -105,13 +105,13 @@ class ProblemInterface:
 
     def rti(self):
         
-        if self._debug:
+        if self._verbose:
             self._rti_db()
         else:
             self._rti_min()
     
     def _rti_db(self):
-
+            
         t = time.time()
         check = self.solver_rti.solve()
         self.rt_solve_time = time.time() - t
