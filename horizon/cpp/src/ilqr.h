@@ -3,6 +3,7 @@
 
 #include <casadi/casadi.hpp>
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <memory>
 #include <variant>
 #include <thread>
@@ -221,6 +222,8 @@ private:
 
     void backward_pass_iter(int i);
 
+    void kkt_solve();
+
     void optimize_initial_state();
 
     void increase_regularization();
@@ -262,8 +265,6 @@ private:
                           const Eigen::MatrixXd& utrj);
 
     bool forward_pass(double alpha);
-
-    void forward_pass_iter(int i, double alpha);
 
     bool line_search(int iter);
 
@@ -310,6 +311,7 @@ private:
     double _step_length_threshold;
     bool _enable_line_search;
     bool _enable_auglag;
+    bool _use_kkt_solver;
 
     bool _closed_loop_forward_pass;
     std::string _codegen_workdir;
@@ -334,6 +336,12 @@ private:
     std::unique_ptr<ForwardPassResult> _fp_res;
     int _fp_accepted;
 
+    std::vector<Eigen::Triplet<double>> _kkt_triplets;
+    Eigen::SparseMatrix<double> _kkt_mat;
+    Eigen::VectorXd _kkt_rhs;
+    Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> _kkt_lu_solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::COLAMDOrdering<int>> _kkt_ldlt_solver;
+
     IterateFilter _it_filt;
     bool _use_it_filter;
 
@@ -344,6 +352,8 @@ private:
 
     Eigen::MatrixXd _lam_bound_x;
     Eigen::MatrixXd _lam_bound_u;
+
+    Eigen::MatrixXd _dx, _du;
 
     std::vector<Temporaries> _tmp;
 
