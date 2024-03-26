@@ -231,6 +231,8 @@ class ProblemInterface:
 
         return self.solver_bs, self.solver_rti
 
+    def getProblem(self):
+        return self.prb
 
 class TaskInterface(ProblemInterface):
     def __init__(self,
