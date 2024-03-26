@@ -34,27 +34,71 @@ class OperationMode(Enum):
     TROT = 2
 
 class GaitManagerROS:
-    def __init__(self, gm: GaitManager):
+    def __init__(self, gm: GaitManager, opt : dict = None):
+
+        self.__opt = opt
 
         self.__gm = gm
-        self.__ti = self.__gm.task_interface
+        self.__ti = self.__gm.getTaskInterface()
+
+        # horizon duration
+        self.__T = self.__ti.getProblem().getDt() * (self.__ti.getProblem().getNNodes() - 1)
 
         # this should be wrapped
         self.__base_pose_weight = 1. # should be one weight for rot and pos
         self.__base_rot_weight = 1.
+
+        # this version receives commands as base velocity
+        # open ros topic
         self.__base_vel_sub = rospy.Subscriber('/horizon/base_velocity/reference', Twist, self.__base_vel_cb)
-        self.__base_pose_xy_task = self.__ti.getTask('base_xy')
-        self.__base_pose_z_task = self.__ti.getTask('base_z')
-        self.__base_ori_task = self.__ti.getTask('base_orientation')
+
+        # init tasks connection
+        self.__init_options()
+        self.__base_pose_xy_task = self.__ti.getTask(self.__base_pose_xy_task_name)
+        self.__base_pose_z_task = self.__ti.getTask(self.__base_pose_z_task_name)
+        self.__base_ori_task = self.__ti.getTask(self.__base_orientation_task_name)
+
         self.__base_vel_ref = np.zeros(6)
 
+        # open services
         self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
 
         self.__current_solution = None
 
+        # initialize initial operation mode
         self.__operation_mode = OperationMode.STAND
 
+        # get one random contact phase to check when to add new phases
+        self.__one_random_contact_timeline = next(iter(self.__gm.getContactTimelines().values()))
+
+        print('Timeline used to check if horizon tail is empty: ', self.__one_random_contact_timeline.getName())
+
+
+    def __init_options(self):
+
+        if self.__opt is None:
+            self.__opt = dict()
+
+        # default values
+        self.__base_pose_xy_task_name = 'base_xy'
+        self.__base_pose_z_task_name = 'base_z'
+        self.__base_orientation_task_name = 'base_orientation'
+
+        if 'task_name' in self.__opt:
+            task_name_dict = self.__opt['task_name']
+            base_pose_xy_key = 'base_pose_xy'
+            base_pose_z_key = 'base_pose_z'
+            base_orientation_key = 'base_orientation'
+
+            if base_pose_xy_key in task_name_dict:
+                self.__base_pose_xy_task_name = task_name_dict[base_pose_xy_key]
+
+            if base_pose_z_key in task_name_dict:
+                self.__base_pose_z_task_name = task_name_dict[base_pose_z_key]
+
+            if base_orientation_key in task_name_dict:
+                self.__base_orientation_task_name = task_name_dict[base_orientation_key]
 
     def __update_solution(self):
 
@@ -92,15 +136,15 @@ class GaitManagerROS:
     def __set_phases(self):
 
         if self.__operation_mode == OperationMode.CRAWL:
-            if self.__gm.contact_phases['contact_1'].getEmptyNodes() > 0:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
                 self.__gm.crawl(vref=self.__base_vel_ref[[0, 1, 5]])
 
         if self.__operation_mode == OperationMode.TROT:
-            if self.__gm.contact_phases['contact_1'].getEmptyNodes() > 0:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
                 self.__gm.trot()
 
         if self.__operation_mode == OperationMode.STAND:
-            if self.__gm.contact_phases['contact_1'].getEmptyNodes() > 0:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
                 self.__gm.stand()
 
     def __set_base_commands(self):
@@ -118,8 +162,8 @@ class GaitManagerROS:
         # rotate in local base
         linear_velocity_vector_rot = self.__rotate_vector(linear_velocity_vector, self.__current_solution['q'][[6, 3, 4, 5], 0])
 
-        base_reference_xy[0] += linear_velocity_vector_rot[0] * 2 # which is T
-        base_reference_xy[1] += linear_velocity_vector_rot[1] * 2 # which is T
+        base_reference_xy[0] += linear_velocity_vector_rot[0] * self.__T
+        base_reference_xy[1] += linear_velocity_vector_rot[1] * self.__T
 
         self.__base_pose_xy_task.setRef(base_reference_xy)
 
@@ -148,7 +192,7 @@ class GaitManagerROS:
                                              0.,
                                              self.__base_pose_weight * self.__base_vel_ref[2]])
 
-        base_reference_z[2] += linear_velocity_vector_z[2] * 2 # which is T
+        base_reference_z[2] += linear_velocity_vector_z[2] * self.__T
 
         self.__base_pose_z_task.setRef(base_reference_z)
 
