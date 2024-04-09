@@ -2,6 +2,12 @@ from horizon.rhc.taskInterface import TaskInterface
 from phase_manager.pymanager import PhaseManager
 from phase_manager.pyphase import Phase
 
+# Action Manager
+#
+# probably parent of GaitManager
+# mid-level manager with core actions
+
+
 class ActionManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: PhaseManager, contact_map):
 
