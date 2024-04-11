@@ -76,7 +76,8 @@ class replay_trajectory:
         self.joints_floating = [j for j in joint_list if kindyn.joint_nq(j) == 7]
         self.iq_1dof = [kindyn.joint_iq(j) for j in self.joints_1dof]
         self.iq_floating = [kindyn.joint_iq(j) for j in self.joints_floating]
-        self.parent_child_floating = [(kindyn.parentLink(j), kindyn.childLink(j)) for j in self.joints_floating]
+        # self.parent_child_floating = [(kindyn.parentLink(j), kindyn.childLink(j)) for j in self.joints_floating]
+        self.parent_child_floating = [('odom', kindyn.childLink(j)) for j in self.joints_floating]
 
         self.q_replay = q_replay
         self.__sleep = 0.
@@ -243,7 +244,7 @@ class replay_trajectory:
         self.pub.publish(joint_state_pub)
 
 
-    def replay(self, is_floating_base=True, base_link='base_link'):
+    def replay(self, base_link='base_link', prefix=''):
 
         rate = rospy.Rate(self.slow_down_rate / self.dt)
         nq = np.shape(self.q_replay)[0]
@@ -270,7 +271,7 @@ class replay_trajectory:
                 else:
                     action = Marker.ADD
 
-                self.publish_joints(qk, base_link=base_link, trajectory_marker_action=action)
+                self.publish_joints(qk, base_link=base_link, trajectory_marker_action=action, prefix=prefix)
 
 
                 if self.frame_force_mapping:

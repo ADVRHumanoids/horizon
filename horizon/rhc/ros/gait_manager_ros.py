@@ -60,7 +60,7 @@ class GaitManagerROS:
 
         self.__base_vel_ref = np.zeros(6)
 
-        # open services
+        # open ros services
         self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
 
