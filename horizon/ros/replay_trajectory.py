@@ -76,8 +76,7 @@ class replay_trajectory:
         self.joints_floating = [j for j in joint_list if kindyn.joint_nq(j) == 7]
         self.iq_1dof = [kindyn.joint_iq(j) for j in self.joints_1dof]
         self.iq_floating = [kindyn.joint_iq(j) for j in self.joints_floating]
-        # self.parent_child_floating = [(kindyn.parentLink(j), kindyn.childLink(j)) for j in self.joints_floating]
-        self.parent_child_floating = [('odom', kindyn.childLink(j)) for j in self.joints_floating]
+        self.parent_child_floating = [(kindyn.parentLink(j), kindyn.childLink(j)) for j in self.joints_floating]
 
         self.q_replay = q_replay
         self.__sleep = 0.
@@ -103,7 +102,7 @@ class replay_trajectory:
             if frame not in self.frame_fk:
                 FK = kindyn.fk(frame)
                 self.frame_fk[frame] = FK
-            self.future_tv[frame] = TrajectoryViewer(frame, 'world', pub_name="future_marker_array/", opts=future_trajectory_markers_opts)
+            self.future_tv[frame] = TrajectoryViewer(frame, opts=future_trajectory_markers_opts)
 
         # WE CHECK IF WE HAVE TO ROTATE CONTACT FORCES:
         if force_reference_frame is cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED:
@@ -199,7 +198,7 @@ class replay_trajectory:
         '''
         self.slow_down_rate = 1./slow_down_factor
 
-    def publish_joints(self, qk, is_floating_base=True, base_link='base_link', skip_tf=False, trajectory_marker_action=Marker.ADD, prefix=''):
+    def publish_joints(self, qk, skip_tf=False, prefix=''):
 
         joint_state_pub = JointState()
         joint_state_pub.header = Header()
@@ -244,7 +243,7 @@ class replay_trajectory:
         self.pub.publish(joint_state_pub)
 
 
-    def replay(self, base_link='base_link', prefix=''):
+    def replay(self, prefix=''):
 
         rate = rospy.Rate(self.slow_down_rate / self.dt)
         nq = np.shape(self.q_replay)[0]
@@ -271,7 +270,7 @@ class replay_trajectory:
                 else:
                     action = Marker.ADD
 
-                self.publish_joints(qk, base_link=base_link, trajectory_marker_action=action, prefix=prefix)
+                self.publish_joints(qk, prefix=prefix)
 
 
                 if self.frame_force_mapping:

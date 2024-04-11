@@ -13,30 +13,14 @@ from numpy_ros import to_numpy, to_message
 
 class TrajectoryViewer:
 
-    def __init__(self, frame, parent=None, pub_name='markers_array/', opts=None):
+    def __init__(self, frame, opts=None):
 
-        if parent is None:
-            self.parent = frame
-        else:
-            self.parent = parent
-
-        if 'colors' in opts:
-            self.color = opts['colors'][frame]
-        else:
-            self.color = [random.uniform(0, 1),
-                          random.uniform(0, 1),
-                          random.uniform(0, 1),
-                          1.]
-
-        if 'scale' in opts:
-            self.scale = opts['scale']
-        else:
-            self.scale = Vector3(0.01, 0.01, 0.01)
+        self.__init_opts(opts)
 
         self.frame = frame
         self.count = 0
-        self.sphere_publisher = rospy.Publisher(pub_name + self.frame, MarkerArray, queue_size=100)
-        self.line_publisher = rospy.Publisher(pub_name + self.frame, MarkerArray, queue_size=100)
+        self.sphere_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
+        self.line_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
 
         # rospy.Subscriber("/joint_states", JointState, self.event_in_cb)
         self.a = [1, 1, 1]
@@ -49,6 +33,29 @@ class TrajectoryViewer:
     #     self.a = [1, 1, 1]
     #
     #     self.publish_once()
+    def __init_opts(self, opts):
+        if 'prefix' in opts:
+            self.prefix = opts['prefix']
+        else:
+            self.prefix = "future_marker_array/"
+
+        if 'parent' in opts:
+            self.parent = opts['parent']
+        else:
+            self.parent = 'world'
+
+        if 'colors' in opts:
+            self.color = opts['colors']
+        else:
+            self.color = [random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          1.]
+
+        if 'scale' in opts:
+            self.scale = opts['scale']
+        else:
+            self.scale = Vector3(0.01, 0.01, 0.01)
 
     def publish_sphere(self, action=None, markers_max=1000, marker_lifetime=10):
 
@@ -121,7 +128,7 @@ if __name__ == '__main__':
     # # rospy.sleep(0.5)
     # # rospy.spin()
     import numpy as np
-    rospy.init_node("cazzo", anonymous=True)
+    rospy.init_node("something", anonymous=True)
     tv = TrajectoryViewer("com")
 
     vec = np.array([[1, 1, 1, 0, 0, 0, 1],
