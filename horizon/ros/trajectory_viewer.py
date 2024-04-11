@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import copy
-
+import random
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import TwistStamped, Pose, Point, Vector3, Quaternion
@@ -13,17 +13,25 @@ from numpy_ros import to_numpy, to_message
 
 class TrajectoryViewer:
 
-    def __init__(self, frame, parent=None, color=None, pub_name='markers_array/'):
+    def __init__(self, frame, parent=None, pub_name='markers_array/', opts=None):
 
         if parent is None:
             self.parent = frame
         else:
             self.parent = parent
 
-        if color is None:
-            self.color = [0.0, 2.0, 0.0, 0.8]
+        if 'colors' in opts:
+            self.color = opts['colors'][frame]
         else:
-            self.color = color
+            self.color = [random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          1.]
+
+        if 'scale' in opts:
+            self.scale = opts['scale']
+        else:
+            self.scale = Vector3(0.01, 0.01, 0.01)
 
         self.frame = frame
         self.count = 0
@@ -58,7 +66,7 @@ class TrajectoryViewer:
                         action=action,
                         lifetime=rospy.Duration(marker_lifetime),
                         pose=Pose(Point(self.a[0] / 10 ** 5, self.a[1] / 10 ** 5, self.a[2] / 10 ** 5), Quaternion(0, 0, 0, 1)),
-                        scale=Vector3(0.02, 0.02, 0.02),
+                        scale=self.scale,
                         header=Header(frame_id=self.parent),
                         color=ColorRGBA(*self.color)
                         )
@@ -85,10 +93,10 @@ class TrajectoryViewer:
         self.line_array.markers.clear()
 
         marker = Marker(type=Marker.LINE_STRIP,
-                             action=Marker.ADD,
-                             scale=Vector3(0.02, 0.02, 0.02),
-                             header=Header(frame_id=self.parent),
-                             color=ColorRGBA(*self.color))
+                        action=Marker.ADD,
+                        scale=self.scale,
+                        header=Header(frame_id=self.parent),
+                        color=ColorRGBA(*self.color))
 
         marker.pose.orientation.w = 1
 

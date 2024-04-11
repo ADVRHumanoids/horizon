@@ -1,5 +1,3 @@
-import random
-
 import numpy
 import numpy as np
 import casadi as cs
@@ -62,7 +60,7 @@ class replay_trajectory:
             trajectory_markers = []
 
         if future_trajectory_markers is None:
-            future_trajectory_markers = dict()
+            future_trajectory_markers = []
 
         if frame_force_mapping is None:
             frame_force_mapping = {}
@@ -98,37 +96,22 @@ class replay_trajectory:
         self.future_tv = dict()
 
         for frame in trajectory_markers:
+            self.tv[frame] = TrajectoryViewer(frame, opts=trajectory_markers_opts)
 
-            if 'colors' in trajectory_markers_opts:
-                color = trajectory_markers_opts['colors'][frame]
-            else:
-                color = [random.uniform(0, 1),
-                         random.uniform(0, 1),
-                         random.uniform(0, 1),
-                         1.]
-
-            self.tv[frame] = TrajectoryViewer(frame, color=color)
-
-
-        for frame, parent in future_trajectory_markers.items():
-
-            if 'colors' in future_trajectory_markers_opts:
-                color = future_trajectory_markers_opts['colors'][frame]
-            else:
-                color = [random.uniform(0, 1),
-                         random.uniform(0, 1),
-                         random.uniform(0, 1),
-                         1.]
-
-            self.future_tv[frame] = TrajectoryViewer(frame, parent, color=color, pub_name="future_marker_array/")
+        for frame in future_trajectory_markers:
+            if frame not in self.frame_fk:
+                FK = kindyn.fk(frame)
+                self.frame_fk[frame] = FK
+            self.future_tv[frame] = TrajectoryViewer(frame, 'world', pub_name="future_marker_array/", opts=future_trajectory_markers_opts)
 
         # WE CHECK IF WE HAVE TO ROTATE CONTACT FORCES:
         if force_reference_frame is cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED:
             if kindyn is None:
                 raise Exception('kindyn input can not be None if force_reference_frame is LOCAL_WORLD_ALIGNED!')
             for frame in self.frame_force_mapping.keys(): # WE LOOP ON FRAMES
-                FK = kindyn.fk(frame)
-                self.frame_fk[frame] = FK
+                if frame not in self.frame_fk:
+                    FK = kindyn.fk(frame)
+                    self.frame_fk[frame] = FK
 
                 # rotate frame
                 # w_all = self.frame_force_mapping[frame]
@@ -153,15 +136,16 @@ class replay_trajectory:
             for key in self.frame_force_mapping:
                 self.force_pub.append(rospy.Publisher(key+'_forces', geometry_msgs.msg.WrenchStamped, queue_size=10))
 
-    def publish_past_trajectory_marker(self, trajectory_marker_action=Marker.ADD):
+    def publish_past_trajectory_marker(self, trajectory_marker_action=None):
 
         for elem in self.tv.values():
             elem.publish_sphere(action=trajectory_marker_action)
 
-    def publish_future_trajectory_marker(self, frame, traj):
+    def publish_future_trajectory_marker(self, solution):
 
-        # todo: trajectory should come from outside or computed automatically based on frame?
-        self.future_tv[frame].publish_line(traj)
+        for frame_name, frame_publisher in self.future_tv.items():
+            traj = self.frame_fk[frame_name](q=solution)['ee_pos'].toarray()
+            frame_publisher.publish_line(traj)
 
     def publishContactForces(self, time, qk, k):
         i = 0
