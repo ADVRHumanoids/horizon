@@ -51,6 +51,8 @@ PYBIND11_MODULE(pyilqr, m) {
             .def("getConstraintsValues", &IterativeLQR::getConstraintsValues)
             .def("getCostsValues", &IterativeLQR::getCostsValues)
             .def("getResidualNorm", &IterativeLQR::getResidualNorm)
+            .def("getConstrValOnNodes", &IterativeLQR::getConstrValOnNodes)
+            .def("getCostValOnNodes", &IterativeLQR::getCostValOnNodes)
             .def("setInitialState", &IterativeLQR::setInitialState)
             .def("setInputInitialGuess", &IterativeLQR::setInputInitialGuess)
             .def("setStateInitialGuess", &IterativeLQR::setStateInitialGuess)

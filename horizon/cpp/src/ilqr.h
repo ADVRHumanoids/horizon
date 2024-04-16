@@ -126,7 +126,11 @@ public:
 
     const std::vector<ForwardPassResult>& getIterationHistory() const;
 
+    const Eigen::VectorXd& getCostValOnNodes() const;
+
     const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
+
+    const Eigen::VectorXd& getConstrValOnNodes() const;
 
     const std::map<std::string, Eigen::VectorXd>& getCostsValues() const;
 
@@ -170,8 +174,6 @@ public:
 
         void print(int N = 1) const;
     };
-
-
 
 
 protected:

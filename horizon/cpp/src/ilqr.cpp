@@ -609,9 +609,19 @@ const std::vector<IterativeLQR::ForwardPassResult>& IterativeLQR::getIterationHi
     return _fp_res_history;
 }
 
+const Eigen::VectorXd &IterativeLQR::getConstrValOnNodes() const
+{
+    return _fp_res->constraint_values;
+}
+
 const std::map<std::string, Eigen::MatrixXd> &IterativeLQR::getConstraintsValues() const
 {
     return _constr_values;
+}
+
+const Eigen::VectorXd &IterativeLQR::getCostValOnNodes() const
+{
+    return _fp_res->cost_values;
 }
 
 const std::map<std::string, Eigen::VectorXd> &IterativeLQR::getCostsValues() const
