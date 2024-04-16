@@ -162,6 +162,7 @@ public:
         int iter;
         bool accepted;
 
+        Eigen::VectorXd cost_values;
         Eigen::VectorXd constraint_values;
         Eigen::MatrixXd defect_values;
 

@@ -110,6 +110,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _step_length_threshold = value_or(opt, "ilqr.step_length_threshold", 1e-9);
     _closed_loop_forward_pass = value_or(opt, "ilqr.closed_loop_forward_pass", 1);
     _codegen_workdir = value_or<std::string>(opt, "ilqr.codegen_workdir", "/tmp");
+
     _codegen_enabled = value_or(opt, "ilqr.codegen_enabled", 0);
     _enable_line_search = value_or(opt, "ilqr.enable_line_search", 1);
 
@@ -1361,6 +1362,7 @@ IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int nu, int N):
     utrj.setZero(nu, N);
     merit = 0.0;
     step_length = 0.0;
+    cost_values.setZero(N+1);
     constraint_values.setZero(N+1);
     defect_values.setZero(nx, N);
 

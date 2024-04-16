@@ -202,10 +202,11 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
-        cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
-
+        _fp_res->cost_values[i] = _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
+        cost += _fp_res->cost_values[i];
+        
         if (_debug) {
-            // optionally (TBD) save values of single costs acting on this node
+            // optionally save values of single costs acting on this node
             for(auto it : _cost[i].items)
             {
                 // not updating items uninitialized (item vs item_cost)
@@ -221,7 +222,8 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // add final cost
     // note: u not used
     // todo: enforce this!
-    cost += _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
+    _fp_res->cost_values[_N] = _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
+    cost +=  _fp_res->cost_values[_N];
 
     return cost / _N;
 }
