@@ -213,6 +213,12 @@ class SolverILQR(Solver):
     def getResidualNorm(self):
         return self.ilqr.getResidualNorm()
 
+    def getConstrValOnNodes(self):
+        return self.ilqr.getConstrValOnNodes()
+    
+    def getCostValOnNodes(self):
+        return self.ilqr.getCostValOnNodes()
+    
     def print_timings(self):
 
         prof_info = self.ilqr.getProfilingInfo()
