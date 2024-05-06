@@ -32,6 +32,7 @@ class OperationMode(Enum):
     STAND = 0
     CRAWL = 1
     TROT = 2
+    STEP = 3
 
 class GaitManagerROS:
     def __init__(self, gm: GaitManager, opt : dict = None):
@@ -61,8 +62,9 @@ class GaitManagerROS:
         self.__base_vel_ref = np.zeros(6)
 
         # open ros services
-        self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
+        self.__switch_walk_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
+        self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
 
         self.__current_solution = None
 
@@ -113,7 +115,7 @@ class GaitManagerROS:
         self.__base_vel_ref[4] = msg.angular.y
         self.__base_vel_ref[5] = msg.angular.z
 
-    def __switch_walk_cb(self, req: SetBoolRequest):
+    def __switch_crawl_cb(self, req: SetBoolRequest):
 
         if req.data:
             self.__operation_mode = OperationMode.CRAWL
@@ -133,6 +135,16 @@ class GaitManagerROS:
 
         return {'success': True}
 
+    def __switch_step_cb(self, req: SetBoolRequest):
+
+        if req.data:
+            self.__operation_mode = OperationMode.STEP
+        else:
+            if self.__operation_mode == OperationMode.STEP:
+                self.__operation_mode = OperationMode.STAND
+
+        return {'success': True}
+
     def __set_phases(self):
 
         if self.__operation_mode == OperationMode.CRAWL:
@@ -142,6 +154,10 @@ class GaitManagerROS:
         if self.__operation_mode == OperationMode.TROT:
             if self.__one_random_contact_timeline.getEmptyNodes() > 0:
                 self.__gm.trot()
+
+        if self.__operation_mode == OperationMode.STEP:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
+                self.__gm.step('ball_1')
 
         if self.__operation_mode == OperationMode.STAND:
             if self.__one_random_contact_timeline.getEmptyNodes() > 0:
