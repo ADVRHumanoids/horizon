@@ -134,16 +134,16 @@ class GaitManager:
             # turning gait
             if omega > 0:
 
-                cycle_lists = [[0, 1, 1, 1],
-                               [1, 1, 0, 1],
+                cycle_lists = [[1, 1, 0, 1],
                                [1, 1, 1, 0],
-                               [1, 0, 1, 1]]
+                               [1, 0, 1, 1],
+                               [0, 1, 1, 1]]
             else:
 
-                cycle_lists = [[0, 1, 1, 1],
+                cycle_lists = [[1, 1, 0, 1],
+                               [0, 1, 1, 1],
                                [1, 0, 1, 1],
-                               [1, 1, 1, 0],
-                               [1, 1, 0, 1]]
+                               [1, 1, 1, 0]]
 
         else:
 
