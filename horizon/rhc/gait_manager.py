@@ -52,93 +52,79 @@ class GaitManager:
 
         return self.__task_interface
 
-    def cycle_short(self, cycle_list, phase_pos=None):
-
-        if phase_pos is None:
-            phase_pos = -1
-        else:
-            phase_pos = phase_pos
+    def cycle_short(self, cycle_list):
 
         for flag_contact, contact_name in zip(cycle_list, self.__contact_timelines.keys()):
             timeline_i = self.__contact_timelines[contact_name]
 
             if flag_contact == 1:
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
             else:
-                timeline_i.addPhase(self.__flight_short_phases[contact_name], pos=phase_pos)
+                timeline_i.addPhase(self.__flight_short_phases[contact_name])
 
-    def cycle(self, cycle_list, phase_pos=-1):
+    def cycle(self, cycle_list):
 
-        if phase_pos is None:
-            phase_pos = -1
-        else:
-            phase_pos = phase_pos
 
         for flag_contact, contact_name in zip(cycle_list, self.__contact_timelines.keys()):
             timeline_i = self.__contact_timelines[contact_name]
 
             if flag_contact == 1:
                 # for i in range(8):
-                timeline_i.addPhase(self.__stance_phases[contact_name], pos=phase_pos)
-                    # timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
+                timeline_i.addPhase(self.__stance_phases[contact_name])
+                    # timeline_i.addPhase(self.__stance_short_phases[contact_name])
 
 
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
             else:
-                timeline_i.addPhase(self.__flight_phases[contact_name], pos=phase_pos)
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos+1)
+                timeline_i.addPhase(self.__flight_phases[contact_name])
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
 
 
-    def cycle_recovery(self, cycle_list, phase_pos=None):
-
-        if phase_pos is None:
-            phase_pos = -1
-        else:
-            phase_pos = phase_pos
+    def cycle_recovery(self, cycle_list):
 
         for flag_contact, contact_name in zip(cycle_list, self.__contact_timelines.keys()):
             timeline_i = self.__contact_timelines[contact_name]
 
             if flag_contact == 1:
-                # timeline_i.addPhase(self.__stance_recovery_phases[contact_name], pos=phase_pos)
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
-                timeline_i.addPhase(self.__stance_short_phases[contact_name], pos=phase_pos)
+                # timeline_i.addPhase(self.__stance_recovery_phases[contact_name])
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                timeline_i.addPhase(self.__stance_short_phases[contact_name])
             else:
-                timeline_i.addPhase(self.__flight_recovery_phases[contact_name], pos=phase_pos)
+                timeline_i.addPhase(self.__flight_recovery_phases[contact_name])
 
-    def step(self, swing_contact, phase_pos=None):
+    def step(self, swing_contact):
 
         cycle_list = [[True if contact_name != swing_contact else False for contact_name in self.__contact_timelines.keys()]]
-        self.__add_cycles(cycle_list, phase_pos=phase_pos)
+        self.__add_cycles(cycle_list)
 
-    def diagonal_pair(self, val=0, phase_pos=None):
-
-        cycle_lists = [[0, 1, 1, 0]] # fr-rl
-
-        if val == 1:
-            cycle_lists = [[1, 0, 0, 1]] # fl-rr
-
-        self.__add_cycles(cycle_lists, phase_pos=phase_pos)
-
-    def diagonal_pair_recovery(self, val=0, phase_pos=None):
+    def diagonal_pair(self, val=0):
 
         cycle_lists = [[0, 1, 1, 0]] # fr-rl
 
         if val == 1:
             cycle_lists = [[1, 0, 0, 1]] # fl-rr
 
-        self.__add_cycles_recovery(cycle_lists, phase_pos=phase_pos)
+        self.__add_cycles(cycle_lists)
 
-    def trot(self, phase_pos=None):
+    def diagonal_pair_recovery(self, val=0):
 
-        self.diagonal_pair(0, phase_pos=phase_pos)
-        self.diagonal_pair(1, phase_pos=phase_pos)
+        cycle_lists = [[0, 1, 1, 0]] # fr-rl
+
+        if val == 1:
+            cycle_lists = [[1, 0, 0, 1]] # fl-rr
+
+        self.__add_cycles_recovery(cycle_lists)
+
+    def trot(self):
+
+        self.diagonal_pair(0)
+        self.diagonal_pair(1)
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
 
-    def crawl(self, vref=[0, 0, 1], phase_pos=None):
+    def crawl(self, vref=[0, 0, 1]):
 
         vx, vy, omega = vref
         Rmax = 1
@@ -193,58 +179,48 @@ class GaitManager:
                                [1, 1, 0, 1],
                                [1, 1, 1, 0]]
 
-        self.__add_cycles(cycle_lists, phase_pos=phase_pos)
+        self.__add_cycles(cycle_lists)
 
-    def leap(self, phase_pos=None):
+    def leap(self):
 
         cycle_lists = [[0, 0, 1, 1], [1, 1, 0, 0]]
-        self.__add_cycles(cycle_lists, phase_pos=phase_pos)
+        self.__add_cycles(cycle_lists)
 
-    def walk(self, phase_pos=None):
+    def walk(self):
 
         cycle_lists = [[1, 0, 1, 0], [0, 1, 0, 1]]
-        self.__add_cycles(cycle_lists, phase_pos=phase_pos)
+        self.__add_cycles(cycle_lists)
 
-    def jump(self, phase_pos=None):
+    def jump(self):
 
         cycle_list = [[0, 0, 0, 0]]
-        self.__add_cycles(cycle_list, phase_pos=phase_pos)
+        self.__add_cycles(cycle_list)
 
-    def wheelie(self, phase_pos=None):
+    def wheelie(self):
 
         cycle_list = [[0, 0, 1, 1]]
-        self.__add_cycles(cycle_list, phase_pos=phase_pos)
+        self.__add_cycles(cycle_list)
 
-    def give_paw(self, phase_pos=None):
+    def give_paw(self):
 
         cycle_list = [[0, 1, 1, 1]]
-        self.__add_cycles(cycle_list, phase_pos=phase_pos)
+        self.__add_cycles(cycle_list)
 
-    def stand(self, phase_pos=None):
+    def stand(self):
 
         cycle_list = [[1, 1, 1, 1]]
-        self.__add_cycles(cycle_list, phase_pos=phase_pos)
+        self.__add_cycles(cycle_list)
 
-    def __add_cycles(self, cycle_lists, phase_pos=None):
-
-        if phase_pos is None:
-            phase_pos = -1
-        else:
-            phase_pos = phase_pos
+    def __add_cycles(self, cycle_lists):
 
         for cycle_i in cycle_lists:
-            self.cycle(cycle_i, phase_pos=phase_pos)
+            self.cycle(cycle_i)
 
 
-    def __add_cycles_recovery(self, cycle_lists, phase_pos=None):
-
-        if phase_pos is None:
-            phase_pos = -1
-        else:
-            phase_pos = phase_pos
+    def __add_cycles_recovery(self, cycle_lists):
 
         for cycle_i in cycle_lists:
-            self.cycle_recovery(cycle_i, phase_pos=phase_pos)
+            self.cycle_recovery(cycle_i)
 
 
 
