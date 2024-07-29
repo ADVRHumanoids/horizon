@@ -140,13 +140,17 @@ class CartesianTask(Task):
         ee_p_distal_t = ee_p_distal['ee_pos']
         ee_p_distal_r = ee_p_distal['ee_rot']
 
-        # fk_base = self.kin_dyn.fk(self.base_link)
-        # ee_p_base = fk_base(q=self.q)
-        # ee_p_base_t = ee_p_base['ee_pos']
-        # ee_p_base_r = ee_p_base['ee_rot']
+        if self.base_link == 'world':
+            ee_p_rel = ee_p_distal_t
+            ee_r_rel = ee_p_distal_r
+        else:
+            fk_base = self.kin_dyn.fk(self.base_link)
+            ee_p_base = fk_base(q=self.q)
+            ee_p_base_t = ee_p_base['ee_pos']
+            ee_p_base_r = ee_p_base['ee_rot']
 
-        ee_p_rel = ee_p_distal_t
-        ee_r_rel = ee_p_distal_r
+            ee_p_rel = ee_p_distal_t - ee_p_base_t
+            ee_r_rel = cs.inv(ee_p_base_r) * ee_p_distal_r
 
         # TODO: right now this is slightly unintuitive:
         #  if the function is receding, there are two important concepts to stress:
