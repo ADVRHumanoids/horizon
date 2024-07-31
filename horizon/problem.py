@@ -329,8 +329,19 @@ class Problem:
             raise ValueError('dt not defined, have you called setDt?')
         return self.dt
 
-    def setInitialState(self, x0: Iterable):
+    def setInitialState(self, x0: np.ndarray):
         self.getState().setBounds(lb=x0, ub=x0, nodes=0)
+
+    def setInitialStateSoft(self, x0_meas:  np.ndarray, 
+            x0_internal:  np.ndarray):
+        
+        # set initial state with a "soft approach", which is useful when running a controller
+        # in closed loop to avoid issues
+    
+        lower_bound_relaxed=np.minimum(x0_meas,x0_internal)
+        upper_bound_relaxed=np.maximum(x0_meas,x0_internal)
+        # relax state bound on first node to allow some mismatch
+        self.getState().setBounds(lb=lower_bound_relaxed, ub=upper_bound_relaxed, nodes=0)
 
     def getInitialState(self) -> np.array:
         lb, ub = self.getState().getBounds(node=0)
