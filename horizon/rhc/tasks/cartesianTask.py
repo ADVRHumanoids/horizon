@@ -269,6 +269,9 @@ class CartesianTask(Task):
             self.ref = self.acc_tgt
             fun = ee_a[self.indices] - self.acc_tgt
 
+        else:
+            raise ValueError(f'Unsupported cartesian task type {self.cartesian_type}')
+        
         self.constr = self.instantiator(
             f'{frame_name}_cartesian_task', self.weight_param * fun, nodes=self.nodes)
 
