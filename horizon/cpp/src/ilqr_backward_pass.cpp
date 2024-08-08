@@ -1,4 +1,5 @@
 #include "ilqr_impl.h"
+#include "typedefs.h"
 
 struct HessianIndefinite : std::runtime_error
 {
@@ -54,7 +55,7 @@ void IterativeLQR::backward_pass()
         // some of them could be infeasible unless the initial
         // satisfies them already, let's check the residual
         // from the computed dx[0]
-        Eigen::VectorXd residual;
+        VectorXr residual;
         residual = _constraint_to_go->C()*_bp_res[0].dx +
                     _constraint_to_go->h();
 
@@ -140,31 +141,31 @@ void IterativeLQR::backward_pass_iter(int i)
     // print
     if(_log)
     {
-        Eigen::MatrixXd H(_nu+_nx, _nu+_nx);
+        MatrixXr H(_nu+_nx, _nu+_nx);
         H << tmp.Hxx, tmp.Hux.transpose(),
              tmp.Hux, tmp.Huu;
-        Eigen::VectorXd eigH = H.eigenvalues().real();
+        VectorXr eigH = H.eigenvalues().real();
         std::cout << "eig(H[" << i << "]) in [" <<
                      eigH.minCoeff() << ", " << eigH.maxCoeff() << "] \n";
 
         std::cout << "H symmetry error = " <<
                      (H - H.transpose()).lpNorm<Eigen::Infinity>() << "\n";
 
-        Eigen::MatrixXd V(_nu+_nx, _nu+_nx);
+        MatrixXr V(_nu+_nx, _nu+_nx);
         V << Q, P.transpose(),
              P, R;
-        Eigen::VectorXd eigV = V.eigenvalues().real();
+        VectorXr eigV = V.eigenvalues().real();
         std::cout << "eig(V[" << i << "]) in [" <<
                      eigV.minCoeff() << ", " << eigV.maxCoeff() << "] \n";
 
         std::cout << "V symmetry error = " <<
                      (V - V.transpose()).lpNorm<Eigen::Infinity>() << "\n";
 
-        Eigen::VectorXd eigS = Snext.eigenvalues().real();
+        VectorXr eigS = Snext.eigenvalues().real();
         std::cout << "eig(S[" << i+1 << "]) in [" <<
                      eigS.minCoeff() << ", " << eigS.maxCoeff() << "] \n";
 
-        Eigen::VectorXd eigHuu = tmp.Huu.eigenvalues().real();
+        VectorXr eigHuu = tmp.Huu.eigenvalues().real();
         std::cout << "eig(Huu[" << i << "]) in [" <<
                      eigHuu.minCoeff() << ", " << eigHuu.maxCoeff() << "] \n";
     }
@@ -210,22 +211,22 @@ void IterativeLQR::backward_pass_iter(int i)
         case ReducedHessian:
 //            auto R11 = tmp.cqr.matrixR().topLeftCorner(nc, nc).triangularView<Eigen::Upper>();
 //            auto R12 = tmp.cqr.matrixR().topRightCorner(nc, _nu - nc);
-//            Eigen::VectorXd R11inv_h = R11.solve(constr_feas.h);
-//            Eigen::MatrixXd R11inv_C = R11.solve(constr_feas.C);
-//            Eigen::MatrixXd M = -R11.solve(R12);
-//            Eigen::MatrixXd Hzz = tmp.codP.transpose()*tmp.Huu*tmp.codP;
+//            VectorXr R11inv_h = R11.solve(constr_feas.h);
+//            MatrixXr R11inv_C = R11.solve(constr_feas.C);
+//            MatrixXr M = -R11.solve(R12);
+//            MatrixXr Hzz = tmp.codP.transpose()*tmp.Huu*tmp.codP;
 //            auto& P = tmp.codP;
 //            auto H11 = Hzz.topLeftCorner(nc, nc);
 //            auto H12 = Hzz.topRightCorner(nc, _nu - nc);
 //            auto H22 = Hzz.bottomLeftCorner(_nu - nc,_nu - nc);
-//            Eigen::MatrixXd Hred = H22 + M.transpose()*H11*M +
+//            MatrixXr Hred = H22 + M.transpose()*H11*M +
 //                    M*H12 + H12.transpose()*M.transpose();
-//            Eigen::LLT<Eigen::MatrixXd> llt;
+//            Eigen::LLT<MatrixXr> llt;
 //            llt.compute(Hred);
-//            Eigen::MatrixXd I_MT; // [I M^T]
-//            Eigen::VectorXd red_grad_0 = I_MT * (P.transpose()*tmp.hu) -
+//            MatrixXr I_MT; // [I M^T]
+//            VectorXr red_grad_0 = I_MT * (P.transpose()*tmp.hu) -
 //                    (H12 + H11*M).transpose()*R11inv_h;
-//            Eigen::MatrixXd red_grad_x = I_MT * (P.transpose()*tmp.Hux)  -
+//            MatrixXr red_grad_x = I_MT * (P.transpose()*tmp.Hux)  -
 //                    (H12 + H11*M).transpose()*R11inv_C;
 //            llt.solveInPlace(red_grad_0);
 //            llt.solveInPlace(red_grad_x);
@@ -302,8 +303,8 @@ void IterativeLQR::backward_pass_iter(int i)
         for(int j = 0; j < tmp.hinf.size(); j++)
         {
             // i-th infeasible constraint is in the form 0x = 0
-            double hnorm = std::fabs(tmp.hinf[j]);
-            double Cnorm = tmp.Cinf.row(j).lpNorm<Eigen::Infinity>();
+            Real hnorm = std::fabs(tmp.hinf[j]);
+            Real Cnorm = tmp.Cinf.row(j).lpNorm<Eigen::Infinity>();
             if(hnorm < 1e-16 && Cnorm < 1e-16)
             {
                 if(_verbose)
@@ -324,8 +325,8 @@ void IterativeLQR::backward_pass_iter(int i)
 
 void IterativeLQR::optimize_initial_state()
 {
-    Eigen::VectorXd& dx = _bp_res[0].dx;
-    Eigen::VectorXd& lam = _bp_res[0].dx_lam;
+    VectorXr& dx = _bp_res[0].dx;
+    VectorXr& lam = _bp_res[0].dx_lam;
 
     // typical case: initial state is fixed
     if(fixed_initial_state())
@@ -348,14 +349,14 @@ void IterativeLQR::optimize_initial_state()
 
         auto Csvd = C.jacobiSvd();
         Csvd.setThreshold(_svd_threshold);
-        Eigen::VectorXd svC = Csvd.singularValues();
+        VectorXr svC = Csvd.singularValues();
         std::cout << "sv(C[" << 0 << "]) in [" <<
                      svC.minCoeff() << ", " << svC.maxCoeff() << "], rank = " << Csvd.rank() <<  "\n";
     }
 
     // construct kkt matrix
     TIC(construct_state_kkt);
-    Eigen::MatrixXd& K = _tmp[0].x_kkt;
+    MatrixXr& K = _tmp[0].x_kkt;
     K.resize(s.size() + h.size(), s.size() + h.size());
     K.topLeftCorner(S.rows(), S.cols()) = S;
     K.topRightCorner(C.cols(), C.rows()) = C.transpose();
@@ -364,7 +365,7 @@ void IterativeLQR::optimize_initial_state()
     TOC(construct_state_kkt);
 
     // residual vector
-    Eigen::VectorXd k = _tmp[0].x_k0;
+    VectorXr k = _tmp[0].x_k0;
     k.resize(s.size() + h.size());
     k << -s,
          -h;
@@ -377,7 +378,7 @@ void IterativeLQR::optimize_initial_state()
     auto& lu = _tmp[0].x_lu;
     auto& qr = _tmp[0].x_qr;
     auto& ldlt = _tmp[0].x_ldlt;
-    Eigen::VectorXd& dx_lam = _tmp[0].dx_lam;
+    VectorXr& dx_lam = _tmp[0].dx_lam;
 
     switch(_kkt_decomp_type)
     {
@@ -408,7 +409,7 @@ void IterativeLQR::optimize_initial_state()
 
     if(_log)
     {
-        Eigen::VectorXd eigS = S.eigenvalues().real();
+        VectorXr eigS = S.eigenvalues().real();
         std::cout << "eig(S[" << 0 << "]) in [" <<
                      eigS.minCoeff() << ", " << eigS.maxCoeff() << "] \n";
 
@@ -421,8 +422,8 @@ void IterativeLQR::optimize_initial_state()
     lam = dx_lam.tail(h.size());
 
     // check constraints
-    Eigen::MatrixXd Cinf = C;
-    Eigen::VectorXd hinf = h;
+    MatrixXr Cinf = C;
+    VectorXr hinf = h;
 
     _constraint_to_go->clear();
 
@@ -444,7 +445,7 @@ void IterativeLQR::optimize_initial_state()
 
 void IterativeLQR::add_bound_constraint(int k)
 {
-    Eigen::RowVectorXd x_ei, u_ei;
+    RowVectorXr x_ei, u_ei;
 
     // state bounds
     u_ei.setZero(_nu);
@@ -462,7 +463,7 @@ void IterativeLQR::add_bound_constraint(int k)
         {
             x_ei = x_ei.Unit(_nx, i);
 
-            Eigen::Matrix<double, 1, 1> hd;
+            Eigen::Matrix<Real, 1, 1> hd;
             hd(0) = _xtrj(i, k) - _x_lb(i, k);
 
             _constraint_to_go->add(x_ei, u_ei, hd);
@@ -490,7 +491,7 @@ void IterativeLQR::add_bound_constraint(int k)
         {
             u_ei = u_ei.Unit(_nu, i);
 
-            Eigen::Matrix<double, 1, 1> hd;
+            Eigen::Matrix<Real, 1, 1> hd;
             hd(0) = _utrj(i, k) - _u_lb(i, k);
 
             _constraint_to_go->add(x_ei, u_ei, hd);
@@ -637,9 +638,9 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     }
 
     // decompose constraint into a feasible and infeasible components
-    Eigen::MatrixXd Ctmp = _constraint_to_go->C();
-    Eigen::MatrixXd Dtmp = _constraint_to_go->D();
-    Eigen::VectorXd htmp = _constraint_to_go->h();
+    MatrixXr Ctmp = _constraint_to_go->C();
+    MatrixXr Dtmp = _constraint_to_go->D();
+    VectorXr htmp = _constraint_to_go->h();
     TOC(constraint_prepare_inner);
     THROW_NAN(Ctmp);
     THROW_NAN(Dtmp);
@@ -652,14 +653,14 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     // it is rather common for D to contain exact zero rows,
     // we can directly consider them as unsatisfied constr
     _constraint_to_go->clear();
-    Eigen::MatrixXd C(Ctmp.rows(), Ctmp.cols());
-    Eigen::MatrixXd D(Dtmp.rows(), Dtmp.cols());
-    Eigen::VectorXd h(htmp.size());
+    MatrixXr C(Ctmp.rows(), Ctmp.cols());
+    MatrixXr D(Dtmp.rows(), Dtmp.cols());
+    VectorXr h(htmp.size());
 
     int pruned_idx = 0;
     for(int j = 0; j < h.size(); j++)
     {
-        double Dnorm = Dtmp.row(j).lpNorm<Eigen::Infinity>();
+        Real Dnorm = Dtmp.row(j).lpNorm<Eigen::Infinity>();
         if(Dnorm == 0)
         {
             _constraint_to_go->add(Ctmp.row(j),
@@ -772,8 +773,8 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
 //    // regularize feasible part
 //    for(int j = 0; j < rank; j++)
 //    {
-//        double rjj = qr.matrixR()(j, j);
-//        double r_mult = _svd_threshold*(1 + qr.maxPivot())/std::fabs(rjj);
+//        Real rjj = qr.matrixR()(j, j);
+//        Real r_mult = _svd_threshold*(1 + qr.maxPivot())/std::fabs(rjj);
 
 //        if(r_mult <= 1.0)
 //        {

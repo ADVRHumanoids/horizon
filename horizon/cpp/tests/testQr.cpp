@@ -4,22 +4,29 @@
 
 #include <chrono>
 #include <numeric>
+#include "typedefs.h"
+
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
+using Matrix2r=horizon::Matrix2r;
+using Vector2r=horizon::Vector2r;
 
 TEST(testQr, rank)
 {
-    Eigen::MatrixXd A, R;
-    Eigen::HouseholderQR<Eigen::MatrixXd> qr;
+    MatrixXr A, R;
+    Eigen::HouseholderQR<MatrixXr> qr;
 
     for(int i = 0; i < 100000; i++)
     {
-        A = Eigen::MatrixXd::Random(10, 3)*Eigen::MatrixXd::Random(3, 5);
+        A = MatrixXr::Random(10, 3)*MatrixXr::Random(3, 5);
         qr.compute(A);
         R = qr.matrixQR().triangularView<Eigen::Upper>();
 
         EXPECT_LT(std::fabs(R(3, 3)), 1e-9);
         EXPECT_LT(std::fabs(R(4, 4)), 1e-9);
 
-        A = Eigen::MatrixXd::Random(5, 3)*Eigen::MatrixXd::Random(3, 10);
+        A = MatrixXr::Random(5, 3)*MatrixXr::Random(3, 10);
         qr.compute(A);
         R = qr.matrixQR().triangularView<Eigen::Upper>();
 
@@ -33,7 +40,7 @@ TEST(testDecomp, compare)
     int nu = 18 + 12;
     int nc = 6 + 12;
 
-    Eigen::MatrixXd K, Huu, D;
+    MatrixXr K, Huu, D;
     K.setZero(nu+nc, nu+nc);
 
     Huu.setIdentity(nu, nu);
@@ -42,14 +49,14 @@ TEST(testDecomp, compare)
     K.bottomLeftCorner(nc, nu) = D;
     K.topRightCorner(nu, nc) = D.transpose();
 
-    Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(K);
-    Eigen::BDCSVD<Eigen::MatrixXd> bdcsvd(K);
-    Eigen::JacobiSVD<Eigen::MatrixXd> jsvd(K);
-    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixXd> cod(K);
-    Eigen::FullPivLU<Eigen::MatrixXd> lu(K);
+    Eigen::ColPivHouseholderQR<MatrixXr> qr(K);
+    Eigen::BDCSVD<MatrixXr> bdcsvd(K);
+    Eigen::JacobiSVD<MatrixXr> jsvd(K);
+    Eigen::CompleteOrthogonalDecomposition<MatrixXr> cod(K);
+    Eigen::FullPivLU<MatrixXr> lu(K);
 
     int n_trials = 1000;
-    std::map<std::string, std::vector<double>> times;
+    std::map<std::string, std::vector<Real>> times;
     using hrc = std::chrono::high_resolution_clock;
     hrc::time_point tic, toc;
     for(int i = 0; i < n_trials; i++)
@@ -65,7 +72,7 @@ TEST(testDecomp, compare)
 
         tic = hrc::now();
         qr.compute(K);
-        Eigen::MatrixXd q = qr.householderQ();
+        MatrixXr q = qr.householderQ();
         toc = hrc::now();
         times["qr"].push_back((toc - tic).count()*1e-3);
 
@@ -102,21 +109,21 @@ TEST(testDecomp, compare)
 TEST(testLdlt, basic)
 {
 #if false
-    Eigen::MatrixXd L;
+    MatrixXr L;
     L.setZero(3, 3);
     L.triangularView<Eigen::Lower>() = L.Random(3, 3);
     L.diagonal().setConstant(1);
 
-    Eigen::VectorXd d = d.Random(3);
+    VectorXr d = d.Random(3);
 
-    Eigen::MatrixXd K = L*d.asDiagonal()*L.transpose();
+    MatrixXr K = L*d.asDiagonal()*L.transpose();
 
     std::cout << "L=\n" << L << std::endl;
     std::cout << "d = " << d.transpose() << std::endl;
 
 
     int n = K.rows();
-    Eigen::VectorXd AP = AP.Zero(n*(n+1)/2);
+    VectorXr AP = AP.Zero(n*(n+1)/2);
     Eigen::VectorXi ipiv(n);
 
 

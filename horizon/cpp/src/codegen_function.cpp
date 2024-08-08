@@ -8,9 +8,15 @@
 #include <dlfcn.h>
 
 #include "wrapped_function.h"
+#include "typedefs.h"
 
 namespace
 {
+
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
+using RInfinity=horizon::RInfinity;
 
 class RestoreCwd
 {
@@ -36,14 +42,14 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
     casadi_utils::WrappedFunction fw = f;
     casadi_utils::WrappedFunction gw = g;
 
-    std::vector<Eigen::VectorXd> input(f.n_in());
+    std::vector<VectorXr> input(f.n_in());
 
     for(int iter = 0; iter < 10; iter++)
     {
 
         for(int i = 0; i < f.n_in(); i++)
         {
-            Eigen::VectorXd u;
+            VectorXr u;
             u.setRandom(f.size1_in(i));
             input[i] = 100*u;
         }
@@ -59,7 +65,7 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
 
         for(int i = 0; i < f.n_out(); i++)
         {
-            double err = (fw.getOutput(i) - gw.getOutput(i)).lpNorm<Eigen::Infinity>();
+            Real err = (fw.getOutput(i) - gw.getOutput(i)).lpNorm<Eigen::Infinity>();
 
             if(err > 1e-16)
             {

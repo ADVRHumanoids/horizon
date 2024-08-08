@@ -12,13 +12,13 @@
 
 #include "profiling.h"
 #include "iterate_filter.h"
+#include "typedefs.h"
 
 namespace horizon
 {
 
-typedef Eigen::Ref<const Eigen::VectorXd> VecConstRef;
-typedef Eigen::Ref<const Eigen::MatrixXd> MatConstRef;
-
+typedef Eigen::Ref<const VectorXr> VecConstRef;
+typedef Eigen::Ref<const MatrixXr> MatConstRef;
 
 /**
  * @brief IterativeLQR implements a multiple-shooting variant of the
@@ -48,7 +48,7 @@ public:
      */
     typedef std::function<bool(const ForwardPassResult& res)> CallbackType;
 
-    typedef std::variant<int, double, bool, std::string> OptionTypes;
+    typedef std::variant<int, Real, bool, std::string> OptionTypes;
     typedef std::map<std::string, OptionTypes> OptionDict;
 
 
@@ -63,9 +63,9 @@ public:
                  OptionDict opt = OptionDict());
 
 
-    void setStateBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
+    void setStateBounds(const MatrixXr& lb, const MatrixXr& ub);
 
-    void setInputBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
+    void setInputBounds(const MatrixXr& lb, const MatrixXr& ub);
 
     /**
      * @brief set an intermediate cost term for the k-th intermediate state,
@@ -95,7 +95,7 @@ public:
      */
     void setConstraint(std::vector<int> indices,
                        const casadi::Function& inter_constraint,
-                       std::vector<Eigen::VectorXd> target_values = std::vector<Eigen::VectorXd>());
+                       std::vector<VectorXr> target_values = std::vector<VectorXr>());
 
     void setFinalConstraint(const casadi::Function& final_constraint);
 
@@ -104,13 +104,13 @@ public:
 
     void updateIndices();
 
-    void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value);
+    void setParameterValue(const std::string& pname, const MatrixXr& value);
 
-    void setInitialState(const Eigen::VectorXd& x0);
+    void setInitialState(const VectorXr& x0);
 
-    void setStateInitialGuess(const Eigen::MatrixXd& x0);
+    void setStateInitialGuess(const MatrixXr& x0);
 
-    void setInputInitialGuess(const Eigen::MatrixXd& u0);
+    void setInputInitialGuess(const MatrixXr& u0);
 
     void setIterationCallback(const CallbackType& cb);
     
@@ -118,21 +118,21 @@ public:
 
     bool solve(int max_iter);
 
-    const Eigen::MatrixXd& getStateTrajectory() const;
+    const MatrixXr& getStateTrajectory() const;
 
-    const Eigen::MatrixXd& getInputTrajectory() const;
+    const MatrixXr& getInputTrajectory() const;
 
     const utils::ProfilingInfo& getProfilingInfo() const;
 
     const std::vector<ForwardPassResult>& getIterationHistory() const;
 
-    const Eigen::VectorXd& getCostValOnNodes() const;
+    const VectorXr& getCostValOnNodes() const;
 
-    const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
+    const std::map<std::string, MatrixXr>& getConstraintsValues() const;
 
-    const Eigen::VectorXd& getConstrValOnNodes() const;
+    const VectorXr& getConstrValOnNodes() const;
 
-    const std::map<std::string, Eigen::VectorXd>& getCostsValues() const;
+    const std::map<std::string, VectorXr>& getCostsValues() const;
 
     const float getResidualNorm() const;
 
@@ -146,29 +146,29 @@ public:
 
     struct ForwardPassResult
     {
-        Eigen::MatrixXd xtrj;
-        Eigen::MatrixXd utrj;
-        double hxx_reg;
-        double rho;
-        double alpha;
-        double cost;
-        double bound_violation;
-        double merit;
-        double armijo_merit;
-        double mu_f;
-        double mu_c;
-        double mu_b;
-        double f_der;
-        double merit_der;
-        double step_length;
-        double constraint_violation;
-        double defect_norm;
+        MatrixXr xtrj;
+        MatrixXr utrj;
+        Real hxx_reg;
+        Real rho;
+        Real alpha;
+        Real cost;
+        Real bound_violation;
+        Real merit;
+        Real armijo_merit;
+        Real mu_f;
+        Real mu_c;
+        Real mu_b;
+        Real f_der;
+        Real merit_der;
+        Real step_length;
+        Real constraint_violation;
+        Real defect_norm;
         int iter;
         bool accepted;
 
-        Eigen::VectorXd cost_values;
-        Eigen::VectorXd constraint_values;
-        Eigen::MatrixXd defect_values;
+        VectorXr cost_values;
+        VectorXr constraint_values;
+        MatrixXr defect_values;
 
         ForwardPassResult(int nx, int nu, int N);
 
@@ -180,7 +180,7 @@ protected:
 
 private:
 
-    static constexpr double inf = std::numeric_limits<double>::infinity();
+    static constexpr Real inf = std::numeric_limits<Real>::infinity();
 
     struct ConstrainedDynamics;
     struct ConstrainedCost;
@@ -201,7 +201,7 @@ private:
     typedef std::tuple<int, ConstrainedDynamics, ConstrainedCost>
         HandleConstraintsRetType;
 
-    typedef std::shared_ptr<std::map<std::string, Eigen::MatrixXd>>
+    typedef std::shared_ptr<std::map<std::string, MatrixXr>>
         ParameterMapPtr;
 
     typedef std::map<std::string, std::shared_ptr<CostEntityBase>>
@@ -240,37 +240,37 @@ private:
 
     bool auglag_update();
 
-    double compute_merit_value(double mu_f,
-                               double mu_c,
-                               double cost,
-                               double defect_norm,
-                               double constr_viol);
+    Real compute_merit_value(Real mu_f,
+                               Real mu_c,
+                               Real cost,
+                               Real defect_norm,
+                               Real constr_viol);
 
-    double compute_merit_slope(double cost_slope,
-                               double mu_f,
-                               double mu_c,
-                               double defect_norm,
-                               double constr_viol);
+    Real compute_merit_slope(Real cost_slope,
+                               Real mu_f,
+                               Real mu_c,
+                               Real defect_norm,
+                               Real constr_viol);
 
-    double compute_cost_slope();
+    Real compute_cost_slope();
 
-    std::pair<double, double> compute_merit_weights(double cost_der, double defect_norm, double constr_viol);
+    std::pair<Real, Real> compute_merit_weights(Real cost_der, Real defect_norm, Real constr_viol);
 
-    double compute_cost(const Eigen::MatrixXd& xtrj,
-                        const Eigen::MatrixXd& utrj);
+    Real compute_cost(const MatrixXr& xtrj,
+                        const MatrixXr& utrj);
 
-    double compute_bound_penalty(const Eigen::MatrixXd& xtrj,
-                                 const Eigen::MatrixXd& utrj);
+    Real compute_bound_penalty(const MatrixXr& xtrj,
+                                 const MatrixXr& utrj);
 
-    double compute_constr(const Eigen::MatrixXd& xtrj,
-                          const Eigen::MatrixXd& utrj);
+    Real compute_constr(const MatrixXr& xtrj,
+                          const MatrixXr& utrj);
 
-    double compute_defect(const Eigen::MatrixXd& xtrj,
-                          const Eigen::MatrixXd& utrj);
+    Real compute_defect(const MatrixXr& xtrj,
+                          const MatrixXr& utrj);
 
-    bool forward_pass(double alpha);
+    bool forward_pass(Real alpha);
 
-    void forward_pass_iter(int i, double alpha);
+    void forward_pass_iter(int i, Real alpha);
 
     bool line_search(int iter);
 
@@ -302,22 +302,22 @@ private:
     const int _nu;
     const int _N;
 
-    double _step_length;
-    double _rho_base;
-    double _rho;
-    double _rho_growth_factor;
-    double _hxx_reg;
-    double _hxx_reg_base;
-    double _hxx_reg_growth_factor;
-    double _huu_reg;
-    double _kkt_reg;
-    double _line_search_accept_ratio;
-    double _alpha_min;
-    double _svd_threshold;
-    double _constraint_violation_threshold;
-    double _defect_norm_threshold;
-    double _merit_der_threshold;
-    double _step_length_threshold;
+    Real _step_length;
+    Real _rho_base;
+    Real _rho;
+    Real _rho_growth_factor;
+    Real _hxx_reg;
+    Real _hxx_reg_base;
+    Real _hxx_reg_growth_factor;
+    Real _huu_reg;
+    Real _kkt_reg;
+    Real _line_search_accept_ratio;
+    Real _alpha_min;
+    Real _svd_threshold;
+    Real _constraint_violation_threshold;
+    Real _defect_norm_threshold;
+    Real _merit_der_threshold;
+    Real _step_length_threshold;
     bool _enable_line_search;
     bool _enable_auglag;
 
@@ -334,8 +334,8 @@ private:
     std::vector<std::shared_ptr<BoundAuglagCostEntity>> _auglag_cost;
     std::vector<IntermediateCost> _cost;
     std::vector<Constraint> _constraint;
-    Eigen::MatrixXd _x_lb, _x_ub;
-    Eigen::MatrixXd _u_lb, _u_ub;
+    MatrixXr _x_lb, _x_ub;
+    MatrixXr _u_lb, _u_ub;
     std::vector<ValueFunction> _value;
     std::vector<Dynamics> _dyn;
 
@@ -347,13 +347,13 @@ private:
     IterateFilter _it_filt;
     bool _use_it_filter;
 
-    Eigen::MatrixXd _xtrj;
-    Eigen::MatrixXd _utrj;
-    std::vector<Eigen::VectorXd> _lam_g;
-    Eigen::MatrixXd _lam_x;
+    MatrixXr _xtrj;
+    MatrixXr _utrj;
+    std::vector<VectorXr> _lam_g;
+    MatrixXr _lam_x;
 
-    Eigen::MatrixXd _lam_bound_x;
-    Eigen::MatrixXd _lam_bound_u;
+    MatrixXr _lam_bound_x;
+    MatrixXr _lam_bound_u;
 
     std::vector<Temporaries> _tmp;
 
@@ -371,8 +371,8 @@ private:
 
     std::vector<ForwardPassResult> _fp_res_history;
 
-    std::map<std::string, Eigen::MatrixXd> _constr_values;
-    std::map<std::string, Eigen::VectorXd> _cost_values;
+    std::map<std::string, MatrixXr> _constr_values;
+    std::map<std::string, VectorXr> _cost_values;
 };
 
 

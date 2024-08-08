@@ -5,7 +5,6 @@ using namespace casadi_utils;
 
 extern horizon::utils::Timer::TocCallback on_timer_toc;
 
-
 WrappedFunction::WrappedFunction(casadi::Function f)
 {
     *this = f;
@@ -39,10 +38,10 @@ WrappedFunction &WrappedFunction::operator=(casadi::Function f)
         _out_buf.push_back(_out_data.back().data());
 
         // allocate a zero dense matrix to store the output
-        _out_matrix.emplace_back(Eigen::MatrixXd::Zero(sp.size1(), sp.size2()));
+        _out_matrix.emplace_back(MatrixXr::Zero(sp.size1(), sp.size2()));
 
         //allocate a zero sparse matrix to store the output
-        _out_matrix_sparse.emplace_back(Eigen::SparseMatrix<double>(sp.size1(), sp.size2()));
+        _out_matrix_sparse.emplace_back(Eigen::SparseMatrix<Real>(sp.size1(), sp.size2()));
 
         // save sparsity pattern for i-th output
         std::vector<casadi_int> rows, cols;
@@ -64,7 +63,7 @@ WrappedFunction::WrappedFunction(const WrappedFunction & other)
     *this = other._f;
 }
 
-void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
+void WrappedFunction::setInput(int i, Eigen::Ref<const VectorXr> xi)
 {
     if(xi.size() != _f.size1_in(i))
     {
@@ -127,7 +126,7 @@ void WrappedFunction::call(bool sparse)
                 oss << _out_matrix[i].format(3) << "\n";
                 for(int j = 0; j < _f.n_in(); j++)
                 {
-                    auto u = Eigen::VectorXd::Map(_in_buf[j],
+                    auto u = VectorXr::Map(_in_buf[j],
                                                   _f.size1_in(j));
                     oss << _f.name() << " input " << j <<
                            " = " << u.transpose().format(3) << "\n";
@@ -142,7 +141,7 @@ void WrappedFunction::call(bool sparse)
     _f.release(mem);
 }
 
-void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &out)
+void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<MatrixXr>> &out)
 {
     // call function (allocation-free)
     casadi_int mem = _f.checkout();
@@ -175,7 +174,7 @@ void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &
     _f.release(mem);
 }
 
-const Eigen::MatrixXd& WrappedFunction::getOutput(int i) const
+const MatrixXr& WrappedFunction::getOutput(int i) const
 {
     if(_out_matrix[i].hasNaN() || !_out_matrix[i].allFinite())
     {
@@ -183,7 +182,7 @@ const Eigen::MatrixXd& WrappedFunction::getOutput(int i) const
         std::cout << "output #" << i << ": \n" << _out_matrix[i].format(3) << "\n";
         for(int j = 0; j < _f.n_in(); j++)
         {
-            auto in = Eigen::VectorXd::Map(_in_buf[j], _f.size1_in(j));
+            auto in = VectorXr::Map(_in_buf[j], _f.size1_in(j));
             std::cout << "input #" << j << ": \n" << in.transpose().format(3) << "\n";
         }
     }
@@ -191,12 +190,12 @@ const Eigen::MatrixXd& WrappedFunction::getOutput(int i) const
     return _out_matrix[i];
 }
 
-const Eigen::SparseMatrix<double>& WrappedFunction::getSparseOutput(int i) const
+const Eigen::SparseMatrix<Real>& WrappedFunction::getSparseOutput(int i) const
 {
     return _out_matrix_sparse[i];
 }
 
-Eigen::MatrixXd& WrappedFunction::out(int i)
+MatrixXr& WrappedFunction::out(int i)
 {
     return _out_matrix[i];
 }
@@ -219,13 +218,13 @@ bool WrappedFunction::is_valid() const
 void WrappedFunction::csc_to_sparse_matrix(const casadi::Sparsity& sp,
                                            const std::vector<casadi_int>&  sp_rows,
                                            const std::vector<casadi_int>&  sp_cols,
-                                           const std::vector<double>& data,
-                                           Eigen::SparseMatrix<double>& matrix)
+                                           const std::vector<Real>& data,
+                                           Eigen::SparseMatrix<Real>& matrix)
 {
-    std::vector<Eigen::Triplet<double>> triplet_list;
+    std::vector<Eigen::Triplet<Real>> triplet_list;
     triplet_list.reserve(data.size());
     for(unsigned int i = 0; i < data.size(); ++i)
-        triplet_list.push_back(Eigen::Triplet<double>(sp_rows[i], sp_cols[i], data[i]));
+        triplet_list.push_back(Eigen::Triplet<Real>(sp_rows[i], sp_cols[i], data[i]));
 
     matrix.setFromTriplets(triplet_list.begin(), triplet_list.end());
 }
@@ -233,14 +232,14 @@ void WrappedFunction::csc_to_sparse_matrix(const casadi::Sparsity& sp,
 void WrappedFunction::csc_to_matrix(const casadi::Sparsity& sp,
                                     const std::vector<casadi_int>&  sp_rows,
                                     const std::vector<casadi_int>&  sp_cols,
-                                    const std::vector<double>& data,
-                                    Eigen::MatrixXd& matrix)
+                                    const std::vector<Real>& data,
+                                    MatrixXr& matrix)
 {
     // if dense output, do copy assignment which should be
     // faster
     if(sp.is_dense())
     {
-        matrix = Eigen::MatrixXd::Map(data.data(),
+        matrix = MatrixXr::Map(data.data(),
                                       matrix.rows(),
                                       matrix.cols());
 
@@ -262,14 +261,14 @@ void WrappedFunction::csc_to_matrix(const casadi::Sparsity& sp,
 void WrappedFunction::csc_to_matrix_accu(const casadi::Sparsity &sp,
                                          const std::vector<casadi_int> &sp_rows,
                                          const std::vector<casadi_int> &sp_cols,
-                                         const std::vector<double> &data,
-                                         Eigen::Ref<Eigen::MatrixXd> matrix)
+                                         const std::vector<Real> &data,
+                                         Eigen::Ref<MatrixXr> matrix)
 {
     // if dense output, do copy assignment which should be
     // faster
     if(sp.is_dense())
     {
-        matrix += Eigen::MatrixXd::Map(data.data(),
+        matrix += MatrixXr::Map(data.data(),
                                        matrix.rows(),
                                        matrix.cols());
 

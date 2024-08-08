@@ -11,18 +11,24 @@
 #include "profiling.h"
 
 #include "ilqr.h"
+#include "typedefs.h"
 
 #define GR 1.61803398875
 
 namespace horizon{
 
-typedef Eigen::Ref<const Eigen::VectorXd> VecConstRef;
-typedef Eigen::Ref<const Eigen::MatrixXd> MatConstRef;
+typedef Eigen::Ref<const VectorXr> VecConstRef;
+typedef Eigen::Ref<const MatrixXr> MatConstRef;
 
 
 template <class CASADI_TYPE> ///casadi::SX or casadi::MX
 class SQPGaussNewton
 {
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
+using RInfinity=horizon::RInfinity;
+
 public:
 
     static void setQPOasesOptionsMPC(casadi::Dict& opts)
@@ -31,13 +37,13 @@ public:
         opts["initialStatusBounds"] = "inactive";
         opts["numRefinementSteps"] = 0;
         opts["enableDriftCorrection"] = 0;
-        opts["terminationTolerance"] = 10e9 * std::numeric_limits<double>::epsilon();
+        opts["terminationTolerance"] = 10e9 * std::numeric_limits<Real>::epsilon();
         opts["enableFlippingBounds"] = false;
         opts["enableNZCTests"] = false;
         opts["enableRamping"] = false;
         opts["enableRegularisation"] = true;
         opts["numRegularisationSteps"] = 2;
-        opts["epsRegularisation"] = 5. * 10e3 * std::numeric_limits<double>::epsilon();
+        opts["epsRegularisation"] = 5. * 10e3 * std::numeric_limits<Real>::epsilon();
     }
 
     static void setQPOasesOptionsReliable(casadi::Dict& opts)
@@ -45,7 +51,7 @@ public:
         opts["enableEqualities"] = false;
         opts["numRefinementSteps"] = 2;
         opts["enableFullLITest"] = true;
-        opts["epsLITests"] = 10e5 * std::numeric_limits<double>::epsilon();
+        opts["epsLITests"] = 10e5 * std::numeric_limits<Real>::epsilon();
         opts["maxDualJump"] = 10e8;
         opts["enableCholeskyRefactorisation"] = 1;
     }
@@ -223,12 +229,12 @@ public:
      * @brief setAlphaMin set the minumi allowed alpha during linesearch
      * @param alpha min in Newton's method step
      */
-    void setAlphaMin(const double alpha_min)
+    void setAlphaMin(const Real alpha_min)
     {
         _alpha_min = alpha_min;
     }
 
-    const double& getAlpha() const
+    const Real& getAlpha() const
     {
         return _alpha;
     }
@@ -248,26 +254,26 @@ public:
                                 const casadi::DM& lbx, const casadi::DM& ubx,
                                 const casadi::DM& lbg, const casadi::DM& ubg);
 
-    double computeCost(const casadi_utils::WrappedFunction& f)
+    Real computeCost(const casadi_utils::WrappedFunction& f)
     {
         return f.getOutput(0).squaredNorm();
     }
 
-    double computeCostDerivative(const Eigen::VectorXd& dx, const Eigen::VectorXd& grad)
+    Real computeCostDerivative(const VectorXr& dx, const VectorXr& grad)
     {
         return dx.dot(grad);
     }
 
-    double computeConstraintViolation(const Eigen::VectorXd& g, const Eigen::VectorXd& x,
-                                      const Eigen::VectorXd& lbg, const Eigen::VectorXd& ubg,
-                                      const Eigen::VectorXd& lbx, const Eigen::VectorXd& ubx)
+    Real computeConstraintViolation(const VectorXr& g, const VectorXr& x,
+                                      const VectorXr& lbg, const VectorXr& ubg,
+                                      const VectorXr& lbx, const VectorXr& ubx)
     {
         return (lbg-g).cwiseMax(0.).lpNorm<1>() + (ubg-g).cwiseMin(0.).lpNorm<1>() +
                (lbx-x).cwiseMax(0.).lpNorm<1>() + (ubx-x).cwiseMin(0.).lpNorm<1>();
     }
 
 
-    bool lineSearch(Eigen::VectorXd& x, const Eigen::VectorXd& dx, const Eigen::VectorXd& lam_x, const Eigen::VectorXd& lam_a,
+    bool lineSearch(VectorXr& x, const VectorXr& dx, const VectorXr& lam_x, const VectorXr& lam_a,
                     const casadi::DM& lbg, const casadi::DM& ubg,
                     const casadi::DM& lbx, const casadi::DM& ubx, int iter);
 
@@ -339,9 +345,9 @@ public:
      * @brief getObjectiveIterations
      * @return 0.5*norm2 of objective (one per iteration)
      */
-    const std::vector<double>& getObjectiveIterations()
+    const std::vector<Real>& getObjectiveIterations()
     {
-        Eigen::VectorXd tmp;
+        VectorXr tmp;
         _objective.clear();
         _objective.reserve(_iteration_to_solve);
         for(unsigned int k = 0; k < _iteration_to_solve; ++k)
@@ -349,7 +355,7 @@ public:
             casadi_utils::toEigen(_variable_trj[k], tmp);
             _f.setInput(0, tmp); // cost function
             _f.call();
-            double norm = _f.getOutput(0).norm();
+            Real norm = _f.getOutput(0).norm();
             _objective.push_back(0.5*norm*norm);
         }
         return _objective;
@@ -359,7 +365,7 @@ public:
      * @brief getConstraintNormIterations
      * @return norm2 of the constraint vector (one per iteration)
      */
-    const std::vector<double>& getConstraintNormIterations()
+    const std::vector<Real>& getConstraintNormIterations()
     {
         _constraints_norm.clear();
         _constraints_norm.reserve(_iteration_to_solve);
@@ -376,7 +382,7 @@ public:
      * @brief getHessianComputationTime
      * @return vector of times needed to compute hessian (one value per iteration)
      */
-    const std::vector<double>& getHessianComputationTime() const
+    const std::vector<Real>& getHessianComputationTime() const
     {
         return _hessian_computation_time;
     }
@@ -385,22 +391,22 @@ public:
      * @brief getQPComputationTime
      * @return vector of times needed to solve qp (one value per iteration)
      */
-    const std::vector<double>& getQPComputationTime() const
+    const std::vector<Real>& getQPComputationTime() const
     {
         return _qp_computation_time;
     }
 
-    const std::vector<double>& getLineSearchComputationTime() const
+    const std::vector<Real>& getLineSearchComputationTime() const
     {
         return _line_search_time;
     }
 
-    void setBeta(const double beta)
+    void setBeta(const Real beta)
     {
         _beta = beta;
     }
 
-    double getBeta()
+    Real getBeta()
     {
         return _beta;
     }
@@ -422,7 +428,7 @@ private:
      * @param x point
      * @param sparse if result will be sparse
      */
-    void eval(casadi_utils::WrappedFunction& wf, const int i, const Eigen::VectorXd& x, const bool sparse)
+    void eval(casadi_utils::WrappedFunction& wf, const int i, const VectorXr& x, const bool sparse)
     {
         wf.setInput(i, x); // cost function
         wf.call(sparse);
@@ -440,7 +446,7 @@ private:
     }
 
 
-    bool checkIsStationary(const Eigen::VectorXd& grad, const double tol)
+    bool checkIsStationary(const VectorXr& grad, const Real tol)
     {
         for(unsigned int i = 0; i < grad.size(); ++i)
         {
@@ -478,27 +484,27 @@ private:
     casadi::Dict _qp_opts;
 
     casadi::DMVector _variable_trj;
-    std::vector<double> _objective, _constraints_norm;
+    std::vector<Real> _objective, _constraints_norm;
 
-    Eigen::SparseMatrix<double> _J;
-    Eigen::SparseMatrix<double> _H;
-    Eigen::SparseMatrix<double> _I;
-    Eigen::VectorXd _grad;
+    Eigen::SparseMatrix<Real> _J;
+    Eigen::SparseMatrix<Real> _H;
+    Eigen::SparseMatrix<Real> _I;
+    VectorXr _grad;
     casadi::DM grad_;
     casadi::DM g_;
     casadi::DM A_;
-    casadi_utils::WrappedSparseMatrix<double> H_;
+    casadi_utils::WrappedSparseMatrix<Real> H_;
     casadi::DM x0_;
-    Eigen::VectorXd _sol, _dx, _lam_a, _lam_x;
+    VectorXr _sol, _dx, _lam_a, _lam_x;
 
     IODMDict _g_dict;
     IODMDict _A_dict;
 
-    double _alpha, _alpha_min;
+    Real _alpha, _alpha_min;
 
-    std::vector<double> _hessian_computation_time;
-    std::vector<double> _qp_computation_time;
-    std::vector<double> _line_search_time;
+    std::vector<Real> _hessian_computation_time;
+    std::vector<Real> _qp_computation_time;
+    std::vector<Real> _line_search_time;
 
 
     unsigned int _iteration_to_solve;
@@ -506,23 +512,23 @@ private:
     IterativeLQR::ForwardPassResult _fpr;
     CallbackType _iter_cb;
 
-    double _beta;
+    Real _beta;
 
-    double _solution_convergence;
-    double _constraint_violation_tolerance;
-    double _merit_derivative_tolerance;
+    Real _solution_convergence;
+    Real _constraint_violation_tolerance;
+    Real _merit_derivative_tolerance;
 
-    double _eps_regularization = 0.0;
-    double _eps_regularization_base = 0.0;
+    Real _eps_regularization = 0.0;
+    Real _eps_regularization_base = 0.0;
 
     bool _use_gr;
 
     //line search
-    Eigen::VectorXd _lbg_, _ubg_, _lbx_, _ubx_;
-    Eigen::VectorXd _x0_;
+    VectorXr _lbg_, _ubg_, _lbx_, _ubx_;
+    VectorXr _x0_;
     casadi::DM _x_;
-    Eigen::VectorXd _g_;
-    double _merit_eps;
+    VectorXr _g_;
+    Real _merit_eps;
 
 
 };

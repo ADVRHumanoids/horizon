@@ -9,10 +9,15 @@ endif()
 
 # options
 option(HORIZON_PROFILING OFF "enable profiling features")
+option(HORIZON_FLOAT32 OFF "use float32 for data representation")
 
 if(${HORIZON_PROFILING})
     add_definitions(-DHORIZON_PROFILING)
 endif()
+if(${HORIZON_FLOAT32})
+    add_definitions(-DHORIZON_FLOAT32)
+endif()
+
 
 find_package(Eigen3 REQUIRED)
 find_package(casadi 3.5.5 REQUIRED)

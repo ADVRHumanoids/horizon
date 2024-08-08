@@ -5,22 +5,25 @@
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include "typedefs.h"
 
 class IterateFilter
 {
+
+using Real=horizon::Real;
 
 public:
 
     struct Pair
     {
-        double f;
-        double h;
+        Real f;
+        Real h;
 
         Pair();
 
         bool dominates(const Pair& other,
-                       double beta = 1.0,
-                       double gamma = 0.0) const;
+                       Real beta = 1.0,
+                       Real gamma = 0.0) const;
     };
 
     IterateFilter() = default;
@@ -33,9 +36,9 @@ public:
 
     void print();
 
-    double beta = 1.0;
-    double gamma = 0.0;
-    double constr_tol = 1e-6;
+    Real beta = 1.0;
+    Real gamma = 0.0;
+    Real constr_tol = 1e-6;
 
 
 private:

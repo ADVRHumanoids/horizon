@@ -1,9 +1,14 @@
 #include "ilqr.h"
 #include <unistd.h>
 #include "wrapped_function.h"
+#include "typedefs.h"
 
 int main()
 {
+    using Real=horizon::Real;
+    using MatrixXr=horizon::MatrixXr;
+    using VectorXr=horizon::VectorXr;
+
     bool stop = false;
 
     auto f = casadi::external("zero_velocity_l_foot_l_sole_vel_task_jac",
@@ -18,9 +23,9 @@ int main()
 
         while(!stop)
         {
-            auto x = Eigen::VectorXd::Random(f.size1_in(0)).eval();
-            auto u = Eigen::VectorXd::Random(f.size1_in(1), 1).eval();
-            auto tgt = Eigen::VectorXd::Random(f.size1_in(2), 1).eval();
+            auto x = VectorXr::Random(f.size1_in(0)).eval();
+            auto u = VectorXr::Random(f.size1_in(1), 1).eval();
+            auto tgt = VectorXr::Random(f.size1_in(2), 1).eval();
 
             fw.setInput(0, x);
             fw.setInput(1, u);
@@ -61,6 +66,10 @@ int main()
 
 int not_a_main()
 {
+    using Real=horizon::Real;
+    using MatrixXr=horizon::MatrixXr;
+    using VectorXr=horizon::VectorXr;
+    
     auto x = casadi::SX::sym("x", 1);
     auto u = casadi::SX::sym("u", 1);
     auto p = casadi::SX::sym("p", 1);
@@ -73,21 +82,21 @@ int not_a_main()
     int N = 3;
     horizon::IterativeLQR ilqr(f, N);
 
-    Eigen::MatrixXd xlb, xub;
+    MatrixXr xlb, xub;
     xlb.setConstant(1, N+1, -INFINITY);
     xub.setConstant(1, N+1, INFINITY);
     xlb(N) = 1.0;
     xub(N) = 1.0;
     ilqr.setStateBounds(xlb, xub);
 
-    Eigen::MatrixXd ulb, uub;
+    MatrixXr ulb, uub;
     ulb.setConstant(1, N, -INFINITY);
     uub.setConstant(1, N, INFINITY);
     ulb(0) = 11.0;
     uub(0) = 11.0;
     ilqr.setInputBounds(ulb, uub);
 
-    Eigen::VectorXd x0(1);
+    VectorXr x0(1);
     x0 << 0.0;
     ilqr.setInitialState(x0);
     xlb(0) = x0(0);
@@ -96,11 +105,11 @@ int not_a_main()
     ilqr.setCost({0, 1}, l);
     ilqr.setConstraint({2}, cf);
 
-    Eigen::MatrixXd myparam_values;
+    MatrixXr myparam_values;
     myparam_values.setConstant(1, N+1, -1.0);
     ilqr.setParameterValue("myparam", myparam_values);
 
-    Eigen::MatrixXd dt_values;
+    MatrixXr dt_values;
     dt_values.setConstant(1, N+1, 0.1);
     ilqr.setParameterValue("dt", dt_values);
 

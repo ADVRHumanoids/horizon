@@ -1,5 +1,6 @@
 #include "sqp.h"
 #include <casadi/casadi.hpp>
+#include "typedefs.h"
 
 int main()
 {
@@ -38,8 +39,8 @@ int main()
 //    std::cout<<"solution: "<<solution["x"]<<"   f: "<<solution["f"]<<"  g: "<<solution["g"]<<std::endl;
 
 //    casadi::DMVector var_trj = sqp.getVariableTrajectory();
-//    std::vector<double> objs = sqp.getObjectiveIterations();
-//    std::vector<double> cons = sqp.getConstraintNormIterations();
+//    std::vector<Real> objs = sqp.getObjectiveIterations();
+//    std::vector<Real> cons = sqp.getConstraintNormIterations();
 //    for(unsigned int i = 0; i < sqp.getNumberOfIterations(); ++i)
 //        std::cout<<"iter "<<i<<"-> sol: "<<var_trj[i]<<"    obj: "<<objs[i]<<"  cons: "<<cons[i]<<std::endl;
 
@@ -55,8 +56,8 @@ int main()
 //    std::cout<<"solution2: "<<solution2["x"]<<"   f: "<<solution2["f"]<<"  g: "<<solution2["g"]<<std::endl;
 
 //    casadi::DMVector var_trj2 = sqp2.getVariableTrajectory();
-//    std::vector<double> objs2 = sqp2.getObjectiveIterations();
-//    std::vector<double> cons2 = sqp2.getConstraintNormIterations();
+//    std::vector<Real> objs2 = sqp2.getObjectiveIterations();
+//    std::vector<Real> cons2 = sqp2.getConstraintNormIterations();
 //    for(unsigned int i = 0; i < sqp2.getNumberOfIterations(); ++i)
 //        std::cout<<"iter "<<i<<"-> sol2: "<<var_trj2[i]<<"    obj2: "<<objs2[i]<<"  cons: "<<cons2[i]<<std::endl;
 

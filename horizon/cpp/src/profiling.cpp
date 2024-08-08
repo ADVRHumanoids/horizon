@@ -23,7 +23,7 @@ void Timer::toc()
 {
     if(_done) return;
 
-    double usec = (hrc::now() - _t0).count() * 1e-3;
+    Real usec = (hrc::now() - _t0).count() * 1e-3;
     _on_toc(_name, usec);
     _done = true;
 }

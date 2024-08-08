@@ -7,14 +7,18 @@
 #include <vector>
 #include <string>
 
+#include "typedefs.h"
+
 namespace horizon { namespace utils {
 
 
 struct Timer
 {
+    using Real=horizon::Real;
+
     typedef std::chrono::high_resolution_clock hrc;
 
-    typedef std::function<void(const char *, double)> TocCallback;
+    typedef std::function<void(const char *, Real)> TocCallback;
 
     Timer(const char* name, TocCallback& cb);
 
@@ -36,7 +40,7 @@ private:
 
 struct ProfilingInfo
 {
-    std::map<std::string, std::vector<double>> timings;
+    std::map<std::string, std::vector<Real>> timings;
 };
 
 

@@ -1,7 +1,12 @@
 #include <gtest/gtest.h>
 #include "../src/wrapped_function.h"
+#include "typedefs.h"
 
 namespace{
+
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
 
 class testCasadiUtils: public ::testing::Test
 {
@@ -27,14 +32,14 @@ protected:
 TEST_F(testCasadiUtils, testSparseHessian)
 {
 //    // This compile
-    Eigen::MatrixXd A, B;
+    MatrixXr A, B;
     A.resize(8,8);
     A.setRandom(8,8);
     B.resize(8, 8);
     B.triangularView<Eigen::Upper>() = A.transpose()*A;
 
     //This does not compile
-    Eigen::SparseMatrix<double> J, H;
+    Eigen::SparseMatrix<Real> J, H;
     J.resize(8, 8);
     J.setIdentity();
     H.resize(8, 8);
@@ -46,19 +51,19 @@ TEST_F(testCasadiUtils, testSparseHessian)
 
 
 
-void EXPECT_EQUAL(const Eigen::SparseMatrix<double>& E, const casadi::DM& C)
+void EXPECT_EQUAL(const Eigen::SparseMatrix<Real>& E, const casadi::DM& C)
 {
     EXPECT_EQ(E.rows(), C.rows());
     EXPECT_EQ(E.cols(), C.columns());
     EXPECT_EQ(E.nonZeros(), C.nnz());
 
-    std::vector<double> e;
+    std::vector<Real> e;
     e.assign(E.valuePtr(), E.valuePtr() + E.nonZeros());
-    std::vector<double> c;
+    std::vector<Real> c;
     c.assign(C->data(), C->data() + C.nnz());
 
     for(unsigned int i = 0; i < e.size(); ++i)
-        EXPECT_DOUBLE_EQ(e[i], c[i]);
+        EXPECT_Real_EQ(e[i], c[i]);
 }
 
 
@@ -66,28 +71,28 @@ TEST_F(testCasadiUtils, toCasadiSparse)
 {
 
     std::default_random_engine gen;
-    std::uniform_real_distribution<double> dist(0.0,1.0);
+    std::uniform_real_distribution<Real> dist(0.0,1.0);
 
     int rows=100;
     int cols=100;
 
-    std::vector<Eigen::Triplet<double> > tripletList;
+    std::vector<Eigen::Triplet<Real> > tripletList;
     for(int i=0;i<rows;++i)
         for(int j=0;j<cols;++j)
         {
            auto v_ij=dist(gen);                         //generate random number
            if(v_ij < 0.1)
            {
-               tripletList.push_back(Eigen::Triplet<double>(i,j,v_ij));      //if larger than treshold, insert it
+               tripletList.push_back(Eigen::Triplet<Real>(i,j,v_ij));      //if larger than treshold, insert it
            }
         }
-    Eigen::SparseMatrix<double> E(rows,cols);
+    Eigen::SparseMatrix<Real> E(rows,cols);
     E.setFromTriplets(tripletList.begin(), tripletList.end());
 
     //std::cout<<"E: "<<E<<std::endl;
 
     auto tic = std::chrono::high_resolution_clock::now();
-    casadi_utils::WrappedSparseMatrix<double> C(E);
+    casadi_utils::WrappedSparseMatrix<Real> C(E);
     auto toc = std::chrono::high_resolution_clock::now();
     std::cout<<"Constructor: "<<(toc-tic).count()*1E-9<<"   [s]"<<std::endl;
 
@@ -113,7 +118,7 @@ TEST_F(testCasadiUtils, toCasadiSparse)
 
 TEST_F(testCasadiUtils, testToCasadiMatrix)
 {
-    Eigen::MatrixXd E;
+    MatrixXr E;
     E.setRandom(5,6);
 
     casadi::DM C;
@@ -125,10 +130,10 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     for(unsigned int i = 0; i < E.rows(); ++i)
     {
         for(unsigned int j = 0; j < E.cols(); ++j)
-            EXPECT_DOUBLE_EQ(E(i,j), double(C(i,j)));
+            EXPECT_Real_EQ(E(i,j), Real(C(i,j)));
     }
 
-    Eigen::MatrixXd EE;
+    MatrixXr EE;
     casadi_utils::toEigen(C, EE);
 
     EXPECT_EQ(EE.rows(), C.rows());
@@ -137,7 +142,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     for(unsigned int i = 0; i < EE.rows(); ++i)
     {
         for(unsigned int j = 0; j < EE.cols(); ++j)
-            EXPECT_DOUBLE_EQ(EE(i,j), double(C(i,j)));
+            EXPECT_Real_EQ(EE(i,j), Real(C(i,j)));
     }
 
     std::cout<<"E: \n"<<E<<std::endl;
@@ -146,7 +151,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
 
     std::cout<<"C: "<<C<<std::endl;
 
-    Eigen::VectorXd e;
+    VectorXr e;
     e.setRandom(7);
 
     casadi::DM c;
@@ -156,16 +161,16 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     EXPECT_EQ(e.cols(), c.columns());
 
     for(unsigned int i = 0; i < e.size(); ++i)
-        EXPECT_DOUBLE_EQ(e[i], double(c(i)));
+        EXPECT_Real_EQ(e[i], Real(c(i)));
 
-    Eigen::VectorXd ee;
+    VectorXr ee;
     casadi_utils::toEigen(c, ee);
 
     EXPECT_EQ(ee.rows(), c.rows());
     EXPECT_EQ(ee.cols(), c.columns());
 
     for(unsigned int i = 0; i < ee.size(); ++i)
-        EXPECT_DOUBLE_EQ(ee[i], double(c(i)));
+        EXPECT_Real_EQ(ee[i], Real(c(i)));
 
 
     std::cout<<"e: "<<e.transpose()<<std::endl;
