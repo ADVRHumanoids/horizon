@@ -8,7 +8,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
 
-#include "typedefs.h"
+#include "src/typedefs.h"
 
 namespace py = pybind11;
 using namespace horizon;

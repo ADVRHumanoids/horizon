@@ -4,7 +4,7 @@
 
 #include <chrono>
 #include <numeric>
-#include "typedefs.h"
+#include "../src/typedefs.h"
 
 using Real=horizon::Real;
 using MatrixXr=horizon::MatrixXr;

@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "../src/wrapped_function.h"
-#include "typedefs.h"
+#include "../src/typedefs.h"
 
 namespace{
 
@@ -63,7 +63,7 @@ void EXPECT_EQUAL(const Eigen::SparseMatrix<Real>& E, const casadi::DM& C)
     c.assign(C->data(), C->data() + C.nnz());
 
     for(unsigned int i = 0; i < e.size(); ++i)
-        EXPECT_Real_EQ(e[i], c[i]);
+        EXPECT_EQ(e[i], c[i]);
 }
 
 
@@ -130,7 +130,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     for(unsigned int i = 0; i < E.rows(); ++i)
     {
         for(unsigned int j = 0; j < E.cols(); ++j)
-            EXPECT_Real_EQ(E(i,j), Real(C(i,j)));
+            EXPECT_EQ(E(i,j), Real(C(i,j)));
     }
 
     MatrixXr EE;
@@ -142,7 +142,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     for(unsigned int i = 0; i < EE.rows(); ++i)
     {
         for(unsigned int j = 0; j < EE.cols(); ++j)
-            EXPECT_Real_EQ(EE(i,j), Real(C(i,j)));
+            EXPECT_EQ(EE(i,j), Real(C(i,j)));
     }
 
     std::cout<<"E: \n"<<E<<std::endl;
@@ -161,7 +161,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     EXPECT_EQ(e.cols(), c.columns());
 
     for(unsigned int i = 0; i < e.size(); ++i)
-        EXPECT_Real_EQ(e[i], Real(c(i)));
+        EXPECT_EQ(e[i], Real(c(i)));
 
     VectorXr ee;
     casadi_utils::toEigen(c, ee);
@@ -170,7 +170,7 @@ TEST_F(testCasadiUtils, testToCasadiMatrix)
     EXPECT_EQ(ee.cols(), c.columns());
 
     for(unsigned int i = 0; i < ee.size(); ++i)
-        EXPECT_Real_EQ(ee[i], Real(c(i)));
+        EXPECT_EQ(ee[i], Real(c(i)));
 
 
     std::cout<<"e: "<<e.transpose()<<std::endl;

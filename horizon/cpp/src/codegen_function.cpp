@@ -16,7 +16,6 @@ namespace
 using Real=horizon::Real;
 using MatrixXr=horizon::MatrixXr;
 using VectorXr=horizon::VectorXr;
-using RInfinity=horizon::RInfinity;
 
 class RestoreCwd
 {
@@ -135,7 +134,12 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     }
 
     // else, generate and compile
-    f.generate(fname + ".c");
+    #ifdef HORIZON_FLOAT32
+        casadi::Dict opts={{"casadi_real", "float"}};
+    #else
+        casadi::Dict opts={{"casadi_real", "double"}};
+    #endif
+    f.generate(fname + ".c",opts);
 
     if (verbose) {
         std::cout << "not found: compiling " << fname << "... \n";

@@ -27,7 +27,6 @@ class SQPGaussNewton
 using Real=horizon::Real;
 using MatrixXr=horizon::MatrixXr;
 using VectorXr=horizon::VectorXr;
-using RInfinity=horizon::RInfinity;
 
 public:
 

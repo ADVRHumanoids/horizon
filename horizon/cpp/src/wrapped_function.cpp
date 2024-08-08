@@ -18,6 +18,9 @@ WrappedFunction &WrappedFunction::operator=(casadi::Function f)
     }
 
     _f = f;
+    // const std::string dtype ="";
+    // const GenericType = ;
+    // _f.change_option();
 
     // resize work vectors
     _iw.assign(_f.sz_iw(), 0);

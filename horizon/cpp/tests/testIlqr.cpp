@@ -1,15 +1,17 @@
 #include <gtest/gtest.h>
 
 #include "../src/ilqr.h"
-#include "typedefs.h"
+#include "../src/typedefs.h"
 
-class testIlqr : public ::testing::Test
-{
 using Real=horizon::Real;
 using MatrixXr=horizon::MatrixXr;
 using VectorXr=horizon::VectorXr;
 using Matrix2r=horizon::Matrix2r;
 using Vector2r=horizon::Vector2r;
+
+class testIlqr : public ::testing::Test
+{
+
 protected:
 
     testIlqr(){
