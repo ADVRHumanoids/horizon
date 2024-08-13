@@ -255,6 +255,7 @@ class CartesianTask(Task):
             self.vel_tgt = self.prb.createParameter(
                 f'{frame_name}_tgt', self.indices.size)
             self.ref = self.vel_tgt
+            # exit()
             fun = ee_rel[self.indices] - self.vel_tgt
 
         elif self.cartesian_type == 'acceleration':
@@ -339,8 +340,7 @@ class CartesianTask(Task):
         return True
 
     def getDim(self):
-        # todo: if its position is seven, if its velocity is 6 (now it's one because BUGS)
-        return 7
+        return self.indices.size
 
     def getValues(self):
         # necessary method for using this task as an item + reference in phaseManager
