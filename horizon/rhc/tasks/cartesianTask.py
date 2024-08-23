@@ -340,7 +340,10 @@ class CartesianTask(Task):
         return True
 
     def getDim(self):
-        return self.indices.size
+        if self.cartesian_type == 'position':
+            return 7
+        else:
+            return self.indices.size
 
     def getValues(self):
         # necessary method for using this task as an item + reference in phaseManager
