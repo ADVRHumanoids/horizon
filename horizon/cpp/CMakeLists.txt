@@ -9,13 +9,13 @@ endif()
 
 # options
 option(HORIZON_PROFILING OFF "enable profiling features")
-option(HORIZON_FLOAT32 OFF "use float32 for data representation")
+option(ILQR_FLOAT OFF "use float for data representation instead of double")
 
 if(${HORIZON_PROFILING})
     add_definitions(-DHORIZON_PROFILING)
 endif()
-if(${HORIZON_FLOAT32})
-    add_definitions(-DHORIZON_FLOAT32)
+if(${ILQR_FLOAT})
+    add_definitions(-DILQR_FLOAT)
 endif()
 
 
@@ -48,7 +48,6 @@ add_library(sqp STATIC
     src/profiling.cpp
     src/sqp.cpp
 )
-
 
 target_link_libraries(ilqr Eigen3::Eigen casadi pthread)
 target_link_libraries(sqp Eigen3::Eigen casadi ilqr)

@@ -134,7 +134,7 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     }
 
     // else, generate and compile
-    #ifdef HORIZON_FLOAT32
+    #ifdef ILQR_FLOAT
         casadi::Dict opts={{"casadi_real", "float"}};
     #else
         casadi::Dict opts={{"casadi_real", "double"}};
