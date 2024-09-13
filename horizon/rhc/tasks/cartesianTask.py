@@ -118,6 +118,20 @@ class CartesianTask(Task):
 
         return rot_err
 
+    def __init_position_sym(self, frame_name):
+        q = cs.SX.sym('q', self.kin_dyn.nq())
+        p_tgt = cs.SX.sym('p_tgt', 7)
+        fk_distal = self.kin_dyn.fk(self.distal_link)
+        ee_p_distal = fk_distal(q=q)
+        ee_p_distal_t = ee_p_distal['ee_pos']
+        ee_p_distal_r = ee_p_distal['ee_rot']
+
+        err_pos = ee_p_distal_t - p_tgt[:3]
+        err_lin = self._compute_orientation_error2(ee_p_distal_r, quat_to_rot(p_tgt[3:]))
+
+        err_fun = cs.Function(f"position_error_{frame_name}", [q, p_tgt], [err_pos, err_lin])
+        return err_fun
+
     def __init_position(self, frame_name):
 
         # TODO: make this automatic
@@ -126,13 +140,17 @@ class CartesianTask(Task):
         ee_p_distal_t = ee_p_distal['ee_pos']
         ee_p_distal_r = ee_p_distal['ee_rot']
 
-        # fk_base = self.kin_dyn.fk(self.base_link)
-        # ee_p_base = fk_base(q=self.q)
-        # ee_p_base_t = ee_p_base['ee_pos']
-        # ee_p_base_r = ee_p_base['ee_rot']
+        if self.base_link == 'world':
+            ee_p_rel = ee_p_distal_t
+            ee_r_rel = ee_p_distal_r
+        else:
+            fk_base = self.kin_dyn.fk(self.base_link)
+            ee_p_base = fk_base(q=self.q)
+            ee_p_base_t = ee_p_base['ee_pos']
+            ee_p_base_r = ee_p_base['ee_rot']
 
-        ee_p_rel = ee_p_distal_t
-        ee_r_rel = ee_p_distal_r
+            ee_p_rel = ee_p_distal_t - ee_p_base_t
+            ee_r_rel = cs.inv(ee_p_base_r) * ee_p_distal_r
 
         # TODO: right now this is slightly unintuitive:
         #  if the function is receding, there are two important concepts to stress:
@@ -250,6 +268,7 @@ class CartesianTask(Task):
 
             frame_name = frame_name + '_pos'
             fun = self.__init_position(frame_name)
+            self.fun_sym = self.__init_position_sym(frame_name)
 
         elif self.cartesian_type == 'velocity':
 
@@ -330,6 +349,15 @@ class CartesianTask(Task):
                 self.ref.assign(self.ref_matrix, self.nodes)
 
         return True
+
+    def getError(self, q):
+        err = np.empty([6, q.shape[1]])
+        for i in range(q.shape[1]):
+            [err_pos, err_lin] = self.fun_sym(q[:, i], self.pose_tgt.getValues(0))
+            err[:3, i] = np.atleast_2d(err_pos.full().T)
+            err[3:, i] = np.atleast_2d(err_lin.full().T)
+
+        return err
 
     def getDim(self):
         # todo: if its position is seven, if its velocity is 6 (now it's one because BUGS)
