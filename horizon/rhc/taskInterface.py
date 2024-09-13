@@ -154,20 +154,20 @@ class ProblemInterface:
             raise Exception("The method init_inv_dyn_for_res from " + __class__.__name__ + 
                         " can only be called after bootstrap() has returned!")
     
-    def eval_efforts_on_first_node(self):
+    def eval_efforts_on_node(self, node_idx: int =0):
         
         for frame, wrench in self.model.fmap.items():
             
             # we update the force maps from the latest solution
 
-            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, 0] # it's an input
+            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, node_idx] # it's an input
             # we get it from node 0
         
         # compute torque with inverse dynamics (states from node 1, inputs from
         # node 0)
-        tau_i = self.res_id.call(self.solution['q'][:, 1], 
-                        self.solution['v'][:, 1], 
-                        self.solution['a'][:, 0],
+        tau_i = self.res_id.call(self.solution['q'][:, node_idx+1], 
+                        self.solution['v'][:, node_idx+1], 
+                        self.solution['a'][:, node_idx],
                         self.fmap_0)
                 
         return tau_i.toarray()
