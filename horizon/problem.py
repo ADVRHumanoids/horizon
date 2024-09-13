@@ -857,6 +857,62 @@ class Problem:
 
         return fun
 
+    def createExpr(self, expr, function_name):
+        
+        # create expression with all the variables and parameters
+        var_list = list()
+        for var in self.var_container.getVarList(offset=False):
+            var_list.append(var)
+        var_sym = cs.veccat(*var_list)
+        
+        par_list = list()
+        for par in self.var_container.getParList(offset=False):
+            par_list.append(par)
+        par_sym = cs.veccat(*par_list)
+
+        fun_to_evaluate = cs.Function(f"{function_name}", [var_sym, par_sym], [expr])
+
+        return fun_to_evaluate
+
+    def evalExpr(self, expr, solution):
+
+        # solution matrix of n_variables x n_nodes
+        # var_dim = 0
+        # for _, var in self.var_container.getVar().items():
+        #     var_dim += var.getDim()
+
+        # tic = time.time()
+        # var_sol_ordered = np.empty([var_dim, self.getNNodes() - 1])
+        # for var_name, _ in self.var_container.getVar().items():
+        #     var_sol_ordered[:solution[var_name].shape[0], :] = solution[var_name][:, :self.getNNodes() - 1]
+        #
+        # toc = time.time() - tic
+        # print(f"time elapsed rearraging vars:", toc)
+
+        var_sol_ordered = np.empty([0, self.getNNodes() - 1])
+        for var in self.var_container.getVarList(offset=False):
+            var_sol_ordered = np.vstack((var_sol_ordered, solution[var.getName()][:, :self.getNNodes() - 1]))
+
+        # par_dim = 0
+        # for _, par in self.var_container.getPar().items():
+        #     par_dim += par.getDim()
+        #
+        # tic = time.time()
+        # par_sol_ordered = np.empty([par_dim, self.getNNodes() - 1])
+        # for par_name, par in self.var_container.getPar().items():
+        #     par_values = par.getValues()
+        #     par_sol_ordered[:par_values.shape[0], :] = par_values[:, :self.getNNodes() - 1]
+
+
+        # solution matrix of n_parameters x n_nodes
+        par_sol_ordered = np.empty([0, self.getNNodes() - 1])
+        for par in self.var_container.getParList(offset=False):
+            par_sol_ordered = np.vstack((par_sol_ordered, par.getValues()[:, :self.getNNodes() - 1]))
+
+        fun_evaluated = expr(var_sol_ordered, par_sol_ordered).toarray()
+
+        return fun_evaluated
+
     def evalFun(self, fun: fc.Function, solution):
         """
         Evaluates a given function over the solution found.
