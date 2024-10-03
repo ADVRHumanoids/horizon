@@ -1,10 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-from scipy.interpolate import splprep
+# from scipy.optimize import curve_fit
+# from scipy.interpolate import splprep
 
-
-from numpy import linspace, sin, pi
+# from numpy import linspace, sin, pi
 from scipy.interpolate import BPoly, CubicSpline
 
 class TrajectoryGenerator:
@@ -137,6 +135,7 @@ class TrajectoryGenerator:
         return y_bpoly_second_derivative
     
 if __name__ == '__main__':
+    import matplotlib.pyplot as plt
 
     tg = TrajectoryGenerator()
 

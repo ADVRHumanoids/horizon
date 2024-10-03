@@ -12,7 +12,6 @@ from typing import Dict, List
 from horizon.transcriptions import integrators
 import casadi as cs
 import numpy as np
-from matplotlib import pyplot as plt
 
 class SolverILQR(Solver):
     
@@ -83,6 +82,7 @@ class SolverILQR(Solver):
         
         # set a default iteration callback
         self.plot_iter = False
+        
         self.xax = None 
         self.uax = None
         self.dax = None
@@ -371,6 +371,7 @@ class SolverILQR(Solver):
         # print(f'il male è {fpres.constraint_values[0]} + {np.linalg.norm(fpres.defect_values[:, 0])}')
 
         if self.plot_iter:
+            from matplotlib import pyplot as plt
 
             if self.dax is None:
                 _, (self.dax, self.hax) = plt.subplots(2)
