@@ -165,8 +165,8 @@ class ProblemInterface:
         
         # compute torque with inverse dynamics (states from node 1, inputs from
         # node 0)
-        tau_i = self.res_id.call(self.solution['q'][:, node_idx+1], 
-                        self.solution['v'][:, node_idx+1], 
+        tau_i = self.res_id.call(self.solution['q'][:, node_idx], 
+                        self.solution['v'][:, node_idx], 
                         self.solution['a'][:, node_idx],
                         self.fmap_0)
                 
