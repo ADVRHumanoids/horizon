@@ -337,18 +337,13 @@ class Problem:
         
         # set initial state with a "soft approach", which is useful when running a controller
         # in closed loop to avoid issues
-    
-        lower_bound_relaxed=np.minimum(x0_meas,x0_internal)
-        upper_bound_relaxed=np.maximum(x0_meas,x0_internal)
+        x_tilde=(x0_internal+x0_meas)/2 
+        x_sigma=np.absolute((x0_internal-x0_meas)/2)
 
-        delta=0.01
-        # lower_bound_relaxed=x0_internal-delta
-        # upper_bound_relaxed=x0_internal+delta
-        # lower_bound_relaxed=x0_meas-delta
-        # upper_bound_relaxed=x0_meas+delta
-
-        # relax state bound on first node to allow some mismatch
-        self.getState().setBounds(lb=lower_bound_relaxed, ub=upper_bound_relaxed, nodes=0)
+        # relax state bound on first node depending on the mismatch between the measured 
+        # and internal MPC state. Works also if x0_meas already contains some data 
+        # from MPC 
+        self.getState().setBounds(lb=x_tilde-x_sigma, ub=x_tilde+x_sigma, nodes=0)
 
     def getInitialState(self) -> np.array:
         lb, ub = self.getState().getBounds(node=0)

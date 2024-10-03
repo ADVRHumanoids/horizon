@@ -1,7 +1,5 @@
-import code
 from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
-from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
@@ -96,12 +94,12 @@ class ProblemInterface:
         
         # copies latest bootstrap into solution
 
+        self.solver_rti.reset() # resets solver internal state (useful in case of failure)
+
         self.solution = copy.deepcopy(self.bootstrap_sol)
         # resets the controller with the latest solution
 
         self.load_initial_guess()
-
-        self.solver_rti.reset() # resets solver internal state (useful in case of failure)
 
     def rti(self):
         
