@@ -94,7 +94,6 @@ model = FullModelInverseDynamics(problem=prb,
                                  q_init=q_init,
                                  base_init=base_init)
 
-
 # model = SingleRigidBodyDynamicsModel(problem=prb,
 #                                      kd=kd,
 #                                      q_init=q_init,
@@ -106,7 +105,9 @@ ti = TaskInterface(prb=prb,
 
 ti.setTaskFromYaml(os.path.dirname(__file__) + '/tasks_test.yaml')
 
-print(model.getContacts())
+for task in ti.getTasks():
+    print(task)
 
 f0 = np.array([0, 0, 315, 0, 0, 0])
 init_force = ti.getTask('joint_regularization')
+init_force = ti.getTask('joint_regularization').getName()

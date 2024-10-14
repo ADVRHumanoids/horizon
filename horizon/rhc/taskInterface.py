@@ -267,35 +267,6 @@ class TaskInterface(ProblemInterface):
 
         # todo: this should be updated everytime a task is added
         for task_descr in self.task_desrc_list:
-
-            if 'weight' in task_descr and isinstance(task_descr['weight'], dict):
-                weight_dict = task_descr['weight']
-                if 'position' in weight_dict:
-                    weight_dict['q'] = weight_dict.pop('position')
-                if 'velocity' in weight_dict:
-                    weight_dict['v'] = weight_dict.pop('velocity')
-                if 'acceleration' in weight_dict:
-                    weight_dict['a'] = weight_dict.pop('acceleration')
-                # todo this is wrong: if new forces are added, this is not adding them into the Task
-                if 'force' in weight_dict:
-                    weight_force = weight_dict.pop('force')
-                    for f in self.model.fmap.values():
-                        weight_dict[f.getName()] = weight_force
-
-            if 'indices' in task_descr and isinstance(task_descr['indices'], dict):
-                indices_dict = task_descr['indices']
-                if 'position' in indices_dict:
-                    indices_dict['q'] = indices_dict.pop('position')
-                if 'velocity' in indices_dict:
-                    indices_dict['v'] = indices_dict.pop('velocity')
-                if 'acceleration' in indices_dict:
-                    indices_dict['a'] = indices_dict.pop('acceleration')
-                # todo this is wrong: if new forces are added, this is not adding them into the Task
-                if 'force' in indices_dict:
-                    indices_force = indices_dict.pop('force')
-                    for f in self.model.fmap.values():
-                        indices_dict[f.getName()] = indices_force
-
             self.setTaskFromDict(task_descr)
 
     def setTaskFromDict(self, task_description):
