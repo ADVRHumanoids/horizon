@@ -105,9 +105,11 @@ ti = TaskInterface(prb=prb,
 
 ti.setTaskFromYaml(os.path.dirname(__file__) + '/tasks_test.yaml')
 
-for task in ti.getTasks():
-    print(task)
+# for task in ti.getTasks():
+#     print(task)
 
 f0 = np.array([0, 0, 315, 0, 0, 0])
-init_force = ti.getTask('joint_regularization')
-init_force = ti.getTask('joint_regularization').getName()
+# init_force = ti.getTask('joint_regularization')
+# init_force = ti.getTask('joint_regularization').getName()
+ref = ti.getTask('joint_regularization').getRef()
+

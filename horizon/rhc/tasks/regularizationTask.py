@@ -46,7 +46,7 @@ class RegularizationTask(Task):
             nodes = self.nodes
 
         self.reg_fun = self.instantiator(f'reg_{self.opt_variable.getName()}',
-                                              self.weight_param * (self.opt_variable[self.indices] - self.opt_reference), nodes)
+                                         self.weight_param * (self.opt_variable[self.indices] - self.opt_reference), nodes)
 
     # todo: temporary
     def setRef(self, ref, nodes=None):
