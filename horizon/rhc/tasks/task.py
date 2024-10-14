@@ -80,12 +80,10 @@ class Task:
         self.n_active = len(self.nodes)
 
     def setWeight(self, val, nodes=None, indices=None, var_name=None):
-
         if isinstance(self.weight_param, dict):
             self.weight_param[var_name].assign(val, nodes, indices)
         else:
             self.weight_param.assign(val, nodes, indices)
-
 
 
     def setIndices(self, indices):

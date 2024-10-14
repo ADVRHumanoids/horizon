@@ -397,6 +397,9 @@ class TaskInterface(ProblemInterface):
                 return task
         return None
 
+    def getTasks(self):
+        return self.task_list
+
     def getTaskByClass(self, task_class):
         list_1 = [t for t in self.task_list if isinstance(t, task_class)]
         return list_1
