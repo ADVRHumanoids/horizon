@@ -1,19 +1,37 @@
 from horizon.rhc import taskInterface
 from rosbot_param_server import rosbot_param_server_py
+from horizon import variables as sv
 import rospy
 
 class TaskServerClass:
     def __init__(self, ti : taskInterface.TaskInterface):
         self.__ti = ti
 
-        self.__task_map = {task.getName(): task for task in self.__ti.getTasks()}
-
         self.__pm = rosbot_param_server_py.ParameterManager()
 
-        for name, task in self.__task_map.items():
-            self.__pm.createParameter(name, task.setWeight, task.getWeight)
+        for task in self.__ti.getTasks():
+            if hasattr(task, "weight_param"):
+                if isinstance(task.weight_param, dict):
+                    for name in task.weight_param.keys():
+                        self.__pm.createParameter(name, task.setWeight, task.getWeight()[name][0, 0])
+                else:
+                    self.__pm.createParameter(task.weight_param.getName(), task.setWeight, task.getWeight()[0, 0])
+                    self.setMinMax(task.weight_param.getName(), 0, 500)
 
-    # def task_weight_callback(self):
+    def addParameter(self, name: str, param: sv.Parameter):
+        self.__pm.createParameter(name, param.assign, param.getValues()[0, 0])
+
+    def setMin(self, name: str, min):
+        self.__pm.setMin(name, str(min))
+
+    def setMax(self, name: str, max):
+        self.__pm.setMax(name, str(max))
+
+    def setMinMax(self, name: str, min, max):
+        self.__pm.setMinMax(name, str(min), str(max))
+
+    def update(self):
+        rosbot_param_server_py.ros_update()
 
 
 if __name__ == '__main__':
