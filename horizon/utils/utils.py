@@ -73,6 +73,9 @@ def quaterion_product(q, p):
 
     return [q0*p[0:3] + p0*q[0:3] + cs.mtimes(cs.skew(q[0:3]), p[0:3]), q0*p0 - cs.mtimes(q[0:3].T, p[0:3])]
 
+def toRot2(qx, qy, qz, qw):
+    return toRot([qx, qy, qz, qw])
+
 def toRot(q):
     """
     Compute rotation matrix associated to given quaternion q
