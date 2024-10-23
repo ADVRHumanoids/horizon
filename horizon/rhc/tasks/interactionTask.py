@@ -181,6 +181,8 @@ class VertexContact(InteractionTask):
         # init base
         super().__init__(frame, *args, **kwargs)
 
+        self.vertex_frames=vertex_frames
+        
         # ask model to create vertex forces
         self.forces = self.model.setContactFrame(frame,
                                                  'vertex',
