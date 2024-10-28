@@ -71,7 +71,8 @@ class SolverILQR(Solver):
 
         # create ilqr solver
         self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
-
+        self.ilqr.reset()
+    
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
 

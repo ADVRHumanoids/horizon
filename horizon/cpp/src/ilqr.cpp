@@ -637,6 +637,12 @@ const float IterativeLQR::getResidualNorm() const
 void IterativeLQR::reset()
 {
     _hxx_reg = _hxx_reg_base;
+
+    _fp_res->cost_values.setZero();
+    _fp_res->constraint_values.setZero();
+    _fp_res->defect_norm.setZero();
+    _fp_res->bound_violation.setZero();
+
 }
 
 bool IterativeLQR::solve(int max_iter)
