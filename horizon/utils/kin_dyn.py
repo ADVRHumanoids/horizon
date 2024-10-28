@@ -231,7 +231,7 @@ class InverseDynamics():
         for frame in contact_frames:
             self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
-    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0):
+    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0, wrench_scaling=1.0):
         """
         Computes generalized torques:
         Args:
@@ -241,6 +241,7 @@ class InverseDynamics():
             frame_force_mapping: dictionary containing a map between frames and force variables e.g. {'lsole': F1} representing the frame
                 where the force is acting (the force is expressed in force_reference_frame!)
             tau_ext: extra torques input for dynamics
+            wrench_scaling: scaling factor for the wrenches
         Returns:
             tau: generalized torques
         """
@@ -248,9 +249,9 @@ class InverseDynamics():
         for frame, wrench in frame_force_mapping.items():
             J = self.contact_jacobians[frame](q=q)['J']
             if wrench.shape[0] == 3:  # point contact
-                JtF = cs.mtimes(J[0:3, :].T, wrench)
+                JtF = cs.mtimes(J[0:3, :].T, wrench * wrench_scaling)
             else:  # surface contact
-                JtF = cs.mtimes(J.T, wrench)
+                JtF = cs.mtimes(J.T, wrench * wrench_scaling)
             JtF_sum += JtF
 
         tau = self.id(q=q, v=qdot, a=qddot)['tau'] - JtF_sum - tau_ext
