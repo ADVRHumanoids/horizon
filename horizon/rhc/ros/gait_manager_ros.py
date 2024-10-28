@@ -76,6 +76,12 @@ class GaitManagerROS:
 
         print('Timeline used to check if horizon tail is empty: ', self.__one_random_contact_timeline.getName())
 
+    def setBasePoseWeight(self, w):
+        self.__base_pose_weight = w
+
+    def setBaseRotWeight(self, w):
+        self.__base_rot_weight = w
+
 
     def __init_options(self):
 
@@ -178,26 +184,37 @@ class GaitManagerROS:
         # rotate in local base
         linear_velocity_vector_rot = self.__rotate_vector(linear_velocity_vector, self.__current_solution['q'][[6, 3, 4, 5], 0])
 
-        base_reference_xy[0] += linear_velocity_vector_rot[0] * self.__T
-        base_reference_xy[1] += linear_velocity_vector_rot[1] * self.__T
-
-        self.__base_pose_xy_task.setRef(base_reference_xy)
+        if self.__base_pose_xy_task.getCartesianType() == 'velocity':
+            base_reference_xy[0] = linear_velocity_vector_rot[0]
+            base_reference_xy[1] = linear_velocity_vector_rot[1]
+            self.__base_pose_xy_task.setRef(base_reference_xy[0:2])
+        else:
+            base_reference_xy[0] += linear_velocity_vector_rot[0] * self.__T
+            base_reference_xy[1] += linear_velocity_vector_rot[1] * self.__T
+            self.__base_pose_xy_task.setRef(base_reference_xy)
 
         # ============================ YAW  =================================
 
-        base_reference_yaw = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
+        base_reference = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
 
         d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[5]
         axis = [0, 0, 1]
 
         angular_velocity_vector = self.__incremental_rotate(self.__current_solution['q'][[6, 3, 4, 5], 0], d_angle, axis)
 
-        base_reference_yaw[3] = angular_velocity_vector.x
-        base_reference_yaw[4] = angular_velocity_vector.y
-        base_reference_yaw[5] = angular_velocity_vector.z
-        base_reference_yaw[6] = angular_velocity_vector.w
+        # base_reference_pitch = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
 
-        self.__base_ori_task.setRef(base_reference_yaw)
+        # d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[4]
+        # axis = [0, 1, 0]
+        #
+        # angular_velocity_vector = self.__incremental_rotate(angular_velocity_vector_yaw, d_angle, axis)
+
+        base_reference[3] += angular_velocity_vector.x
+        base_reference[4] += angular_velocity_vector.y
+        base_reference[5] += angular_velocity_vector.z
+        base_reference[6] += angular_velocity_vector.w
+
+        self.__base_ori_task.setRef(base_reference)
 
         # ============================= Z =================================
 

@@ -2,6 +2,13 @@ import numpy as np
 from horizon.rhc.taskInterface import TaskInterface
 from phase_manager import pyphase, pymanager
 import colorama
+from enum import Enum
+
+class OperationMode(Enum):
+    STAND = 0
+    CRAWL = 1
+    TROT = 2
+    STEP = 3
 
 class GaitManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: pymanager.PhaseManager, contact_map):
@@ -21,6 +28,8 @@ class GaitManager:
 
         self.__flight_phases = dict()
         self.__stance_phases = dict()
+        self.__stance_phases_crawl = dict()
+        self.__crawl_phases = dict()
 
         self.__flight_short_phases = dict()
         self.__stance_short_phases = dict()
@@ -30,12 +39,16 @@ class GaitManager:
 
         self.__init_tasks(contact_map)
 
+        self.__mode = OperationMode.STAND
+
     def __init_tasks(self, contact_map):
 
         # retrieve manually (for now) the correct tasks if present
         for contact_name, timeline_name in contact_map.items():
             self.__flight_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_name}')
+            self.__crawl_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'crawl_{contact_name}')
             self.__stance_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_name}')
+            self.__stance_phases_crawl[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_crawl_{contact_name}')
 
             # different duration (todo: flexible implementation?)
             self.__flight_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_name}_short')
@@ -69,14 +82,17 @@ class GaitManager:
             timeline_i = self.__contact_timelines[contact_name]
 
             if flag_contact == 1:
-                # for i in range(8):
-                timeline_i.addPhase(self.__stance_phases[contact_name])
+                if self.__mode == OperationMode.TROT:
+                    timeline_i.addPhase(self.__stance_phases[contact_name])
+                elif self.__mode == OperationMode.CRAWL:
+                    timeline_i.addPhase(self.__stance_phases_crawl[contact_name])
                     # timeline_i.addPhase(self.__stance_short_phases[contact_name])
-
-
                 timeline_i.addPhase(self.__stance_short_phases[contact_name])
             else:
-                timeline_i.addPhase(self.__flight_phases[contact_name])
+                if self.__mode == OperationMode.TROT:
+                    timeline_i.addPhase(self.__flight_phases[contact_name])
+                elif self.__mode == OperationMode.CRAWL:
+                    timeline_i.addPhase(self.__crawl_phases[contact_name])
                 timeline_i.addPhase(self.__stance_short_phases[contact_name])
 
 
@@ -95,6 +111,8 @@ class GaitManager:
                 timeline_i.addPhase(self.__flight_recovery_phases[contact_name])
 
     def step(self, swing_contact):
+
+        self.__mode = OperationMode.STEP
 
         cycle_list = [[True if contact_name != swing_contact else False for contact_name in self.__contact_timelines.keys()]]
         self.__add_cycles(cycle_list)
@@ -119,12 +137,16 @@ class GaitManager:
 
     def trot(self):
 
+        self.__mode = OperationMode.TROT
+
         self.diagonal_pair(0)
         self.diagonal_pair(1)
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
 
     def crawl(self, vref=[0, 0, 1]):
+
+        self.__mode = OperationMode.CRAWL
 
         vx, vy, omega = vref
         Rmax = 1
@@ -207,6 +229,8 @@ class GaitManager:
         self.__add_cycles(cycle_list)
 
     def stand(self):
+
+        self.__mode = OperationMode.STAND
 
         cycle_list = [[1, 1, 1, 1]]
         self.__add_cycles(cycle_list)
