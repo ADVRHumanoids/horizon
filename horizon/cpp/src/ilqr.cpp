@@ -640,8 +640,8 @@ void IterativeLQR::reset()
 
     _fp_res->cost_values.setZero();
     _fp_res->constraint_values.setZero();
-    _fp_res->defect_norm.setZero();
-    _fp_res->bound_violation.setZero();
+    _fp_res->defect_norm=0;
+    _fp_res->bound_violation=0;
 
 }
 
