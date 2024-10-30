@@ -74,10 +74,10 @@ class TrajectoryGenerator:
 
     def derivative_of_trajectory(self, nodes, p_start, p_goal, clearance, derivatives=None, second_der=None):
         if derivatives is None:
-            derivatives = [None] * len(p_start)
+            derivatives = [None] * len(nodes)
         
         if second_der is None:
-            second_der = [None] * len(p_start)
+            second_der = [None] * len(nodes)
 
         cxi = [0, 0.5, 1]
         cyi = [p_start, p_goal + clearance, p_goal]
@@ -105,10 +105,10 @@ class TrajectoryGenerator:
     
     def second_derivative_of_trajectory(self, nodes, p_start, p_goal, clearance, derivatives=None, second_der=None):
         if derivatives is None:
-            derivatives = [None] * len(p_start)
+            derivatives = [None] * len(nodes)
         
         if second_der is None:
-            second_der = [None] * len(p_start)
+            second_der = [None] * len(nodes)
 
         cxi = [0, 0.5, 1]
         cyi = [p_start, p_goal + clearance, p_goal]
