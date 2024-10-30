@@ -360,8 +360,10 @@ class CartesianTask(Task):
         return err
 
     def getDim(self):
-        # todo: if its position is seven, if its velocity is 6 (now it's one because BUGS)
-        return 7
+        if self.cartesian_type == 'position':
+            return 7
+        else:
+            return self.indices.size
 
     def getValues(self):
         # necessary method for using this task as an item + reference in phaseManager
