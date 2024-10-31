@@ -73,8 +73,8 @@ def quaterion_product(q, p):
 
     return [q0*p[0:3] + p0*q[0:3] + cs.mtimes(cs.skew(q[0:3]), p[0:3]), q0*p0 - cs.mtimes(q[0:3].T, p[0:3])]
 
-def quaternion_error(qx, qy, qz, qw,
-                     qx_d, qy_d, qz_d, qw_d):
+
+def quaternion_error(qx, qy, qz, qw, qx_d, qy_d, qz_d, qw_d):
     """
     Compute quaternion error between two quaternions
     Args:
@@ -84,8 +84,8 @@ def quaternion_error(qx, qy, qz, qw,
     Returns:
         quaternion error
     """
-    eps = [qx, qy, qz]
-    eps_d = [qx_d, qy_d, qz_d]
+    eps = cs.vertcat(qx, qy, qz)
+    eps_d = cs.vertcat(qx_d, qy_d, qz_d)
 
     return qw * eps_d - qw_d * eps - cs.mtimes(cs.skew(eps_d), eps)
 
