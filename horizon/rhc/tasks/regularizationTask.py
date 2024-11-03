@@ -22,16 +22,42 @@ class RegularizationTask(Task):
         super().__init__(*args, **kwargs)
         self._createWeightParam()
 
+        self.opt_varariable_dim = []
+        self.opt_variable_list = []
         if not isinstance(opt_variable_names, list):
-            self.opt_variable_list = [opt_variable_names]
+            var=self.prb.getVariables(opt_variable_names)
+            if var is not None:
+                self.opt_variable_list.append(var)
+                self.opt_varariable_dim.append(var.getDim())
+            else:
+                self.opt_varariable_dim.append(None)
         else:
-            self.opt_variable_list = [self.prb.getVariables(name) for name in opt_variable_names]
-
-        # todo: what to do with this one?
-            self.opt_reference_list = [self.prb.createParameter(f'{name}_ref', self.prb.getVariables(name).getDim()) for name in opt_variable_names]
-
+            for name in opt_variable_names:
+                var=self.prb.getVariables(name)
+                var_dim=None
+                if var is not None:
+                    var_dim=var.getDim()
+                self.opt_variable_list.append(var)
+                self.opt_varariable_dim.append(var_dim)
         if None in self.opt_variable_list:
             raise ValueError(f'variable inserted is not in the problem.')
+        
+        if None in self.opt_variable_list:
+            raise ValueError(f'variable inserted is not in the problem.')
+        
+        var_dim_match=all(x == self.opt_varariable_dim[0] for x in self.opt_varariable_dim)
+        if not var_dim_match:
+            incorrect_dims=list(map(str, self.opt_varariable_dim))
+            raise ValueError(f'Dimensions of variables do not match! -> {", ".join(incorrect_dims)}')
+        
+        self.indices = np.array(list(range(self.opt_varariable_dim[0]))).astype(int) if self.indices is None else np.array(self.indices).astype(int)
+
+        indices_within_bounds=all(x<self.opt_varariable_dim[0] for x in self.indices)
+        if not indices_within_bounds:
+            raise ValueError(f'Indeces are not within allowed range (0, {self.opt_varariable_dim[0]-1})!')
+    
+        # todo: what to do with this one?
+        self.opt_reference_list = [self.prb.createParameter(f'{self.name}_{name}_ref', self.indices.size) for name in opt_variable_names]
 
         if self.fun_type == 'constraint':
             self.instantiator = self.prb.createConstraint
@@ -53,7 +79,7 @@ class RegularizationTask(Task):
             else:
                 nodes = self.nodes
 
-            self.reg_fun.append(self.instantiator(f'reg_{self.name}_{v.getName()}', w * (v - r), nodes))
+            self.reg_fun.append(self.instantiator(f'reg_{self.name}_{v.getName()}', w * (v[self.indices] - r), nodes))
 
     # todo: temporary
     def setRef(self, index, ref, nodes=None):
