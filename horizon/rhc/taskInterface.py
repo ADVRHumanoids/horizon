@@ -286,7 +286,7 @@ class ProblemInterface:
 
         self.prb.getState().setInitialGuess(x_opt)
         self.prb.getInput().setInitialGuess(u_opt)
-        self.prb.setInitialState(x0=x_opt[:, 0])
+        # self.prb.setInitialState(x0=x_opt[:, 0])
 
     # def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
 
