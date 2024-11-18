@@ -168,7 +168,7 @@ class ProblemInterface:
                         self.solution['a'][:, node_idx],
                         self.fmap_0)
                 
-        return tau_i.toarray()
+        return np.clip(tau_i.toarray(), a_min=-300, a_max=300)
     
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
     
