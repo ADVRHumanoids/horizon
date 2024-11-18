@@ -141,15 +141,18 @@ if __name__ == '__main__':
 
     n_samples = 100
 
-    der= [None, 0, 0]
-    second_der=[None, 0, 0]
-    
+    der= [0, 0, 0]
+    second_der=[0, 0, 0]
+
+    start=0.0
+    end=0.0
+    dh=0.1
     # Original trajectory with first and second derivative constraints
     z_trj = tg.from_derivatives(
         n_samples, 
-        -1, 
-        -1, 
-        1, 
+        start, 
+        end, 
+        dh, 
         derivatives=der,
         second_der=second_der
     )
@@ -157,9 +160,9 @@ if __name__ == '__main__':
     # First derivative of the trajectory with first and second derivative constraints
     z_trj_derivative = tg.derivative_of_trajectory(
         n_samples, 
-        -1, 
-        -1, 
-        1, 
+        start, 
+        end, 
+        dh, 
         derivatives=der,
         second_der=second_der
     )
@@ -167,9 +170,9 @@ if __name__ == '__main__':
     # Second derivative of the trajectory with first and second derivative constraints
     z_trj_second_derivative = tg.second_derivative_of_trajectory(
         n_samples, 
-        -1, 
-        -1, 
-        1, 
+        start, 
+        end, 
+        dh, 
         derivatives=der,
         second_der=second_der
     )
