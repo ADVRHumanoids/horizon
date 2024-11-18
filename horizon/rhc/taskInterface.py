@@ -167,8 +167,13 @@ class ProblemInterface:
                         self.solution['v'][:, node_idx], 
                         self.solution['a'][:, node_idx],
                         self.fmap_0)
-                
-        return np.clip(tau_i.toarray(), a_min=-300, a_max=300)
+        
+        tau_array=tau_i.toarray()
+        np.nan_to_num(tau_array, copy=False, nan=300.0,
+            posinf=300, neginf=-300) # handle not finite vals
+        np.clip(tau_array, out=tau_array, a_min=-300, a_max=300) # clip
+
+        return tau_array
     
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
     
