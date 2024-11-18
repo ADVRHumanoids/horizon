@@ -169,11 +169,9 @@ class ProblemInterface:
                         self.fmap_0)
         
         tau_array=tau_i.toarray()
-        np.nan_to_num(tau_array, copy=False, nan=300.0,
+        tau_array[:, :]=np.nan_to_num(tau_array, copy=True, nan=300.0,
             posinf=300, neginf=-300) # handle not finite vals
-        np.clip(tau_array, out=tau_array, a_min=-300, a_max=300) # clip
-
-        return tau_array
+        return np.clip(tau_array, a_min=-300, a_max=300)
     
     def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
     
