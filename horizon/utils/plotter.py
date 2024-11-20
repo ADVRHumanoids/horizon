@@ -223,7 +223,7 @@ class PlotterHorizon:
             fig, gs = create_grid(len(selected_sol), 'Variables', gather)
             i = 0
             for key, val in selected_sol.items():
-                ax = fig.add_subplot(gs[i, :])
+                ax = fig.add_subplot(gs[i])
                 if grid:
                     ax.grid(axis='x')
                 self._plotVar(val, ax, self.prb.getVariables(key), markers=markers, show_bounds=show_bounds, legend=legend, dim=dim)

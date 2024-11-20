@@ -3,6 +3,7 @@
 
 #include <casadi/casadi.hpp>
 #include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <memory>
 #include <variant>
 #include <thread>
@@ -228,6 +229,8 @@ private:
 
     void backward_pass_iter(int i);
 
+    void kkt_solve();
+
     void optimize_initial_state();
 
     void increase_regularization();
@@ -270,8 +273,6 @@ private:
 
     bool forward_pass(Real alpha);
 
-    void forward_pass_iter(int i, Real alpha);
-
     bool line_search(int iter);
 
     void reset_iterate_filter();
@@ -281,8 +282,6 @@ private:
     void set_default_cost();
 
     bool fixed_initial_state();
-
-
 
     enum DecompositionType
     {
@@ -320,6 +319,7 @@ private:
     Real _step_length_threshold;
     bool _enable_line_search;
     bool _enable_auglag;
+    bool _use_kkt_solver;
 
     bool _closed_loop_forward_pass;
     std::string _codegen_workdir;
@@ -344,6 +344,12 @@ private:
     std::unique_ptr<ForwardPassResult> _fp_res;
     int _fp_accepted;
 
+    std::vector<Eigen::Triplet<Real>> _kkt_triplets;
+    Eigen::SparseMatrix<Real> _kkt_mat;
+    VectorXr _kkt_rhs;
+    Eigen::SparseLU<Eigen::SparseMatrix<Real>, Eigen::COLAMDOrdering<int>> _kkt_lu_solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<Real>, Eigen::Lower, Eigen::COLAMDOrdering<int>> _kkt_ldlt_solver;
+
     IterateFilter _it_filt;
     bool _use_it_filter;
 
@@ -354,6 +360,8 @@ private:
 
     MatrixXr _lam_bound_x;
     MatrixXr _lam_bound_u;
+
+    Eigen::MatrixXd _dx, _du;
 
     std::vector<Temporaries> _tmp;
 

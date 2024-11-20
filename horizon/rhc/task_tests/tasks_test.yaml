@@ -24,7 +24,8 @@ constraints:
 
 costs:
   - joint_posture
-#  - joint_regularization
+  - joint_regularization
+  - velocity_regularization
   # - final_posture
   # - base_posture
 
@@ -114,11 +115,18 @@ final_posture:
 # todo: wrong, as the order COUNTS. If I add the contacts after the joint regularization, they wont get considered.
 joint_regularization:
   type: Regularization
-  nodes: all
-  weight:
-#    velocity: 1.
-    acceleration: .1 # 0.01
-    force: 0.01 # todo <----- how to do? if there are more forces...
+  variable_name: 'q'
+  indices: [2, 3, 4, 5]
+  nodes: [0, 1, 2, 3]
+  weight: 0.1
+
+velocity_regularization:
+  type: Regularization
+  variable_name: 'v'
+  indices: [2, 3, 4, 5]
+  nodes: [0, 1, 2, 3]
+  weight: 0.1
+
 
 foot_z_l_sole:
   type: Cartesian

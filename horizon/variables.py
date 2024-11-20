@@ -1515,7 +1515,7 @@ class RecedingParameter(Parameter):
         multiple_vals = val_checked.ndim == 2 and val_checked.shape[1] != 1
 
         if multiple_vals and val_checked.shape[1] != len(nodes):
-            raise Exception(f'Wrong dimension of parameter inserted.')
+            raise Exception(f'Wrong dimension of parameter inserted [{val_checked.shape[0]}x{val_checked.shape[1]}]')
 
         # start_time_3 = time.time()
         # indices

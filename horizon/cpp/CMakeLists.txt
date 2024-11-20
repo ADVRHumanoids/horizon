@@ -34,6 +34,7 @@ target_link_libraries(horizon Eigen3::Eigen casadi)
 
 add_library(ilqr STATIC
     src/ilqr.cpp
+    src/ilqr_kkt_solver.cpp
     src/ilqr_forward_pass.cpp
     src/ilqr_backward_pass.cpp
     src/wrapped_function.cpp

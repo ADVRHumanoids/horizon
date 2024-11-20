@@ -122,7 +122,7 @@ class FullModelInverseDynamics:
         at the symbolic state variable q
         """
         fk_fn = self.kd.fk(frame)
-        return fk_fn(self.input_vec['q'])
+        return fk_fn(self.state_vec['q'])
 
     def getInitialState(self, var):
 
@@ -289,6 +289,18 @@ class FullModelInverseDynamics:
             self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
             self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap)
             self.prb.createConstraint('dynamics', self.tau[:6], nodes=nodes)
+
+            black_list_indices = list()
+            # black_list = [#'LShLat', 'LShSag', 'LShYaw', 'LElbj', 'LForearmPlate', 'LWrj1',
+                          #'RShLat', 'RShSag', 'RShYaw', 'RElbj', 'RForearmPlate', 'RWrj1',
+                          #'WaistLat', 'WaistYaw',
+                          # 'LAnklePitch', 'RAnklePitch']
+            black_list = []
+            selected_joints = np.array(list(range(6, self.nv)))
+            for joint in black_list:
+                black_list_indices.append(self.joint_names.index(joint))
+            selected_joints = np.delete(selected_joints, black_list_indices)
+            # self.prb.createIntermediateResidual('min_tau', 0.1 * self.tau)
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 

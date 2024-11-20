@@ -94,6 +94,7 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _rho = _rho_base;
     _rho_growth_factor = value_or<Real>(opt, "ilqr.rho_growth_factor", 10.0);
     _enable_auglag = value_or(opt, "ilqr.enable_auglag", 0);
+    _use_kkt_solver = value_or(opt, "ilqr.use_kkt_solver", 0);
 
     _hxx_reg = value_or<Real>(opt, "ilqr.hxx_reg", 0.0);
     _hxx_reg_base = value_or<Real>(opt, "ilqr.hxx_reg_base", 0.0);
@@ -163,6 +164,9 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _lam_x.setZero(_nx, _N+1);
     _lam_bound_x.setZero(_nx, _N+1);
     _lam_bound_u.setZero(_nu, _N);
+    _dx.setZero(_nx, _N+1);
+    _du.setZero(_nu, _N);
+
 
     // initialize bounds
     _x_lb.setConstant(_nx, _N+1, -inf);
@@ -676,7 +680,14 @@ bool IterativeLQR::solve(int max_iter)
         linearize_quadratize();
 
         // solve kkt
-        backward_pass();
+        if(_use_kkt_solver)
+        {
+            kkt_solve();
+        }
+        else
+        {
+            backward_pass();
+        }
 
         // if line search failed, go directly
         // to next iteration

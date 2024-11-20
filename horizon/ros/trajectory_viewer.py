@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import copy
-
+import random
 import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import TwistStamped, Pose, Point, Vector3, Quaternion
@@ -12,22 +12,14 @@ import time
 
 class TrajectoryViewer:
 
-    def __init__(self, frame, parent=None, color=None, pub_name='markers_array/'):
+    def __init__(self, frame, opts=None):
 
-        if parent is None:
-            self.parent = frame
-        else:
-            self.parent = parent
-
-        if color is None:
-            self.color = [0.0, 2.0, 0.0, 0.8]
-        else:
-            self.color = color
+        self.__init_opts(opts)
 
         self.frame = frame
         self.count = 0
-        self.sphere_publisher = rospy.Publisher(pub_name + self.frame, MarkerArray, queue_size=100)
-        self.line_publisher = rospy.Publisher(pub_name + self.frame, MarkerArray, queue_size=100)
+        self.sphere_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
+        self.line_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
 
         # rospy.Subscriber("/joint_states", JointState, self.event_in_cb)
         self.a = [1, 1, 1]
@@ -40,6 +32,29 @@ class TrajectoryViewer:
     #     self.a = [1, 1, 1]
     #
     #     self.publish_once()
+    def __init_opts(self, opts):
+        if 'prefix' in opts:
+            self.prefix = opts['prefix']
+        else:
+            self.prefix = "future_marker_array/"
+
+        if 'parent' in opts:
+            self.parent = opts['parent']
+        else:
+            self.parent = 'world'
+
+        if 'colors' in opts:
+            self.color = opts['colors']
+        else:
+            self.color = [random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          random.uniform(0, 1),
+                          1.]
+
+        if 'scale' in opts:
+            self.scale = opts['scale']
+        else:
+            self.scale = Vector3(0.01, 0.01, 0.01)
 
     def publish_sphere(self, action=None, markers_max=1000, marker_lifetime=10):
 
@@ -57,7 +72,7 @@ class TrajectoryViewer:
                         action=action,
                         lifetime=rospy.Duration(marker_lifetime),
                         pose=Pose(Point(self.a[0] / 10 ** 5, self.a[1] / 10 ** 5, self.a[2] / 10 ** 5), Quaternion(0, 0, 0, 1)),
-                        scale=Vector3(0.02, 0.02, 0.02),
+                        scale=self.scale,
                         header=Header(frame_id=self.parent),
                         color=ColorRGBA(*self.color)
                         )
@@ -84,10 +99,10 @@ class TrajectoryViewer:
         self.line_array.markers.clear()
 
         marker = Marker(type=Marker.LINE_STRIP,
-                             action=Marker.ADD,
-                             scale=Vector3(0.02, 0.02, 0.02),
-                             header=Header(frame_id=self.parent),
-                             color=ColorRGBA(*self.color))
+                        action=Marker.ADD,
+                        scale=self.scale,
+                        header=Header(frame_id=self.parent),
+                        color=ColorRGBA(*self.color))
 
         marker.pose.orientation.w = 1
 
@@ -115,7 +130,7 @@ if __name__ == '__main__':
     # # rospy.sleep(0.5)
     # # rospy.spin()
     import numpy as np
-    rospy.init_node("cazzo", anonymous=True)
+    rospy.init_node("something", anonymous=True)
     tv = TrajectoryViewer("com")
 
     vec = np.array([[1, 1, 1, 0, 0, 0, 1],

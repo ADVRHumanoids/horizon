@@ -22,6 +22,7 @@ import copy
 
 import time
 
+
 class ProblemInterface:
     def __init__(self,
                 prb,
@@ -363,6 +364,9 @@ class ProblemInterface:
 
         return self.solver_bs, self.solver_rti
 
+    def getProblem(self):
+        return self.prb
+
 class TaskInterface(ProblemInterface):
     def __init__(self,
                 prb,
@@ -404,22 +408,6 @@ class TaskInterface(ProblemInterface):
 
         # todo: this should be updated everytime a task is added
         for task_descr in self.task_desrc_list:
-
-            if 'weight' in task_descr and isinstance(task_descr['weight'], dict):
-                weight_dict = task_descr['weight']
-                if 'position' in weight_dict:
-                    weight_dict['q'] = weight_dict.pop('position')
-                if 'velocity' in weight_dict:
-                    weight_dict['v'] = weight_dict.pop('velocity')
-                if 'acceleration' in weight_dict:
-                    weight_dict['a'] = weight_dict.pop('acceleration')
-
-                # todo this is wrong: if new forces are added, this is not adding them into the Task
-                if 'force' in weight_dict:
-                    weight_force = weight_dict.pop('force')
-                    for f in self.model.fmap.values():
-                        weight_dict[f.getName()] = weight_force
-
             self.setTaskFromDict(task_descr)
 
     def setTaskFromDict(self, task_description):
@@ -482,7 +470,6 @@ class TaskInterface(ProblemInterface):
             subtask_description_list = task_description_copy.pop(
                 'subtask') if 'subtask' in task_description_copy else []
 
-
             # inherit from parent:
             for subtask_description in subtask_description_list:
 
@@ -494,14 +481,14 @@ class TaskInterface(ProblemInterface):
                             break
                 # child inherit from parent the values, if not present
                 # parent define the context for the child: child can override it
-                
+
                 # todo: better handling of parameter propagation
                 # for key, value in task_description_copy.items():
                 #     if key not in subtask_description and key != 'subtask':
                 #         subtask_description[key] = value
 
                 s_t = self.getTask(subtask_description['name'])
-                
+
                 if s_t is None:
                     s_t = self.generateTaskFromDict(subtask_description)
 
@@ -521,6 +508,9 @@ class TaskInterface(ProblemInterface):
             if task.name == task_name:
                 return task
         return None
+
+    def getTasks(self):
+        return self.task_list
 
     def getTaskByClass(self, task_class):
         list_1 = [t for t in self.task_list if isinstance(t, task_class)]
