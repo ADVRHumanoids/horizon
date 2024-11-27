@@ -1,6 +1,5 @@
 from horizon.utils import kin_dyn, mat_storer, resampler_trajectory
 
-from casadi_kin_dyn import pycasadi_kin_dyn
 from horizon.rhc.tasks.cartesianTask import CartesianTask
 from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
@@ -16,14 +15,31 @@ import numpy as np
 from horizon.rhc import task_factory, plugin_handler, solver_interface
 from horizon.rhc.yaml_handler import YamlParser
 from horizon.solvers.solver import Solver
-from horizon.ros.replay_trajectory import replay_trajectory
+
+import copy 
+
+# from horizon.ros.replay_trajectory import replay_trajectory
+
 import time
 
 
 class ProblemInterface:
     def __init__(self,
-                 prb,
-                 model):
+                prb,
+                model, 
+                max_solver_iter: int = 1, 
+                debug: bool = False, 
+                verbose: bool = False,
+                codegen_workdir: str = "/tmp/tyhio"):
+
+        self._debug = debug
+        self._verbose = verbose
+
+        self._codegen_workdir = codegen_workdir
+
+        self.max_solver_iter = max_solver_iter
+
+        self.rt_solve_time = -1.0
 
         # get the model
         self.prb = prb
@@ -31,6 +47,11 @@ class ProblemInterface:
 
         self.solver_bs = None
         self.solver_rti = None
+
+        self.solution = {}
+        self.bootstrap_sol = {}
+
+        self.bootstrap_solved = False
 
     def finalize(self, rti=True):
         """
@@ -40,29 +61,121 @@ class ProblemInterface:
         self._create_solver(rti)
 
     def bootstrap(self):
+
+        # this is called sporadically: we don't really care
+        # about printing overheads here
         t = time.time()
         self.solver_bs.solve()
         elapsed = time.time() - t
         print(f'bootstrap solved in {elapsed} s')
+
         try:
             self.solver_rti.print_timings()
+
         except:
             pass
+
         self.solution = self.solver_bs.getSolutionDict()
 
-    def rti(self):
+        # we backup a copy (needs to be deep to work properly)
+        # of the bootstrap, which can be used to reset the controller
+        # if needed
 
+        self.update_bootstrap_from_sol()
+
+        self.bootstrap_solved = True
+
+    def update_bootstrap_from_sol(self):
+        
+        # updates bootstrap backup with latest available solution
+
+        self.bootstrap_sol = copy.deepcopy(self.solution)
+
+    def reset(self):
+        
+        # copies latest bootstrap into solution
+
+        self.solver_rti.reset() # resets solver internal state (useful in case of failure)
+
+        self.solution = copy.deepcopy(self.bootstrap_sol)
+        # resets the controller with the latest solution
+
+        self.load_initial_guess()
+
+    def rti(self):
+        
+        if self._verbose:
+            self._rti_db()
+        else:
+            self._rti_min()
+    
+    def _rti_db(self):
+            
         t = time.time()
         check = self.solver_rti.solve()
-        elapsed = time.time() - t
-        print(f'rti solved in {elapsed} s')
-
+        self.rt_solve_time = time.time() - t
+        print(f'rti solved in {self.rt_solve_time} s')            
         self.solution = self.solver_rti.getSolutionDict()
+        return check
+    
+    def _rti_min(self):
 
+        check = self.solver_rti.solve()
+        self.solution = self.solver_rti.getSolutionDict()
         return check
 
-    def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
+    def init_inv_dyn_for_res(self):
 
+        # we create the inv dynamics for resampling here 
+        # to avoid runtime overhead
+
+        if (self.bootstrap_solved): # we need to have the 
+            # force map (in particular the keys) from the solution, so we wait for the bootstrap, 
+            # since it's solved during the initialization phase and not 
+            # at runtime
+
+            self.fmap = dict()
+            for frame, wrench in self.model.fmap.items():
+                self.fmap[frame] = self.solution[f'{wrench.getName()}']
+
+            self.res_id = kin_dyn.InverseDynamics(self.model.kd, 
+                                            self.fmap.keys(), 
+                                            self.model.kd_frame)
+            
+            self.tau_eval = np.zeros([self.model.tau.shape[0], 
+                                self.prb.getNNodes() - 1]) # evaluated tau on nodes
+            
+            self.fmap_0 = dict() # we initialize also the force map with the wrenches on the
+            # first noe
+
+        else:
+
+            raise Exception("The method init_inv_dyn_for_res from " + __class__.__name__ + 
+                        " can only be called after bootstrap() has returned!")
+    
+    def eval_efforts_on_node(self, node_idx: int =0):
+        
+        for frame, wrench in self.model.fmap.items():
+            
+            # we update the force maps from the latest solution
+
+            self.fmap_0[frame] = self.solution[f'{wrench.getName()}'][:, node_idx] # it's an input
+            # we get it from node 0
+        
+        # compute torque with inverse dynamics (states from node 1, inputs from
+        # node 0)
+        tau_i = self.res_id.call(self.solution['q'][:, node_idx], 
+                        self.solution['v'][:, node_idx], 
+                        self.solution['a'][:, node_idx],
+                        self.fmap_0)
+        
+        tau_array=tau_i.toarray()
+        tau_array[:, :]=np.nan_to_num(tau_array, copy=True, nan=300.0,
+            posinf=300, neginf=-300) # handle not finite vals
+        return np.clip(tau_array, a_min=-300, a_max=300)
+    
+    def resample(self, dt_res, dae=None, nodes=None, resample_tau=True):
+    
         if nodes is None:
             nodes = list(range(self.prb.getNNodes() + 1))
 
@@ -101,20 +214,11 @@ class ProblemInterface:
         # new fmap with resampled forces
         if self.model.fmap:
 
-            fmap = dict()
-            for frame, wrench in self.model.fmap.items():
-                fmap[frame] = self.solution[f'{wrench.getName()}']
-
-            fmap_res = dict()
-            for frame, wrench in self.model.fmap.items():
-                fmap_res[frame] = self.solution[f'{wrench.getName()}_res']
-
             # get tau resampled
             if resample_tau:
-                tau = np.zeros([self.model.tau.shape[0], self.prb.getNNodes() - 1])
-                tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]])
 
-                id = kin_dyn.InverseDynamics(self.model.kd, fmap_res.keys(), self.model.kd_frame)
+                tau_res = np.zeros([self.model.tau.shape[0], u_res.shape[1]]) # we create this at runtime
+                # (can be improved)
 
                 # id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
                 # self.tau = id_fn.call(self.q, self.v, self.a, self.fmap)
@@ -122,23 +226,33 @@ class ProblemInterface:
 
                 # todo: this is horrible. id.call should take matrices, I should not iter over each node
 
-                for i in range(tau.shape[1]):
+                for i in range(self.tau_eval.shape[1]):
+
                     fmap_i = dict()
-                    for frame, wrench in fmap.items():
+                    for frame, wrench in self.fmap.items():
                         fmap_i[frame] = wrench[:, i]
-                    tau_i = id.call(self.solution['q'][:, i], self.solution['v'][:, i], self.solution['a'][:, i],
+
+                    tau_i = self.res_id.call(self.solution['q'][:, i], 
+                                    self.solution['v'][:, i], 
+                                    self.solution['a'][:, i],
                                     fmap_i)
-                    tau[:, i] = tau_i.toarray().flatten()
+                    
+                    self.tau_eval[:, i] = tau_i.toarray().flatten()
 
                 for i in range(tau_res.shape[1]):
+
                     fmap_res_i = dict()
-                    for frame, wrench in fmap_res.items():
+                    for frame, wrench in self.fmap.items():
                         fmap_res_i[frame] = wrench[:, i]
-                    tau_res_i = id.call(self.solution['q_res'][:, i], self.solution['v_res'][:, i],
-                                        self.solution['a_res'][:, i], fmap_res_i)
+
+                    tau_res_i = self.res_id.call(self.solution['q_res'][:, i], 
+                                        self.solution['v_res'][:, i],
+                                        self.solution['a_res'][:, i], 
+                                        fmap_res_i)
+                    
                     tau_res[:, i] = tau_res_i.toarray().flatten()
 
-                self.solution['tau'] = tau
+                self.solution['tau'] = self.tau_eval
                 self.solution['tau_res'] = tau_res
 
     def save_solution(self, filename):
@@ -176,32 +290,32 @@ class ProblemInterface:
 
         self.prb.getState().setInitialGuess(x_opt)
         self.prb.getInput().setInitialGuess(u_opt)
-        self.prb.setInitialState(x0=x_opt[:, 0])
+        # self.prb.setInitialState(x0=x_opt[:, 0])
 
-    def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
+    # def replay_trajectory(self, trajectory_markers=[], trajectory_markers_opts={}):
 
-        # single replay
-        joint_names = self.model.kd.joint_names()
-        q_sol = self.solution['q']
-        q_sol_minimal = np.zeros([q_sol.shape[0], self.prb.getNNodes()])
+    #     # single replay
+    #     joint_names = self.model.kd.joint_names()
+    #     q_sol = self.solution['q']
+    #     q_sol_minimal = np.zeros([q_sol.shape[0], self.prb.getNNodes()])
 
-        # if q is not minimal (continuous joints are present) make it minimal
-        for col in range(q_sol.shape[1]):
-            q_sol_minimal[:, col] = self.model.kd.getMinimalQ(q_sol[:, col])
+    #     # if q is not minimal (continuous joints are present) make it minimal
+    #     for col in range(q_sol.shape[1]):
+    #         q_sol_minimal[:, col] = self.model.kd.getMinimalQ(q_sol[:, col])
 
-        frame_force_mapping = {cname: self.solution[f.getName()] for cname, f in self.model.fmap.items()}
+    #     frame_force_mapping = {cname: self.solution[f.getName()] for cname, f in self.model.fmap.items()}
 
-        repl = replay_trajectory(self.prb.getDt(),
-                                 joint_names,
-                                 q_sol_minimal,
-                                 frame_force_mapping,
-                                 self.model.kd_frame,
-                                 self.model.kd,
-                                 fixed_joint_map=self.model.fixed_joint_map,
-                                 trajectory_markers=trajectory_markers,
-                                 trajectory_markers_opts=trajectory_markers_opts)
-        repl.sleep(1.)
-        repl.replay(is_floating_base=True, base_link='pelvis')
+    #     repl = replay_trajectory(self.prb.getDt(),
+    #                              joint_names,
+    #                              q_sol_minimal,
+    #                              frame_force_mapping,
+    #                              self.model.kd_frame,
+    #                              self.model.kd,
+    #                              fixed_joint_map=self.model.fixed_joint_map,
+    #                              trajectory_markers=trajectory_markers,
+    #                              trajectory_markers_opts=trajectory_markers_opts)
+    #     repl.sleep(1.)
+    #     repl.replay(is_floating_base=True, base_link='pelvis')
 
     def setSolverOptions(self, solver_options):
         solver_type = solver_options.pop('type')
@@ -216,7 +330,14 @@ class ProblemInterface:
             th = Transcriptor.make_method('multiple_shooting', self.prb)
 
         # todo if receding is true ....
-        self.solver_bs = Solver.make_solver(self.si.type, self.prb, self.si.opts)
+        scoped_opts_bs = self.si.opts.copy()
+        scoped_opts_bs['ilqr.debug'] = self._debug
+        scoped_opts_bs['ilqr.verbose'] = self._verbose
+        scoped_opts_bs['ilqr.codegen_verbose'] = self._verbose
+        scoped_opts_bs['ilqr.log_iterations'] = False
+        scoped_opts_bs['ilqr.codegen_workdir'] = self._codegen_workdir
+
+        self.solver_bs = Solver.make_solver(self.si.type, self.prb, scoped_opts_bs)
 
         try:
             self.solver_bs.set_iteration_callback()
@@ -224,9 +345,21 @@ class ProblemInterface:
             pass
 
         if rti:
+
             scoped_opts_rti = self.si.opts.copy()
-            scoped_opts_rti['ilqr.enable_line_search'] = False
-            scoped_opts_rti['ilqr.max_iter'] = 1
+            
+            scoped_opts_rti['ilqr.max_iter'] = self.max_solver_iter
+            scoped_opts_rti['ilqr.debug'] = self._debug # enables debugging in iLQR (basically
+            # allows to retrieve costs and constraints values at runtime)
+            scoped_opts_rti['ilqr.verbose'] = self._verbose
+            scoped_opts_rti['ilqr.codegen_verbose'] = self._debug
+            scoped_opts_rti['ilqr.rti'] = True
+            scoped_opts_rti['ilqr.log_iterations'] = False # debugging iLQR logs
+            scoped_opts_rti['ilqr.codegen_workdir'] = self._codegen_workdir
+            if self.max_solver_iter == 1:
+                # real-time iteration -> no line-search necessary
+                scoped_opts_rti['ilqr.enable_line_search'] = False 
+            
             self.solver_rti = Solver.make_solver(self.si.type, self.prb, scoped_opts_rti)
 
         return self.solver_bs, self.solver_rti
@@ -236,10 +369,18 @@ class ProblemInterface:
 
 class TaskInterface(ProblemInterface):
     def __init__(self,
-                 prb,
-                 model):
+                prb,
+                model,
+                max_solver_iter: int = 1,
+                debug = False,
+                verbose = False,
+                codegen_workdir: str = "/tmp/tyhio"):
 
-        super().__init__(prb, model)
+        super().__init__(prb, model, 
+                    max_solver_iter, 
+                    debug,
+                    verbose,
+                    codegen_workdir)
 
         # here I register the the default tasks
         # todo: should I do it here?

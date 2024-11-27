@@ -9,12 +9,16 @@
 #include <Eigen/Dense>
 
 #include "wrapped_function.h"
+#include "typedefs.h"
 
 namespace horizon
 {
 
 class Problem
 {
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
 
 public:
 
@@ -30,7 +34,7 @@ public:
 
         std::string name;
         casadi::SX sym;
-        Eigen::MatrixXd lb, ub, value, initial_guess;
+        MatrixXr lb, ub, value, initial_guess;
 
         int size();
     };
@@ -41,7 +45,7 @@ public:
 
         std::string name;
         casadi::Function fun;
-        Eigen::MatrixXd lb, ub;
+        MatrixXr lb, ub;
         std::vector<int> nodes;
     };
 
@@ -52,14 +56,14 @@ public:
     std::vector<Variable::Ptr> state_vec, input_vec;
 
     casadi::SX x, u;
-    Eigen::MatrixXd xlb, xub, ulb, uub, x_ini, u_ini;
+    MatrixXr xlb, xub, ulb, uub, x_ini, u_ini;
 
     casadi::Function dynamics;
 
     casadi_utils::WrappedFunction inv_dyn;
 
     int N;
-    double dt;
+    Real dt;
 
 private:
 

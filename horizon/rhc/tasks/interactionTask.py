@@ -181,6 +181,8 @@ class VertexContact(InteractionTask):
         # init base
         super().__init__(frame, *args, **kwargs)
 
+        self.vertex_frames=vertex_frames
+        
         # ask model to create vertex forces
         self.forces = self.model.setContactFrame(frame,
                                                  'vertex',
@@ -206,13 +208,17 @@ class VertexContact(InteractionTask):
 
 
     def make_fn_barrier(self):
-        fn_barrier_cost = []
-        for f in self.forces:
-            fn_barrier_cost.append(barrier_fun(f[2] - self.fn_min))
-        fn_barrier_cost = cs.vertcat(*fn_barrier_cost)
-        fn_barrier = self.prb.createResidual(f'{self.frame}_unil_barrier', 1e1 * fn_barrier_cost, self.all_nodes)
-        return fn_barrier
 
+        if not self.fn_min < -1e3:
+            fn_barrier_cost = []
+            for f in self.forces:
+                fn_barrier_cost.append(barrier_fun(f[2] - self.fn_min))
+            fn_barrier_cost = cs.vertcat(*fn_barrier_cost)
+            fn_barrier = self.prb.createResidual(f'{self.frame}_unil_barrier', 1e1 * fn_barrier_cost, self.all_nodes)
+            return fn_barrier
+        else:
+            return None
+        
     def make_friction_cone(self):
         fcost = []
         for f in self.forces:
@@ -249,7 +255,8 @@ class VertexContact(InteractionTask):
         # start_time3 = time.time()
 
         # add normal force constraint
-        self.fn_barrier.setNodes(good_nodes, erasing=erasing)
+        if self.fn_barrier is not None:
+            self.fn_barrier.setNodes(good_nodes, erasing=erasing)
 
         # end_time3 = time.time() - start_time3
         # start_time4 = time.time()

@@ -1,0 +1,11 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "horizon"
+version = "0.4.5"
+description = ""
+authors = [{name = "Francesco Ruscelli", email = "francesco.ruscelli@iit.it"}]
+readme = "README.md"
+license = {file = "LICENSE.md"}

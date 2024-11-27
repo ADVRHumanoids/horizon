@@ -329,8 +329,21 @@ class Problem:
             raise ValueError('dt not defined, have you called setDt?')
         return self.dt
 
-    def setInitialState(self, x0: Iterable):
+    def setInitialState(self, x0: np.ndarray):
         self.getState().setBounds(lb=x0, ub=x0, nodes=0)
+
+    def setInitialStateSoft(self, x0_meas:  np.ndarray, 
+            x0_internal:  np.ndarray):
+        
+        # set initial state with a "soft approach", which is useful when running a controller
+        # in closed loop to avoid issues
+        x_tilde=(x0_internal+x0_meas)/2 
+        x_sigma=np.absolute((x0_internal-x0_meas)/2)
+
+        # relax state bound on first node depending on the mismatch between the measured 
+        # and internal MPC state. Works also if x0_meas already contains some data 
+        # from MPC 
+        self.getState().setBounds(lb=x_tilde-x_sigma, ub=x_tilde+x_sigma, nodes=0)
 
     def getInitialState(self) -> np.array:
         lb, ub = self.getState().getBounds(node=0)

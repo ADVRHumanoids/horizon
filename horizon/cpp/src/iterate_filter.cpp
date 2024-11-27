@@ -2,11 +2,11 @@
 
 
 IterateFilter::Pair::Pair():
-    f(std::numeric_limits<double>::max()),
-    h(std::numeric_limits<double>::max())
+    f(std::numeric_limits<Real>::max()),
+    h(std::numeric_limits<Real>::max())
 {}
 
-bool IterateFilter::Pair::dominates(const IterateFilter::Pair &other, double beta, double gamma) const
+bool IterateFilter::Pair::dominates(const IterateFilter::Pair &other, Real beta, Real gamma) const
 {
     return f < other.f + gamma*other.h && beta*h < other.h;
 }

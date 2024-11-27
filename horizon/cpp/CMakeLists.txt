@@ -1,19 +1,30 @@
 project(horizon)
 cmake_minimum_required(VERSION 3.0)
 
+if(DEFINED ENV{CONDA_PREFIX})
+
+  set(CMAKE_INSTALL_PREFIX $ENV{CONDA_PREFIX}/ CACHE PATH "bindings install prefix" FORCE)
+
+endif()
+
 # options
 option(HORIZON_PROFILING OFF "enable profiling features")
+option(ILQR_FLOAT OFF "use float for data representation instead of double")
 
 if(${HORIZON_PROFILING})
     add_definitions(-DHORIZON_PROFILING)
 endif()
+if(${ILQR_FLOAT})
+    add_definitions(-DILQR_FLOAT)
+endif()
+
 
 find_package(Eigen3 REQUIRED)
 find_package(casadi 3.5.5 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # ilqr library
 add_library(horizon STATIC
@@ -38,7 +49,6 @@ add_library(sqp STATIC
     src/profiling.cpp
     src/sqp.cpp
 )
-
 
 target_link_libraries(ilqr Eigen3::Eigen casadi pthread)
 target_link_libraries(sqp Eigen3::Eigen casadi ilqr)

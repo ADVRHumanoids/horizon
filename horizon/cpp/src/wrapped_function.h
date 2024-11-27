@@ -5,8 +5,14 @@
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
+#include "typedefs.h"
+
 namespace casadi_utils
 {
+
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
 
 template <typename T, int r_size, int c_size>
 void toCasadiMatrix(const Eigen::Matrix<T, r_size, c_size>& E, casadi::Matrix<T>& C)
@@ -35,7 +41,7 @@ public:
         to_triplets(E, _r, _c);
         _s = casadi::Sparsity::triplet(E.rows(), E.cols(), _r, _c);
         _values = casadi::DM::zeros(E.nonZeros());
-        std::memcpy(_values.ptr(), E.valuePtr(), sizeof(double)*E.nonZeros());
+        std::memcpy(_values.ptr(), E.valuePtr(), sizeof(Real)*E.nonZeros());
         _C = casadi::Matrix<T>(_s, _values);
     }
 
@@ -106,14 +112,14 @@ public:
     WrappedFunction(const WrappedFunction&);
     WrappedFunction& operator=(const WrappedFunction&);
 
-    void setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi);
+    void setInput(int i, Eigen::Ref<const VectorXr> xi);
     void call(bool sparse = false);
-    void call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>>& out);
-    const Eigen::MatrixXd& getOutput(int i) const;
-    const Eigen::SparseMatrix<double>& getSparseOutput(int i) const;
+    void call_accumulate(std::vector<Eigen::Ref<MatrixXr>>& out);
+    const MatrixXr& getOutput(int i) const;
+    const Eigen::SparseMatrix<Real>& getSparseOutput(int i) const;
     casadi::Function& functionRef();
     const casadi::Function& function() const;
-    Eigen::MatrixXd& out(int i);
+    MatrixXr& out(int i);
 
     bool is_valid() const;
 
@@ -122,28 +128,28 @@ private:
     void csc_to_matrix(const casadi::Sparsity& sp,
                        const std::vector<casadi_int>&  sp_rows,
                        const std::vector<casadi_int>&  sp_cols,
-                       const std::vector<double>& data,
-                       Eigen::MatrixXd& matrix);
+                       const std::vector<Real>& data,
+                       MatrixXr& matrix);
 
     void csc_to_matrix_accu(const casadi::Sparsity& sp,
                             const std::vector<casadi_int>&  sp_rows,
                             const std::vector<casadi_int>&  sp_cols,
-                            const std::vector<double>& data,
-                            Eigen::Ref<Eigen::MatrixXd> matrix);
+                            const std::vector<Real>& data,
+                            Eigen::Ref<MatrixXr> matrix);
 
     void csc_to_sparse_matrix(const casadi::Sparsity& sp,
                               const std::vector<casadi_int>&  sp_rows,
                               const std::vector<casadi_int>&  sp_cols,
-                              const std::vector<double>& data,
-                              Eigen::SparseMatrix<double>& matrix);
+                              const std::vector<Real>& data,
+                              Eigen::SparseMatrix<Real>& matrix);
 
-    std::vector<const double *> _in_buf;
-    std::vector<std::vector<double>> _out_data;
-    std::vector<Eigen::MatrixXd> _out_matrix;
-    std::vector<Eigen::SparseMatrix<double> > _out_matrix_sparse;
-    std::vector<double *> _out_buf;
+    std::vector<const Real *> _in_buf;
+    std::vector<std::vector<Real>> _out_data;
+    std::vector<MatrixXr> _out_matrix;
+    std::vector<Eigen::SparseMatrix<Real> > _out_matrix_sparse;
+    std::vector<Real *> _out_buf;
     std::vector<casadi_int> _iw;
-    std::vector<double> _dw;
+    std::vector<Real> _dw;
     std::vector<std::vector<casadi_int>> _rows;
     std::vector<std::vector<casadi_int>> _cols;
 

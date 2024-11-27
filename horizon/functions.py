@@ -100,7 +100,10 @@ class AbstractFunction:
             a list of the nodes where the function is active
 
         """
-        return misc.getNodesFromBinary(self._active_nodes_array)
+        # we only want to get node indexes which are both feasible and active
+        active_and_feasible=np.logical_and(self._active_nodes_array,self._feas_nodes_array)
+
+        return misc.getNodesFromBinary(active_and_feasible)
 
     def setNodes(self, nodes, erasing=True):
         """

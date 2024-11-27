@@ -2,7 +2,6 @@
 
 using namespace horizon;
 
-
 template<class CASADI_TYPE>
 const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
         const casadi::DM& initial_guess_x,
@@ -24,8 +23,8 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
     _iteration_to_solve = 0;
 
     // set parameters as second input of f and df
-    _f.setInput(1, Eigen::VectorXd::Map(p->data(), p.size1()));
-    _df.setInput(1, Eigen::VectorXd::Map(p->data(), p.size1()));
+    _f.setInput(1, VectorXr::Map(p->data(), p.size1()));
+    _df.setInput(1, VectorXr::Map(p->data(), p.size1()));
 
     // do the same on g and A (i.e., dg)
     _g_dict.input[_g.name_in(1)] = p;
@@ -66,7 +65,7 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
         casadi_utils::toCasadiMatrix(_grad, grad_);
 
         if(!H_.is_init())
-            H_ = casadi_utils::WrappedSparseMatrix<double>(_H);
+            H_ = casadi_utils::WrappedSparseMatrix<Real>(_H);
         else
             H_.update_values(_H);
 
@@ -147,7 +146,7 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
 
 
     _solution["x"] = x0_;
-    double norm_f = _f.getOutput(0).norm();
+    Real norm_f = _f.getOutput(0).norm();
     _solution["f"] = 0.5*norm_f*norm_f;
     _solution["g"] = casadi::norm_2(_g_dict.output[_g.name_out(0)].get_elements());
 
@@ -156,10 +155,10 @@ const casadi::DMDict& SQPGaussNewton<CASADI_TYPE>::solve(
 
 template<class CASADI_TYPE>
 bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
-        Eigen::VectorXd &x,
-        const Eigen::VectorXd &dx,
-        const Eigen::VectorXd &lam_x,
-        const Eigen::VectorXd &lam_a,
+        VectorXr &x,
+        const VectorXr &dx,
+        const VectorXr &lam_x,
+        const VectorXr &lam_a,
         const casadi::DM &lbg,
         const casadi::DM &ubg,
         const casadi::DM &lbx,
@@ -173,20 +172,20 @@ bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
 
     _x0_ = x;
 
-    const double merit_safety_factor = 2.0;
-    double norminf_lam_x = lam_x.lpNorm<Eigen::Infinity>();
-    double norminf_lam_a = lam_a.lpNorm<Eigen::Infinity>();
-    double norminf_lam = merit_safety_factor*std::max(norminf_lam_x, norminf_lam_a);
+    const Real merit_safety_factor = 2.0;
+    Real norminf_lam_x = lam_x.lpNorm<Eigen::Infinity>();
+    Real norminf_lam_a = lam_a.lpNorm<Eigen::Infinity>();
+    Real norminf_lam = merit_safety_factor*std::max(norminf_lam_x, norminf_lam_a);
 
-    double initial_cost = computeCost(_f);
+    Real initial_cost = computeCost(_f);
 
-    double cost_derr = computeCostDerivative(dx, _grad);
+    Real cost_derr = computeCostDerivative(dx, _grad);
 
     casadi_utils::toEigen(_g_dict.output[_g.name_out(0)], _g_);
-    double constraint_violation = computeConstraintViolation(_g_, _x0_, _lbg_, _ubg_, _lbx_, _ubx_);
+    Real constraint_violation = computeConstraintViolation(_g_, _x0_, _lbg_, _ubg_, _lbx_, _ubx_);
 
-    double merit_der = cost_derr - norminf_lam * constraint_violation;
-    double initial_merit = initial_cost + norminf_lam*constraint_violation;
+    Real merit_der = cost_derr - norminf_lam * constraint_violation;
+    Real initial_merit = initial_cost + norminf_lam*constraint_violation;
 
     // report initial value (only if iter == 0)
     if(iter == 0)
@@ -215,15 +214,15 @@ bool SQPGaussNewton<CASADI_TYPE>::lineSearch(
     {
         x = _x0_ + _alpha*dx;
         eval(_f, 0, x, false);
-        double candidate_cost = computeCost(_f);
+        Real candidate_cost = computeCost(_f);
 
         casadi_utils::toCasadiMatrix(x, _x_);
         _g_dict.input[_g.name_in(0)] = _x_;
         eval(_g, _g_dict);
         casadi_utils::toEigen(_g_dict.output[_g.name_out(0)], _g_);
-        double candidate_constraint_violation = computeConstraintViolation(_g_, x, _lbg_, _ubg_, _lbx_, _ubx_);
+        Real candidate_constraint_violation = computeConstraintViolation(_g_, x, _lbg_, _ubg_, _lbx_, _ubx_);
 
-        double candidate_merit = candidate_cost + norminf_lam*candidate_constraint_violation;
+        Real candidate_merit = candidate_cost + norminf_lam*candidate_constraint_violation;
 
         // evaluate Armijo's condition
         accepted = candidate_merit < (initial_merit + _beta*_alpha*merit_der);

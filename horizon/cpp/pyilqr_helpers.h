@@ -8,6 +8,8 @@
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
 
+#include "src/typedefs.h"
+
 namespace py = pybind11;
 using namespace horizon;
 
@@ -56,7 +58,7 @@ auto set_final_constraint_wrapper(IterativeLQR& self, py::object pyfn)
 auto set_inter_constraint_wrapper_single(IterativeLQR& self,
                                          std::vector<int> k,
                                          py::object f,
-                                         std::vector<Eigen::VectorXd> tgt)
+                                         std::vector<VectorXr> tgt)
 {
     self.setConstraint(k, to_cpp(f), tgt);
 }

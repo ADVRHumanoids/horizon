@@ -8,9 +8,14 @@
 #include <dlfcn.h>
 
 #include "wrapped_function.h"
+#include "typedefs.h"
 
 namespace
 {
+
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
 
 class RestoreCwd
 {
@@ -36,14 +41,14 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
     casadi_utils::WrappedFunction fw = f;
     casadi_utils::WrappedFunction gw = g;
 
-    std::vector<Eigen::VectorXd> input(f.n_in());
+    std::vector<VectorXr> input(f.n_in());
 
     for(int iter = 0; iter < 10; iter++)
     {
 
         for(int i = 0; i < f.n_in(); i++)
         {
-            Eigen::VectorXd u;
+            VectorXr u;
             u.setRandom(f.size1_in(i));
             input[i] = 100*u;
         }
@@ -59,7 +64,7 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
 
         for(int i = 0; i < f.n_out(); i++)
         {
-            double err = (fw.getOutput(i) - gw.getOutput(i)).lpNorm<Eigen::Infinity>();
+            Real err = (fw.getOutput(i) - gw.getOutput(i)).lpNorm<Eigen::Infinity>();
 
             if(err > 1e-16)
             {
@@ -80,7 +85,8 @@ bool check_function_consistency(const casadi::Function &f, const casadi::Functio
 
 
 
-casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string dir)
+casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string dir,
+                                    bool verbose)
 {    
     // save cwd
     RestoreCwd rcwd = get_current_dir_name();
@@ -102,9 +108,11 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     std::string fname = f.name() + "_generated_" + std::to_string(hash);
 
     if(access((fname + ".so").c_str(), F_OK) == 0)
-    {
-        std::cout << "exists: loading " << fname << "... \n";
-
+    {   
+        if (verbose) {
+            std::cout << "exists: loading " << fname << "... \n";
+        }
+        
         auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
 
         if(!handle)
@@ -126,11 +134,20 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
     }
 
     // else, generate and compile
-    f.generate(fname + ".c");
+    #ifdef ILQR_FLOAT
+        casadi::Dict opts={{"casadi_real", "float"}};
+    #else
+        casadi::Dict opts={{"casadi_real", "double"}};
+    #endif
+    f.generate(fname + ".c",opts);
 
-    std::cout << "not found: compiling " << fname << "... \n";
+    if (verbose) {
+        std::cout << "not found: compiling " << fname << "... \n";
+    }
 
-    int ret = system(("clang -fPIC -shared -O3 -march=native " + fname + ".c -o " + fname + ".so").c_str());
+    // int ret = system(("clang -fPIC -shared -O3 -march=native " + fname + ".c -o " + fname + ".so").c_str());
+    // removed -march=native to allow (maybe) more cross compatibility
+    int ret = system(("clang -fPIC -shared -O3 " + fname + ".c -o " + fname + ".so").c_str());
 
     if(ret != 0)
     {
@@ -138,8 +155,10 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
         return f;
     }
 
-    std::cout << "loading " << fname << "... \n";
-
+    if (verbose) {
+        std::cout << "loading " << fname << "... \n";
+    }
+    
     auto handle = dlopen(("./" + fname + ".so").c_str(), RTLD_NOW);
 
     if(!handle)

@@ -1,8 +1,6 @@
 import setuptools
-
 from setuptools.command.develop import develop
 from setuptools.command.build_py import build_py
-
 import os
 import codecs
 import subprocess
@@ -21,40 +19,56 @@ def get_version(rel_path):
         raise RuntimeError("Unable to find version string.")
 
 def _pre_build(dirname):
-    # create a build dir and run 'make generate_python_package'
     current_dir = os.getcwd()
     print('building from dir: ', current_dir)
     os.makedirs(dirname, exist_ok=True)
     build_dir = current_dir + '/' + dirname
 
     try:
-        p = subprocess.run(["cmake", "-DCMAKE_BUILD_TYPE=Release", "../horizon/cpp"], cwd=build_dir)
-    except subprocess.CalledProcessError:
-        raise
-
-    try:
-        p = subprocess.run(["make", "-j8"], cwd=build_dir)
-    except subprocess.CalledProcessError:
-        raise
-
-    try:
-        p = subprocess.run(["make", "generate_python_package", "-j8"], cwd=build_dir)
-    except subprocess.CalledProcessError:
-        raise
+        subprocess.run(["cmake", "-DCMAKE_BUILD_TYPE=Release", "../horizon/cpp"], cwd=build_dir, check=True)
+        subprocess.run(["make", "-j8"], cwd=build_dir, check=True)
+        subprocess.run(["make", "generate_python_package", "-j8"], cwd=build_dir, check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError("Build failed") from e
 
 class CustomBuild(build_py):
-    # called by pip install and by python setup.py build and python setup.py install
-    # build_py is not called by pip install -e
+    user_options = build_py.user_options + [
+        ('skip-build', None, 'Skip custom build steps')
+    ]
+
+    def initialize_options(self):
+        build_py.initialize_options(self)
+        self.skip_build = False
+
+    def finalize_options(self):
+        build_py.finalize_options(self)
+
     def run(self):
-        dir_name = 'temp_build'
-        _pre_build(dir_name)
+        if not self.skip_build:
+            dir_name = 'temp_build'
+            _pre_build(dir_name)
+        else:
+            print("Skipping custom build steps")
         build_py.run(self)
 
 class CustomDevelop(develop):
-    # called by pip install -e 
+    user_options = develop.user_options + [
+        ('skip-build', None, 'Skip custom build steps')
+    ]
+
+    def initialize_options(self):
+        develop.initialize_options(self)
+        self.skip_build = False
+
+    def finalize_options(self):
+        develop.finalize_options(self)
+
     def run(self):
-        dir_name = 'temp_build'
-        _pre_build(dir_name)
+        if not self.skip_build:
+            dir_name = 'temp_build'
+            _pre_build(dir_name)
+        else:
+            print("Skipping custom build steps")
         develop.run(self)
 
 setuptools.setup(
@@ -68,8 +82,7 @@ setuptools.setup(
     packages=['horizon', 'horizon.utils', 'horizon.solvers', 'horizon.transcriptions', 'horizon.examples', 'horizon.ros', 'horizon.rhc', 'horizon.rhc.ros', 'horizon.rhc.tasks'],
     install_requires=['numpy', 'matplotlib', 'scipy', 'casadi-kin-dyn', 'rospkg'],
     python_requires=">=3.6",
-    cmdclass={'build_py': CustomBuild,
-              'develop': CustomDevelop},
+    cmdclass={'build_py': CustomBuild, 'develop': CustomDevelop},
     ext_modules=[
         setuptools.Extension(
             name="ilqrext", sources=[]
@@ -79,3 +92,4 @@ setuptools.setup(
         )
     ]
 )
+

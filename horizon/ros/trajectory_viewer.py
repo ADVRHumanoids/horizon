@@ -8,7 +8,6 @@ from std_msgs.msg import Header, ColorRGBA, String
 from sensor_msgs.msg import JointState
 import subprocess
 import time
-from numpy_ros import to_numpy, to_message
 
 
 class TrajectoryViewer:
@@ -109,7 +108,10 @@ class TrajectoryViewer:
 
         for col in range(points.shape[1]):
 
-            point = to_message(Point, points[:3, col])
+            point.x = points[0, col]
+            point.y = points[1, col]
+            point.z = points[2, col]
+            
             marker.points.append(point)
 
         self.line_array.markers.append(marker)

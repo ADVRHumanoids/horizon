@@ -1,10 +1,17 @@
 #include <gtest/gtest.h>
 
 #include "../src/ilqr.h"
+#include "../src/typedefs.h"
 
+using Real=horizon::Real;
+using MatrixXr=horizon::MatrixXr;
+using VectorXr=horizon::VectorXr;
+using Matrix2r=horizon::Matrix2r;
+using Vector2r=horizon::Vector2r;
 
 class testIlqr : public ::testing::Test
 {
+
 protected:
 
     testIlqr(){
@@ -70,7 +77,7 @@ TEST_F(testIlqr, checkResiduals)
     {
         ilqr->setConstraint({10}, fc);
 
-        Eigen::Vector2d x0(1, 1);
+        Vector2r x0(1, 1);
 
         ilqr->setInitialState(x0);
 

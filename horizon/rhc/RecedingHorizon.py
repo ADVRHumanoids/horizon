@@ -6,8 +6,6 @@ from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidB
 from horizon.rhc.action_manager.ActionManager import ActionManager
 import numpy as np
 import horizon.utils.kin_dyn as kd
-import matplotlib.pyplot as plt
-from horizon.ros import replay_trajectory
 from typing import Union
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -299,6 +297,8 @@ class RecedingHorizon:
             raise Exception("ROS required for replayer.")
 
         contact_list_repl = list(self.model.cmap.keys())
+        from horizon.ros import replay_trajectory
+
         self.repl = replay_trajectory.replay_trajectory(self.dt, self.model.kd.joint_names(), np.array([]),
                                                    {k: None for k in self.model.fmap.keys()},
                                                    self.model.kd_frame, self.model.kd,

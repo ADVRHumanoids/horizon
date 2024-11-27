@@ -1,7 +1,7 @@
 #include "ilqr_impl.h"
+#include "typedefs.h"
 
-
-bool IterativeLQR::forward_pass(double alpha)
+bool IterativeLQR::forward_pass(Real alpha)
 {
     TIC(forward_pass);
 
@@ -23,12 +23,11 @@ bool IterativeLQR::forward_pass(double alpha)
     return true;
 }
 
-
-double IterativeLQR::compute_merit_slope(double cost_slope,
-                                         double mu_f,
-                                         double mu_c,
-                                         double defect_norm,
-                                         double constr_viol)
+Real IterativeLQR::compute_merit_slope(Real cost_slope,
+                                        Real mu_f,
+                                        Real mu_c,
+                                        Real defect_norm,
+                                        Real constr_viol)
 {
     // see Nocedal and Wright, Theorem 18.2, pg. 541
     // available online http://www.apmath.spbu.ru/cnsa/pdf/monograf/Numerical_Optimization2006.pdf
@@ -37,11 +36,11 @@ double IterativeLQR::compute_merit_slope(double cost_slope,
 
 }
 
-double IterativeLQR::compute_cost_slope()
+Real IterativeLQR::compute_cost_slope()
 {
     TIC(compute_cost_slope);
 
-    double der = 0.;
+    Real der = 0.;
 
     for(int i = 0; i < _N; i++)
     {
@@ -56,11 +55,11 @@ double IterativeLQR::compute_cost_slope()
     return der;
 }
 
-double IterativeLQR::compute_merit_value(double mu_f,
-                                         double mu_c,
-                                         double cost,
-                                         double defect_norm,
-                                         double constr_viol)
+Real IterativeLQR::compute_merit_value(Real mu_f,
+                                         Real mu_c,
+                                         Real cost,
+                                         Real defect_norm,
+                                         Real constr_viol)
 {
     // we define a merit function as follows
     // m(alpha) = J + mu_f * |D| + mu_c * |G|
@@ -76,19 +75,18 @@ double IterativeLQR::compute_merit_value(double mu_f,
     return cost + mu_f*defect_norm + mu_c*constr_viol;
 }
 
-
-std::pair<double, double> IterativeLQR::compute_merit_weights(
-        double cost_der,
-        double defect_norm,
-        double constr_viol)
+std::pair<Real, Real> IterativeLQR::compute_merit_weights(
+        Real cost_der,
+        Real defect_norm,
+        Real constr_viol)
 {
     TIC(compute_merit_weights);
 
     // note: we here assume dx = 0, since this function runs before
     // the forward pass
 
-    double lam_x_max = 0.0;
-    double lam_g_max = 0.0;
+    Real lam_x_max = 0.0;
+    Real lam_g_max = 0.0;
 
     for(int i = 0; i < _N; i++)
     {
@@ -102,9 +100,9 @@ std::pair<double, double> IterativeLQR::compute_merit_weights(
         }
     }
 
-    const double merit_safety_factor = 2.0;
-    double mu_f = lam_x_max * merit_safety_factor;
-    double mu_c = std::max(lam_g_max * merit_safety_factor, 0.0);
+    const Real merit_safety_factor = 2.0;
+    Real mu_f = lam_x_max * merit_safety_factor;
+    Real mu_c = std::max(lam_g_max * merit_safety_factor, static_cast<Real>(0.0));
 
 //    double g = defect_norm + mu_c/mu_f*constr_viol;
 //    double rho = 0.5;
@@ -115,30 +113,36 @@ std::pair<double, double> IterativeLQR::compute_merit_weights(
 
 }
 
-double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
+Real IterativeLQR::compute_cost(const MatrixXr& xtrj, const MatrixXr& utrj)
 {
     TIC(compute_cost);
 
-    double cost = 0.0;
+    Real cost = 0.0;
 
-    // reset constr value to nan
-    for(auto& item : _cost_values)
-    {
-        item.second.setConstant(std::numeric_limits<double>::quiet_NaN());
+    if (_debug) {
+        // reset constr value to nan
+        for(auto& item : _cost_values)
+        {
+            item.second.setConstant(std::numeric_limits<Real>::quiet_NaN());
+        }
+
     }
-
+    
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
-        cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i) / _N;
-
-        // optionally (TBD) save values of single costs acting on this node
-        for(auto it : _cost[i].items)
-        {
-            // not updating items uninitialized (item vs item_cost)
-            if (_cost_values[it->getName()].size() != 0)
+        _fp_res->cost_values[i] = _cost[i].evaluate(xtrj.col(i), utrj.col(i), i);
+        cost += _fp_res->cost_values[i] / _N;
+        
+        if (_debug) {
+            // optionally save values of single costs acting on this node
+            for(auto it : _cost[i].items)
             {
-                _cost_values[it->getName()](i) = it->getCostEvaluated();
+                // not updating items uninitialized (item vs item_cost)
+                if (_cost_values[it->getName()].size() != 0)
+                {
+                    _cost_values[it->getName()](i) = it->getCostEvaluated();
+                }
             }
         }
 
@@ -147,17 +151,18 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // add final cost
     // note: u not used
     // todo: enforce this!
-    cost += _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
+    _fp_res->cost_values[_N] = _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
+    cost +=  _fp_res->cost_values[_N];
 
     return cost;
 }
 
-double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
-                                           const Eigen::MatrixXd &utrj)
+Real IterativeLQR::compute_bound_penalty(const MatrixXr &xtrj,
+                                           const MatrixXr &utrj)
 {
     TIC(compute_bound_penalty);
 
-    double res = 0.0;
+    Real res = 0.0;
 
     auto xineq = _x_lb.array() < _x_ub.array();
     auto uineq = _u_lb.array() < _u_ub.array();
@@ -170,18 +175,22 @@ double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
     return res / _N;
 }
 
-double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
+Real IterativeLQR::compute_constr(const MatrixXr& xtrj, const MatrixXr& utrj)
 {
     TIC(compute_constr);
 
-    double constr = 0.0;
+    Real constr = 0.0;
 
-    // reset constr value to nan
-    for(auto& item : _constr_values)
-    {
-        item.second.setConstant(std::numeric_limits<double>::quiet_NaN());
+    if (_debug) {
+
+        // reset constr value to nan
+        for(auto& item : _constr_values)
+        {
+            item.second.setConstant(std::numeric_limits<Real>::quiet_NaN());
+        }
+
     }
-
+    
     // intermediate constraint violation
     for(int i = 0; i < _N; i++)
     {
@@ -194,10 +203,12 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
         _fp_res->constraint_values[i] = _constraint[i].h().lpNorm<1>();
         constr += _fp_res->constraint_values[i] / _N;
 
-        // optionally (TBD) save values of single constraints acting on this node
-        for(auto it : _constraint[i].items)
-        {
-            _constr_values[it->f.function().name()].col(i) = it->h();
+        if (_debug) {
+            // optionally (TBD) save values of single constraints acting on this node
+            for(auto it : _constraint[i].items)
+            {
+                _constr_values[it->f.function().name()].col(i) = it->h();
+            }
         }
 
     }
@@ -222,11 +233,11 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
     return constr;
 }
 
-double IterativeLQR::compute_defect(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
+Real IterativeLQR::compute_defect(const MatrixXr& xtrj, const MatrixXr& utrj)
 {
     TIC(compute_defect);
 
-    double defect = 0.0;
+    Real defect = 0.0;
 
     // compute defects on given trajectory
     for(int i = 0; i < _N; i++)
@@ -249,17 +260,16 @@ bool IterativeLQR::line_search(int iter)
 {
     TIC(line_search);
 
-    const double step_reduction_factor = 0.5;
-    const double alpha_min = _alpha_min;
-    double alpha = _step_length;
-    const double eta = _line_search_accept_ratio;
+    const Real step_reduction_factor = 0.5;
+    const Real alpha_min = _alpha_min;
+    Real alpha = _step_length;
+    const Real eta = _line_search_accept_ratio;
 
     // fill newton step length
     _fp_res->step_length = std::sqrt(_dx.squaredNorm() + _du.squaredNorm());
 
-
     // compute merit function weights
-    double cost_der = compute_cost_slope();
+    Real cost_der = compute_cost_slope();
     auto [mu_f, mu_c] = compute_merit_weights(
             cost_der,
             _fp_res->defect_norm,
@@ -270,14 +280,14 @@ bool IterativeLQR::line_search(int iter)
     _fp_res->rho = _rho;
 
     // compute merit function initial value
-    double merit = compute_merit_value(mu_f, mu_c,
+    Real merit = compute_merit_value(mu_f, mu_c,
             _fp_res->cost,
             _fp_res->defect_norm,
             _fp_res->constraint_violation);
 
     // compute merit function directional derivative
 
-    double merit_der = compute_merit_slope(cost_der,
+    Real merit_der = compute_merit_slope(cost_der,
             mu_f, mu_c,
             _fp_res->defect_norm,
             _fp_res->constraint_violation);
@@ -380,7 +390,9 @@ bool IterativeLQR::line_search(int iter)
     _utrj = _fp_res->utrj;
 
     // save result in history
-    _fp_res_history.push_back(*_fp_res);
+    if (_log_iterations) {
+        _fp_res_history.push_back(*_fp_res);
+    }
 
     // note: we should update the lag mult at the solution
     // by including the dx part
@@ -392,7 +404,7 @@ void IterativeLQR::reset_iterate_filter()
 {
     _it_filt.clear();
     IterateFilter::Pair test_pair;
-    test_pair.f = std::numeric_limits<double>::lowest();
+    test_pair.f = std::numeric_limits<Real>::lowest();
     test_pair.h = _fp_res->defect_norm + _fp_res->constraint_violation;
     test_pair.h = std::max(1e2*test_pair.h, 1e3);
 }
@@ -400,10 +412,10 @@ void IterativeLQR::reset_iterate_filter()
 bool IterativeLQR::should_stop()
 {
 
-    const double constraint_violation_threshold = _constraint_violation_threshold;
-    const double defect_norm_threshold = _defect_norm_threshold;
-    const double merit_der_threshold = _merit_der_threshold;
-    const double step_length_threshold = _step_length_threshold;
+    const Real constraint_violation_threshold = _constraint_violation_threshold;
+    const Real defect_norm_threshold = _defect_norm_threshold;
+    const Real merit_der_threshold = _merit_der_threshold;
+    const Real step_length_threshold = _step_length_threshold;
 
     TIC(should_stop);
 
@@ -424,21 +436,24 @@ bool IterativeLQR::should_stop()
         return false;
     }
 
-
     // here we're feasible
 
     // exit if merit function directional derivative (normalized)
     // is too close to zero
     if(std::fabs(_fp_res->merit_der) < merit_der_threshold*(1 + _fp_res->merit))
     {
-        std::cout << "exiting due to small merit derivative \n";
+        if (_verbose) {
+            std::cout << "exiting due to small merit derivative \n";
+        }
         return true;
     }
 
     // exit if step size (normalized) is too short
     if(_fp_res->step_length < step_length_threshold*(1 + _utrj.norm()))
     {
-        std::cout << "exiting due to small control increment \n";
+        if (_verbose) {
+            std::cout << "exiting due to small control increment \n";
+        }
         return true;
     }
 

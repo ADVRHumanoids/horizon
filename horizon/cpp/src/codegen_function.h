@@ -6,7 +6,8 @@
 namespace horizon { namespace utils {
 
 casadi::Function codegen(const casadi::Function& f,
-                         std::string dir=".");
+                        std::string dir=".",
+                        bool verbose = false);
 
 } }
 

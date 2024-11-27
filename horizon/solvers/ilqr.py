@@ -12,7 +12,6 @@ from typing import Dict, List
 from horizon.transcriptions import integrators
 import casadi as cs
 import numpy as np
-from matplotlib import pyplot as plt
 
 class SolverILQR(Solver):
     
@@ -32,7 +31,7 @@ class SolverILQR(Solver):
 
         # save max iter if any
         self.max_iter = self.opts.get('ilqr.max_iter', 100)
-        
+
         # num shooting interval
         self.N = prb.getNNodes() - 1  
 
@@ -72,7 +71,8 @@ class SolverILQR(Solver):
 
         # create ilqr solver
         self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
-
+        self.ilqr.reset()
+    
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
 
@@ -83,6 +83,7 @@ class SolverILQR(Solver):
         
         # set a default iteration callback
         self.plot_iter = False
+        
         self.xax = None 
         self.uax = None
         self.dax = None
@@ -91,9 +92,20 @@ class SolverILQR(Solver):
         # empty solution dict
         self.solution_dict = dict()
 
+        self.current_iteration = 0 
+        self.iteration_costs = []
+
         # print iteration statistics
         self.set_iteration_callback()
 
+        self.set_iteration_callback(self._sol_info_callback)
+
+        self._mem_usage = 0.0
+
+    def reset(self):
+
+        self.ilqr.reset()
+        
     def save(self):
         data = self.prb.save()
         data['solver'] = dict()
@@ -104,25 +116,32 @@ class SolverILQR(Solver):
         data['dynamics'] = self.dyn.serialize()
         return data
 
-    
     def set_iteration_callback(self, cb=None):
         if cb is None:
             self.ilqr.setIterationCallback(self._iter_callback)
         else:
-            print('setting custom iteration callback')
+            # print('setting custom iteration callback')
             self.ilqr.setIterationCallback(cb)
 
+    def _sol_info_callback(self, fpres):
+
+        self.current_iteration = self.current_iteration + 1
+        
+        self.iteration_costs.append(fpres.cost)
 
     def configure_rti(self) -> bool:
         self.opts['max_iter'] = 1
     
     def solve(self):
-        
+
+        self.iteration_costs = [] # resets costs data
+        self.current_iteration = 0 # resets iteration counter
+
         # set initial state
         x0 = self.prb.getInitialState()
         xinit = self.prb.getState().getInitialGuess()
         uinit = self.prb.getInput().getInitialGuess()
-
+        
         # update initial guess
         self.ilqr.setStateInitialGuess(xinit)
         self.ilqr.setInputInitialGuess(uinit)
@@ -159,6 +178,11 @@ class SolverILQR(Solver):
         self.solution_dict['x_opt'] = self.x_opt
         self.solution_dict['u_opt'] = self.u_opt
 
+        self.solution_dict['opt_cost'] = self.iteration_costs[-1] if len(self.iteration_costs) else -1.0
+        self.solution_dict['iter_costs'] = np.array(self.iteration_costs)
+        self.solution_dict['n_iter2sol'] = self.current_iteration
+        self.solution_dict['residual_norm'] = self.getResidualNorm()
+
         return ret
     
     def getSolutionDict(self):
@@ -187,6 +211,15 @@ class SolverILQR(Solver):
     def getCostsValues(self):
         return self.ilqr.getCostsValues()
 
+    def getResidualNorm(self):
+        return self.ilqr.getResidualNorm()
+
+    def getConstrValOnNodes(self):
+        return self.ilqr.getConstrValOnNodes()
+    
+    def getCostValOnNodes(self):
+        return self.ilqr.getCostValOnNodes()
+    
     def print_timings(self):
 
         prof_info = self.ilqr.getProfilingInfo()
@@ -339,6 +372,7 @@ class SolverILQR(Solver):
         # print(f'il male è {fpres.constraint_values[0]} + {np.linalg.norm(fpres.defect_values[:, 0])}')
 
         if self.plot_iter:
+            from matplotlib import pyplot as plt
 
             if self.dax is None:
                 _, (self.dax, self.hax) = plt.subplots(2)

@@ -9,8 +9,6 @@ from casadi_kin_dyn import pycasadi_kin_dyn
 import urdf_parser_py.urdf as upp
 from collections import OrderedDict
 
-np.set_printoptions(precision=3, suppress=True)
-
 class FullModelInverseDynamics:
 
     def __init__(self, problem, kd, q_init, base_init=None, floating_base=True, fixed_joint_map=None, sys_order_degree=2, **kwargs):
@@ -629,6 +627,8 @@ class SingleRigidBodyDynamicsModel:
 
 
 if __name__ == '__main__':
+
+    np.set_printoptions(precision=3, suppress=True)
 
     import rospkg
     import casadi_kin_dyn.py3casadi_kin_dyn as casadi_kin_dyn

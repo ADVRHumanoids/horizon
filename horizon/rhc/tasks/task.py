@@ -42,7 +42,7 @@ class Task:
         for _, v in subtask.items():
             if isinstance(v, classname):
                 ret.append(v)
-        return ret[0] if len(ret) == 1 else ret
+        return ret
 
     def __post_init__(self):
         # todo: this is for simplicity

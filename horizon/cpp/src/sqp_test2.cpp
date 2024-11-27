@@ -77,15 +77,15 @@ int main()
 
 
 
-//    Eigen::MatrixXd myparam_values;
+//    MatrixXf myparam_values;
 //    myparam_values.setConstant(1, 1, -1.0);
 //    sqp.setParameterValue("p", myparam_values);
 
-//    Eigen::MatrixXd dt_values;
+//    MatrixXf dt_values;
 //    dt_values.setConstant(1, 1, 0.1);
 //    sqp.setParameterValue("dt", dt_values);
 
-//    Eigen::MatrixXd lp_values;
+//    MatrixXf lp_values;
 //    lp_values.setConstant(1, 1, 1.0);
 //    sqp.setParameterValue("lp", lp_values);
 

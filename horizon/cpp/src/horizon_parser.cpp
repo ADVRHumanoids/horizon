@@ -15,13 +15,13 @@ Problem::Variable::Ptr Problem::yaml_to_variable(YAML::Node item)
 
     try
     {
-        auto lb = var_data["lb"].as<std::vector<double>>();
-        auto ub = var_data["ub"].as<std::vector<double>>();
-        auto ini = var_data["initial_guess"].as<std::vector<double>>();
+        auto lb = var_data["lb"].as<std::vector<Real>>();
+        auto ub = var_data["ub"].as<std::vector<Real>>();
+        auto ini = var_data["initial_guess"].as<std::vector<Real>>();
 
-        v->lb = Eigen::MatrixXd::Map(lb.data(), size, lb.size()/size);
-        v->ub = Eigen::MatrixXd::Map(ub.data(), size, ub.size()/size);
-        v->initial_guess = Eigen::MatrixXd::Map(ini.data(), size, ini.size()/size);
+        v->lb = MatrixXr::Map(lb.data(), size, lb.size()/size);
+        v->ub = MatrixXr::Map(ub.data(), size, ub.size()/size);
+        v->initial_guess = MatrixXr::Map(ini.data(), size, ini.size()/size);
     }
     catch(YAML::Exception&)
     {
@@ -30,8 +30,8 @@ Problem::Variable::Ptr Problem::yaml_to_variable(YAML::Node item)
 
     try
     {
-        auto values = var_data["values"].as<std::vector<double>>();
-        v->value = Eigen::MatrixXd::Map(values.data(), size, values.size()/size);
+        auto values = var_data["values"].as<std::vector<Real>>();
+        v->value = MatrixXr::Map(values.data(), size, values.size()/size);
     }
     catch(YAML::Exception&)
     {
@@ -90,11 +90,11 @@ Problem::Function::Ptr Problem::yaml_to_function(std::pair<YAML::Node, YAML::Nod
     // bounds
     try
     {
-        auto lb = var_data["lb"].as<std::vector<double>>();
-        auto ub = var_data["ub"].as<std::vector<double>>();
+        auto lb = var_data["lb"].as<std::vector<Real>>();
+        auto ub = var_data["ub"].as<std::vector<Real>>();
 
-        fun->lb = Eigen::MatrixXd::Map(lb.data(), f.size1_out(0), lb.size()/f.size1_out(0));
-        fun->ub = Eigen::MatrixXd::Map(ub.data(), f.size1_out(0), ub.size()/f.size1_out(0));
+        fun->lb = MatrixXr::Map(lb.data(), f.size1_out(0), lb.size()/f.size1_out(0));
+        fun->ub = MatrixXr::Map(ub.data(), f.size1_out(0), ub.size()/f.size1_out(0));
     }
     catch(YAML::Exception& e)
     {
@@ -113,8 +113,8 @@ void Problem::from_yaml(YAML::Node problem_yaml)
     // dt
     try
     {
-        dt = problem_yaml["solver"]["dt"].as<double>();
-        std::cout << "problem_yaml[solver][dt].as<double>() = " << dt << "\n";
+        dt = problem_yaml["solver"]["dt"].as<Real>();
+        std::cout << "problem_yaml[solver][dt].as<Real>() = " << dt << "\n";
     }
     catch(YAML::Exception& e)
     {

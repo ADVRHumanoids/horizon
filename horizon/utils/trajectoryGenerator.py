@@ -1,15 +1,12 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit
-from scipy.interpolate import splprep
+# from scipy.optimize import curve_fit
+# from scipy.interpolate import splprep
 
-
-from numpy import linspace, sin, pi
+# from numpy import linspace, sin, pi
 from scipy.interpolate import BPoly, CubicSpline
 
-
-
 class TrajectoryGenerator:
+
     def __init__(self):
         pass
 
@@ -62,11 +59,16 @@ class TrajectoryGenerator:
         else:
             cyi = [p_start, p_goal + clearance, p_goal]
 
-        xcurve = linspace(0, 1, nodes)
+        xcurve = np.linspace(0, 1, nodes)
 
         yder = []
-        for i, val in enumerate(derivatives):
-            yder.append([cyi[i], val] if val is not None else [cyi[i]])
+        for i, (d1, d2) in enumerate(zip(derivatives, second_der)):
+            constraints = [cyi[i]]
+            if d1 is not None:
+                constraints.append(d1)
+            if d2 is not None:
+                constraints.append(d2)
+            yder.append(constraints)
 
         bpoly = BPoly.from_derivatives(cxi, yder)
         y_bpoly = bpoly(xcurve)
@@ -98,7 +100,6 @@ class TrajectoryGenerator:
             yder.append(constraints)
 
         bpoly = BPoly.from_derivatives(cxi, yder)
-
         # Compute the first derivative of the BPoly object
         bpoly_derivative = bpoly.derivative()
 
@@ -106,8 +107,7 @@ class TrajectoryGenerator:
         y_bpoly_derivative = bpoly_derivative(xcurve)
 
         return y_bpoly_derivative
-
-
+    
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
 
