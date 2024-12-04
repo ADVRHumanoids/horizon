@@ -33,6 +33,8 @@ class OperationMode(Enum):
     CRAWL = 1
     TROT = 2
     STEP = 3
+    DRAG = 4
+    WALK = 5
 
 class GaitManagerROS:
     def __init__(self, gm: GaitManager, opt : dict = None):
@@ -62,9 +64,11 @@ class GaitManagerROS:
         self.__base_vel_ref = np.zeros(6)
 
         # open ros services
-        self.__switch_walk_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
+        self.__switch_crawl_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
         self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
+        self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
+        self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
 
         self.__current_solution = None
 
@@ -151,6 +155,26 @@ class GaitManagerROS:
 
         return {'success': True}
 
+    def __switch_drag_cb(self, req: SetBoolRequest):
+
+        if req.data:
+            self.__operation_mode = OperationMode.DRAG
+        else:
+            if self.__operation_mode == OperationMode.DRAG:
+                self.__operation_mode = OperationMode.STAND
+
+        return {'success': True}
+
+    def __switch_walk_cb(self, req: SetBoolRequest):
+
+        if req.data:
+            self.__operation_mode = OperationMode.WALK
+        else:
+            if self.__operation_mode == OperationMode.WALK:
+                self.__operation_mode = OperationMode.STAND
+
+        return {'success': True}
+
     def __set_phases(self):
 
         if self.__operation_mode == OperationMode.CRAWL:
@@ -168,6 +192,14 @@ class GaitManagerROS:
         if self.__operation_mode == OperationMode.STAND:
             if self.__one_random_contact_timeline.getEmptyNodes() > 0:
                 self.__gm.stand()
+
+        if self.__operation_mode == OperationMode.DRAG:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
+                self.__gm.drag()
+
+        if self.__operation_mode == OperationMode.WALK:
+            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
+                self.__gm.walk2()
 
     def __set_base_commands(self):
 

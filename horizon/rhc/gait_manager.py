@@ -4,6 +4,7 @@ from phase_manager import pyphase, pymanager
 import colorama
 from enum import Enum
 
+
 class OperationMode(Enum):
     STAND = 0
     CRAWL = 1
@@ -19,6 +20,8 @@ class GaitManager:
         self.__phase_manager = phase_manager
 
         self.__contact_timelines = dict()
+
+        # contact map links 'contact_name' with 'contact_timeline'
 
         # register each timeline of the phase manager as the contact phases
         for contact_name, timeline_name in contact_map.items():
@@ -57,6 +60,16 @@ class GaitManager:
             self.__flight_recovery_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_name}_recovery')
             self.__stance_recovery_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_name}_recovery')
 
+            # hardcoded
+            contact_task_dict = {'l_sole': 'foot_contact_l',
+                                 'r_sole': 'foot_contact_r'}
+
+            self.__stance_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_task_dict[contact_name]}')
+            self.__flight_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_task_dict[contact_name]}')
+
+            self.__stance_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_stance_{contact_task_dict[contact_name]}')
+            self.__flight_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_flight_{contact_task_dict[contact_name]}')
+
     def getContactTimelines(self):
 
         return self.__contact_timelines
@@ -77,23 +90,19 @@ class GaitManager:
 
     def cycle(self, cycle_list):
 
-
         for flag_contact, contact_name in zip(cycle_list, self.__contact_timelines.keys()):
             timeline_i = self.__contact_timelines[contact_name]
 
             if flag_contact == 1:
-                if self.__mode == OperationMode.TROT:
-                    timeline_i.addPhase(self.__stance_phases[contact_name])
-                elif self.__mode == OperationMode.CRAWL:
-                    timeline_i.addPhase(self.__stance_phases_crawl[contact_name])
-                    # timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                timeline_i.addPhase(self.__stance_phases[contact_name])
                 timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                print(f'adding {self.__stance_phases[contact_name]} to phase: {contact_name}')
+                print(f'adding {self.__stance_short_phases[contact_name]} to phase: {contact_name}')
             else:
-                if self.__mode == OperationMode.TROT:
-                    timeline_i.addPhase(self.__flight_phases[contact_name])
-                elif self.__mode == OperationMode.CRAWL:
-                    timeline_i.addPhase(self.__crawl_phases[contact_name])
+                timeline_i.addPhase(self.__flight_phases[contact_name])
                 timeline_i.addPhase(self.__stance_short_phases[contact_name])
+                print(f'adding {self.__stance_phases[contact_name]} to phase: {contact_name}')
+                print(f'adding {self.__stance_short_phases[contact_name]} to phase: {contact_name}')
 
 
     def cycle_recovery(self, cycle_list):
@@ -233,6 +242,19 @@ class GaitManager:
         self.__mode = OperationMode.STAND
 
         cycle_list = [[1, 1, 1, 1]]
+        self.__add_cycles(cycle_list)
+
+    def drag(self):
+
+        cycle_list = [[1, 0, 1, 1], [0, 1, 1, 1]]
+
+        self.__add_cycles(cycle_list)
+
+    def walk2(self):
+
+        cycle_list = [[0, 1],
+                      [1, 0]]
+
         self.__add_cycles(cycle_list)
 
     def __add_cycles(self, cycle_lists):
