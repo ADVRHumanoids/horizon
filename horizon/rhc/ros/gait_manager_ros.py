@@ -1,8 +1,9 @@
-import rospy
+import rclpy
 from geometry_msgs.msg import Twist
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool #, SetBoolRequest
 from horizon.rhc.gait_manager import GaitManager
 import numpy as np
+import quaternion
 from enum import Enum
 
 # marker = Marker()
@@ -35,7 +36,7 @@ class OperationMode(Enum):
     STEP = 3
 
 class GaitManagerROS:
-    def __init__(self, gm: GaitManager, opt : dict = None):
+    def __init__(self, gm: GaitManager, opt : dict = None, node = None):
 
         self.__opt = opt
 
@@ -51,7 +52,11 @@ class GaitManagerROS:
 
         # this version receives commands as base velocity
         # open ros topic
-        self.__base_vel_sub = rospy.Subscriber('/horizon/base_velocity/reference', Twist, self.__base_vel_cb)
+        if node == None:
+            self.__node = rclpy.create_node('gait_manager')
+        else:
+            self.__node = node
+        self.__base_vel_sub = self.__node.create_subscription(Twist, '/horizon/base_velocity/reference', self.__base_vel_cb, 10)
 
         # init tasks connection
         self.__init_options()
@@ -62,9 +67,9 @@ class GaitManagerROS:
         self.__base_vel_ref = np.zeros(6)
 
         # open ros services
-        self.__switch_walk_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
-        self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
-        self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
+        self.__switch_walk_srv = self.__node.create_service(SetBool, '/horizon/crawl/switch', self.__switch_crawl_cb)
+        self.__switch_trot_srv = self.__node.create_service(SetBool, '/horizon/trot/switch', self.__switch_trot_cb)
+        self.__switch_step_srv = self.__node.create_service(SetBool, '/horizon/step/switch', self.__switch_step_cb)
 
         self.__current_solution = None
 
@@ -121,35 +126,47 @@ class GaitManagerROS:
         self.__base_vel_ref[4] = msg.angular.y
         self.__base_vel_ref[5] = msg.angular.z
 
-    def __switch_crawl_cb(self, req: SetBoolRequest):
+    def __switch_crawl_cb(self, request, response):
 
-        if req.data:
+        if request.data:
             self.__operation_mode = OperationMode.CRAWL
+            response.success = True
+            response.message = "Switched to CRAWL Mode"
         else:
             if self.__operation_mode == OperationMode.CRAWL:
                 self.__operation_mode = OperationMode.STAND
+                response.message = "Switched to STAND Mode"
+                response.success = True
+        
+        return response
 
-        return {'success': True}
+    def __switch_trot_cb(self, request, response):
 
-    def __switch_trot_cb(self, req: SetBoolRequest):
-
-        if req.data:
+        if request.data:
             self.__operation_mode = OperationMode.TROT
+            response.success = True
+            response.message = "Switched to TROT Mode"
         else:
             if self.__operation_mode == OperationMode.TROT:
                 self.__operation_mode = OperationMode.STAND
+                response.success = True
+                response.message = "Switched to STAND Mode"
 
-        return {'success': True}
+        return response
 
-    def __switch_step_cb(self, req: SetBoolRequest):
+    def __switch_step_cb(self, request, response):
 
-        if req.data:
+        if request.data:
             self.__operation_mode = OperationMode.STEP
+            response.success = True
+            response.message = "Switched to STEP Mode"
         else:
             if self.__operation_mode == OperationMode.STEP:
                 self.__operation_mode = OperationMode.STAND
+                response.success = True
+                response.message = "Switched to STAND Mode"
 
-        return {'success': True}
+        return response
 
     def __set_phases(self):
 
