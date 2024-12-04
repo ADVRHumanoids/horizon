@@ -1,7 +1,7 @@
 import numpy
 import numpy as np
 import casadi as cs
-import rospy
+import rclpy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
@@ -13,7 +13,7 @@ from horizon.ros.trajectory_viewer import TrajectoryViewer
 from threading import Thread, Lock
 
 try:
-    import tf as ros_tf
+    import tf2_ros as ros_tf
 except ImportError:
     from . import tf_broadcaster_simple as ros_tf
     print('will not use tf publisher')
@@ -44,7 +44,8 @@ class replay_trajectory:
                  trajectory_markers=None,
                  trajectory_markers_opts=None,
                  future_trajectory_markers=None,
-                 future_trajectory_markers_opts=None):
+                 future_trajectory_markers_opts=None,
+                 node=None):
         """
         Contructor
         Args:
@@ -95,14 +96,23 @@ class replay_trajectory:
         self.tv = dict()
         self.future_tv = dict()
 
+        if node is None:
+            try:
+                self.node = rclpy.create_node('joint_state_publisher')
+                rclpy.get_global_executor().add_node(self.node)
+            except rclpy.exceptions.ROSException as e:
+                pass
+        else:
+            self.node = node
+        
         for frame in trajectory_markers:
-            self.tv[frame] = TrajectoryViewer(frame, opts=trajectory_markers_opts)
+            self.tv[frame] = TrajectoryViewer(frame, opts=trajectory_markers_opts, node=self.node)
 
         for frame in future_trajectory_markers:
             if frame not in self.frame_fk:
                 FK = kindyn.fk(frame)
                 self.frame_fk[frame] = FK
-            self.future_tv[frame] = TrajectoryViewer(frame, opts=future_trajectory_markers_opts)
+            self.future_tv[frame] = TrajectoryViewer(frame, opts=future_trajectory_markers_opts, node=self.node)
 
         # WE CHECK IF WE HAVE TO ROTATE CONTACT FORCES:
         if force_reference_frame is cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED:
@@ -125,16 +135,12 @@ class replay_trajectory:
                 #         A[0:3, 0:3] = A[3:6, 3:6] = w_R_f.T
                 #         self.frame_force_mapping[frame][:, k] = np.dot(A,  w).T
 
-        try:
-            rospy.init_node('joint_state_publisher')
-        except rospy.exceptions.ROSException as e:
-            pass
-        self.pub = rospy.Publisher('joint_states', JointState, queue_size=10)
-        self.br = ros_tf.TransformBroadcaster()
+        self.pub = self.node.create_publisher(JointState, 'joint_states', 10)
+        self.br = ros_tf.TransformBroadcaster(self.node)
 
         if self.frame_force_mapping:
             for key in self.frame_force_mapping:
-                self.force_pub.append(rospy.Publisher(key+'_forces', geometry_msgs.msg.WrenchStamped, queue_size=10))
+                self.force_pub.append(self.node.create_publisher(geometry_msgs.msg.WrenchStamped, key+'_forces', 10))
 
     def publish_past_trajectory_marker(self, trajectory_marker_action=None):
 
@@ -203,7 +209,7 @@ class replay_trajectory:
         joint_state_pub = JointState()
         joint_state_pub.header = Header()
         joint_state_pub.name = self.joints_1dof + list(self.fixed_joint_map.keys())
-        t = rospy.Time.now()
+        t = self.node.get_clock().now().to_msg()
         br = self.br
         nq = len(qk)
 
@@ -215,6 +221,7 @@ class replay_trajectory:
             q = normalize_quaternion(qk[iq:iq+7])
 
             m = geometry_msgs.msg.TransformStamped()
+            m.header.stamp = t
             m.header.frame_id = prefix + '/' + parent
             m.child_frame_id = prefix + '/' + child
             m.transform.translation.x = q[0]
@@ -224,11 +231,9 @@ class replay_trajectory:
             m.transform.rotation.y = q[4]
             m.transform.rotation.z = q[5]
             m.transform.rotation.w = q[6]
+            
+            br.sendTransform(m)
 
-            br.sendTransform((m.transform.translation.x, m.transform.translation.y, m.transform.translation.z),
-                                (m.transform.rotation.x, m.transform.rotation.y, m.transform.rotation.z,
-                                m.transform.rotation.w),
-                                t, m.child_frame_id, m.header.frame_id)
 
 
         joint_state_pub.header.stamp = t
@@ -244,11 +249,12 @@ class replay_trajectory:
 
 
     def replay(self, prefix=''):
-
-        rate = rospy.Rate(self.slow_down_rate / self.dt)
+        rate = self.node.create_rate(self.slow_down_rate / self.dt)
         nq = np.shape(self.q_replay)[0]
         ns = np.shape(self.q_replay)[1]
 
+        thread = Thread(target=rclpy.spin, args=(self.node, ), daemon=True)
+        thread.start()
         # for elem in self.tv.values():
         #     dt_markers = 0.05
         #     multiplier = self.dt / dt_markers
@@ -256,13 +262,13 @@ class replay_trajectory:
         #     p = Thread(target=self.publish_frame_trajectories, args=(self.tv['ball_1'], 1/dt_markers, n_markers_max))
         #     p.start()
 
-        while not rospy.is_shutdown():
+        while rclpy.ok():
 
             k = 0
             for qk in self.q_replay.T:
 
-                t = rospy.Time.now()
-
+                t = self.node.get_clock().now().to_msg()
+            
                 # publish trajectory of frames with markers
 
                 if k == ns - 1:
@@ -272,22 +278,23 @@ class replay_trajectory:
 
                 self.publish_joints(qk, prefix=prefix)
 
-
                 if self.frame_force_mapping:
                     if k != ns-1:
                         self.publishContactForces(t, qk, k)
 
-
                 rate.sleep()
                 k += 1
+
             if self.__sleep > 0.:
                 time.sleep(self.__sleep)
                 print('replaying traj ...')
 
+        rclpy.shutdown()
+        thread.join()
     # def publish_frame_trajectories(self, pub, rate, markers_max=500):
     #
     #     k = 0
-    #     rospy_rate = rospy.Rate(rate)
+    #     rclpy_rate = rclpy.Rate(rate)
     #     while True:
     #         if k == markers_max:
     #             action = Marker.DELETEALL
@@ -299,5 +306,5 @@ class replay_trajectory:
     #         k += 1
     #         pub.publish_once(action=action, markers_max=markers_max)
     #
-    #         rospy_rate.sleep()
+    #         rclpy_rate.sleep()
 
