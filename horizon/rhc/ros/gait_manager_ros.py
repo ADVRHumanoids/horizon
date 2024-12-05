@@ -59,7 +59,7 @@ class GaitManagerROS:
         self.__init_options()
         self.__base_pose_xy_task = self.__ti.getTask(self.__base_pose_xy_task_name)
         self.__base_pose_z_task = self.__ti.getTask(self.__base_pose_z_task_name)
-        self.__base_ori_task = self.__ti.getTask(self.__base_orientation_task_name)
+        self.__base_yaw_ori_task = self.__ti.getTask(self.__base_yaw_orientation_task_name)
 
         self.__base_vel_ref = np.zeros(6)
 
@@ -95,7 +95,7 @@ class GaitManagerROS:
         # default values
         self.__base_pose_xy_task_name = 'base_xy'
         self.__base_pose_z_task_name = 'base_z'
-        self.__base_orientation_task_name = 'base_orientation'
+        self.__base_yaw_orientation_task_name = 'base_yaw_orientation'
 
         if 'task_name' in self.__opt:
             task_name_dict = self.__opt['task_name']
@@ -246,7 +246,7 @@ class GaitManagerROS:
         base_reference[5] += angular_velocity_vector.z
         base_reference[6] += angular_velocity_vector.w
 
-        self.__base_ori_task.setRef(base_reference)
+        self.__base_yaw_ori_task.setRef(base_reference)
 
         # ============================= Z =================================
 
