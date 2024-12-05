@@ -59,21 +59,22 @@ class Task:
         if isinstance(self.weight, (float, int)):
             self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
             self.weight_param.assign(self.weight)
-
-        elif isinstance(self.weight, List):
-            self.weight_param = []
-            for i_dim in range(len(self.weight)):
-
-                temp_par = self.prb.createParameter(f'{self.name}_weight_{i_dim}', 1)
-                temp_par.assign(self.weight[i_dim])
-                self.weight_param.append(temp_par)
-
-        elif isinstance(self.weight, dict):
-            self.weight_param = dict()
-            for elem, w in self.weight.items():
-                temp_par = self.prb.createParameter(f'{self.name}_weight_{elem}', 1)
-                temp_par.assign(self.weight[elem])
-                self.weight_param[elem] = temp_par
+        else:
+            raise Exception(f"type of weight '{type(self.weight)} not supported.'")
+        # elif isinstance(self.weight, List):
+        #     self.weight_param = []
+        #     for i_dim in range(len(self.weight)):
+        #
+        #         temp_par = self.prb.createParameter(f'{self.name}_weight_{i_dim}', 1)
+        #         temp_par.assign(self.weight[i_dim])
+        #         self.weight_param.append(temp_par)
+        #
+        # elif isinstance(self.weight, dict):
+        #     self.weight_param = dict()
+        #     for elem, w in self.weight.items():
+        #         temp_par = self.prb.createParameter(f'{self.name}_weight_{elem}', 1)
+        #         temp_par.assign(self.weight[elem])
+        #         self.weight_param[elem] = temp_par
 
     def setNodes(self, nodes, erasing=True):
         self.nodes = nodes
