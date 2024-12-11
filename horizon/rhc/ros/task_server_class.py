@@ -7,16 +7,25 @@ class TaskServerClass:
     def __init__(self, ti : taskInterface.TaskInterface):
         self.__ti = ti
 
+        rosbot_param_server_py.init('test_task_server_class', [])
+
         self.__pm = rosbot_param_server_py.ParameterManager()
 
         for task in self.__ti.getTasks():
             if hasattr(task, "weight_param"):
-                if isinstance(task.weight_param, dict):
-                    for name in task.weight_param.keys():
-                        self.__pm.createParameter(name, task.setWeight, task.getWeight()[name][0, 0])
-                else:
-                    self.__pm.createParameter(task.weight_param.getName(), task.setWeight, task.getWeight()[0, 0])
-                    self.setMinMax(task.weight_param.getName(), 0, 500)
+                # task_type = task.getType()
+                initial_val = task.getWeight()[0, 0]
+                self.__pm.createParameter(task.weight_param.getName(), task.setWeight, initial_val)
+
+                min_val, max_val = self.calculate_min_max(initial_val)
+                self.setMinMax(task.weight_param.getName(),  min_val, max_val)
+
+    def calculate_min_max(self, value):
+
+        range_min = 0.
+        range_max = value + 100 * abs(value)
+
+        return range_min, range_max
 
     def addParameter(self, name: str, param: sv.Parameter):
         self.__pm.createParameter(name, param.assign, param.getValues()[0, 0])

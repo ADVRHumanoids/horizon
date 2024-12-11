@@ -2,14 +2,6 @@ import numpy as np
 from horizon.rhc.taskInterface import TaskInterface
 from phase_manager import pyphase, pymanager
 import colorama
-from enum import Enum
-
-
-class OperationMode(Enum):
-    STAND = 0
-    CRAWL = 1
-    TROT = 2
-    STEP = 3
 
 class GaitManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: pymanager.PhaseManager, contact_map):
@@ -41,8 +33,6 @@ class GaitManager:
         self.__stance_recovery_phases = dict()
 
         self.__init_tasks(contact_map)
-
-        self.__mode = OperationMode.STAND
 
     def __init_tasks(self, contact_map):
 
@@ -121,8 +111,6 @@ class GaitManager:
 
     def step(self, swing_contact):
 
-        self.__mode = OperationMode.STEP
-
         cycle_list = [[True if contact_name != swing_contact else False for contact_name in self.__contact_timelines.keys()]]
         self.__add_cycles(cycle_list)
 
@@ -146,16 +134,12 @@ class GaitManager:
 
     def trot(self):
 
-        self.__mode = OperationMode.TROT
-
         self.diagonal_pair(0)
         self.diagonal_pair(1)
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
         # self.zmp_timeline.addPhase(self.zmp_timeline.getRegisteredPhase('zmp_empty_phase'))
 
     def crawl(self, vref=[0, 0, 1]):
-
-        self.__mode = OperationMode.CRAWL
 
         vx, vy, omega = vref
         Rmax = 1
@@ -238,8 +222,6 @@ class GaitManager:
         self.__add_cycles(cycle_list)
 
     def stand(self):
-
-        self.__mode = OperationMode.STAND
 
         cycle_list = [[1, 1, 1, 1]]
         self.__add_cycles(cycle_list)
