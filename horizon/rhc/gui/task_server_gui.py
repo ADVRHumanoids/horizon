@@ -1,11 +1,11 @@
 import sys
 import re
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QSlider, QScrollArea, QHBoxLayout, QPushButton, QLineEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QLabel, QSlider, QScrollArea, QHBoxLayout, QPushButton, QLineEdit, QFileDialog
 from PyQt5.QtGui import QColor, QPalette, QFont
 from PyQt5.QtCore import Qt
 import rospy
 from rosbot_param_server.srv import GetParameterInfo, SetString
-
+import yaml
 
 class DynamicSliderWindow(QMainWindow):
     def __init__(self, params):
@@ -36,6 +36,15 @@ class DynamicSliderWindow(QMainWindow):
                 min_val, max_val = self.parse_descriptor(descriptor)
                 initial_val = float(value)
 
+                # Dynamically determine the scaling factor based on the range
+                decimal_places = max(0, len(str(initial_val).split('.')[1])) + 1 # Calculate decimal places in range
+
+                # print('param_name: ', param_name)
+                # print('initial_val: ', initial_val)
+                # print('decimal_places: ', decimal_places)
+                # print(f'min-max: {min_val} -- {max_val}')
+
+
                 # Store the initial value for reset
                 self.current_values[param_name] = initial_val
 
@@ -50,7 +59,7 @@ class DynamicSliderWindow(QMainWindow):
                 h0_layout.addWidget(name_label)
 
                 # Create a label to display the current value above the slider
-                value_label_above = QLabel(f"{initial_val:.2f}")
+                value_label_above = QLabel(f"{initial_val:.{decimal_places}f}")
                 value_label_above.setAlignment(Qt.AlignCenter)
                 value_label_above.setFont(QFont("Arial", 8))  # Optional, adjust the font size
                 h0_layout.addWidget(value_label_above)
@@ -59,12 +68,9 @@ class DynamicSliderWindow(QMainWindow):
 
                 h1_layout = QHBoxLayout()
 
-                # Dynamically determine the scaling factor based on the range
-                range_size = max_val - min_val
-                decimal_places = min(max(0, len(str(range_size).split('.')[1])), 3)  # Calculate decimal places in range
 
                 # Define a scaling factor based on decimal places in the range
-                scaling_factor = 10 ** (decimal_places + 2)
+                scaling_factor = 10 ** decimal_places
 
                 scaled_min = int(min_val * scaling_factor)
                 scaled_max = int(max_val * scaling_factor)
@@ -73,27 +79,28 @@ class DynamicSliderWindow(QMainWindow):
                 slider = QSlider(Qt.Horizontal)
                 slider.setMinimum(scaled_min)
                 slider.setMaximum(scaled_max)
+
                 slider.setValue(scaled_initial)
                 slider.setTickPosition(QSlider.TicksBelow)
-                slider.setTickInterval(max(1, (scaled_max - scaled_min) // 10))
+                slider.setTickInterval(max(1, (scaled_max - scaled_min) // decimal_places))
 
                 # Store the slider for resetting
                 self.param_sliders[param_name] = slider
 
                 # Update the displayed value when the slider moves
                 slider.valueChanged.connect(
-                    lambda val, label=value_label_above, scale=scaling_factor: label.setText(f"{val / scale:.3f}")
+                    lambda val, label=value_label_above, scale=scaling_factor, res=decimal_places: self.display_value_slider(label, val, scale, res)
                 )
 
                 slider.valueChanged.connect(
-                    lambda val, pname=param_name, scale=scaling_factor: self.update_parameter(pname, val / scale)
+                    lambda val, pname=param_name, scale=scaling_factor, res=decimal_places: self.update_parameter(pname, val, scale, res)
                 )
 
                 # Add the slider itself
                 h1_layout.addWidget(slider)
 
                 # Create a label for displaying the live value on the right
-                value_label = QLabel(f"{initial_val:.2f}")
+                value_label = QLabel(f"{initial_val:.{decimal_places}f}")
                 value_label.setAlignment(Qt.AlignRight)
 
                 # Set green text color for the value label
@@ -138,8 +145,23 @@ class DynamicSliderWindow(QMainWindow):
 
         main_layout.addWidget(reset_button)
 
+        # Add the Save button at the bottom, outside of the scroll area
+        reset_button = QPushButton("Save")
+        reset_button.clicked.connect(self.save_values)
+
+        main_layout.addWidget(reset_button)
+
         # Set the central widget layout
         self.setCentralWidget(central_widget)
+
+    def __round_value(self, value, scale, decimal_places):
+
+        val = f'%.{decimal_places}f' % (value / scale)
+        return val
+
+    def display_value_slider(self, label, value, scale, res):
+
+        label.setText(self.__round_value(value, scale, res))
 
     def update_slider_from_input(self, input_box, min_val, max_val, scaling_factor, slider):
         try:
@@ -166,24 +188,27 @@ class DynamicSliderWindow(QMainWindow):
 
         return min_val, max_val
 
-    def update_parameter(self, param_name, value):
+    def update_parameter(self, param_name, value, scale, res):
         """Update the parameter on the ROS server and update the label."""
+
+        value_scaled = self.__round_value(value, scale, res)
+
         try:
             rospy.wait_for_service('/horizon/set_parameters', timeout=2)
             set_param = rospy.ServiceProxy('/horizon/set_parameters', SetString)
             # Format the request string correctly
-            request_string = f"{param_name}: {value}"
+            request_string = f"{param_name}: {value_scaled}"
 
             response = set_param(request=request_string)
 
             if response.success:
-                print(f"Successfully set {param_name} to {value}")
-                # Refresh the live value display and keep the value label green
-                self.refresh_parameter_value(param_name)
+                print(f"Successfully set {param_name} to {value_scaled}")
+                # Refresh the live value display and keep the value label green8
+                self.refresh_parameter_value(param_name, res)
                 self.set_value_label_color(param_name, "green")
-                self.current_values[param_name] = value
+                self.current_values[param_name] = value_scaled
             else:
-                print(f"Failed to set {param_name} to {value}: {response.message}")
+                print(f"Failed to set {param_name} to {value_scaled}: {response.message}")
                 # If the update failed, change the label to red
                 self.set_value_label_color(param_name, "red")
         except rospy.ServiceException as e:
@@ -203,7 +228,7 @@ class DynamicSliderWindow(QMainWindow):
             palette.setColor(QPalette.WindowText, QColor(color))
             value_label.setPalette(palette)
 
-    def refresh_parameter_value(self, param_name):
+    def refresh_parameter_value(self, param_name, res):
         """Fetch the latest value of the parameter and update its label."""
         try:
             rospy.wait_for_service('/horizon/get_parameter_info', timeout=2)
@@ -213,7 +238,7 @@ class DynamicSliderWindow(QMainWindow):
             # Update the specific parameter's label
             for name, value in zip(response.name, response.value):
                 if name == param_name and name in self.param_labels:
-                    self.param_labels[name].setText(f"{float(value):.3f}")
+                    self.param_labels[name].setText(str(f"{float(value):.{res}f}"))
                     # Set the value label color to green when updated successfully
                     self.set_value_label_color(param_name, "green")
                     break
@@ -239,6 +264,21 @@ class DynamicSliderWindow(QMainWindow):
                 # Set the label color to green
                 self.set_value_label_color(param_name, "green")
 
+    def save_values(self):
+        """Save the current values of the sliders to a YAML file."""
+        # Open a file dialog to choose where to save the file
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Values", "", "YAML Files (*.yaml);;All Files (*)", options=options)
+
+        if file_path:
+            try:
+                # Write the current values to the selected YAML file
+                with open(file_path, 'w') as file:
+                    yaml.dump(self.current_values, file, default_flow_style=False)
+                print(f"Values saved successfully to {file_path}")
+            except Exception as e:
+                print(f"Failed to save values: {e}")
 
 def fetch_ros_parameters():
     rospy.wait_for_service('/horizon/get_parameter_info')
@@ -252,6 +292,9 @@ def fetch_ros_parameters():
     except rospy.ServiceException as e:
         print(f"Service call failed: {e}")
         return []
+
+
+
 
 
 def main():
