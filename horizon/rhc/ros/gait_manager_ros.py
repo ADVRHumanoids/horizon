@@ -1,9 +1,13 @@
 import rospy
+from Cython.Compiler.TreePath import operations
 from geometry_msgs.msg import Twist
 from std_srvs.srv import SetBool, SetBoolRequest
-from horizon.rhc.gait_manager import GaitManager
+from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
 import numpy as np
 from enum import Enum
+from horizon.utils.logger import Logger
+from typing import Callable, Union
+from functools import partial
 
 # marker = Marker()
 # marker.header.frame_id = 'world'
@@ -27,7 +31,7 @@ from enum import Enum
 # marker.pose.orientation.w = reference[6]
 # self.__pub.publish(marker)
 
-
+# todo: this should go in the gait_manager and should be extracted here, automatically creating the binding between action and topic/buttons
 class OperationMode(Enum):
     STAND = 0
     CRAWL = 1
@@ -37,12 +41,13 @@ class OperationMode(Enum):
     WALK = 5
 
 class GaitManagerROS:
-    def __init__(self, gm: GaitManager, opt : dict = None):
+    def __init__(self, gm: Union[GaitManager, PhaseGaitWrapper], opt : dict = None):
 
         self.__opt = opt
+        self.__logger = Logger(self)
 
-        self.__gm = gm
-        self.__ti = self.__gm.getTaskInterface()
+        self.__gait_manager = gm
+        self.__ti = self.__gait_manager.getTaskInterface()
 
         # horizon duration
         self.__T = self.__ti.getProblem().getDt() * (self.__ti.getProblem().getNNodes() - 1)
@@ -70,15 +75,62 @@ class GaitManagerROS:
         self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
         self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
 
+        # param
+
+        self.__param_action = dict()
+        self.__param_action['walk'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
+        self.__param_action['stand'] = {'duration': 1}
+
+        self.__walk_params_ros = dict()
+
+        for action_name, param_actions in self.__param_action.items():
+            self.__walk_params_ros[action_name] = dict()
+            for param_name, param_value in param_actions.items():
+                self.__walk_params_ros[action_name][param_name] = rospy.set_param(f'/horizon/{action_name}/{param_name}', param_value)
+
+        # self.__contact_params_srv = dict()
+        # self.__contact_params = dict()
+
+        # contact_param_dict = {'duration':10, 'height':0.05}
+        #
+        # for contact_name in self.__gait_manager.getContacts():
+        #
+        #     self.__contact_params[contact_name] = dict()
+        #     self.__contact_params_srv[contact_name] = dict()
+
+            # for param_name, param_value in contact_param_dict.items():
+            #     self.__contact_params[contact_name][param_name] = param_value
+            #     self.__contact_params_srv[contact_name][param_name] = rospy.set_param(f'~{contact_name}/{param_name}', self.__contact_params[contact_name][param_name])
+        #
         self.__current_solution = None
 
         # initialize initial operation mode
         self.__operation_mode = OperationMode.STAND
 
+        self.__init_actions()
         # get one random contact phase to check when to add new phases
-        self.__one_random_contact_timeline = next(iter(self.__gm.getContactTimelines().values()))
+        self.__one_random_contact_timeline = next(iter(self.__gait_manager.getContactTimelines().values()))
 
-        print('Timeline used to check if horizon tail is empty: ', self.__one_random_contact_timeline.getName())
+        self.__logger.log(f'Timeline used to check if horizon tail is empty: {self.__one_random_contact_timeline.getName()}')
+
+    def __init_actions(self):
+
+        self.__action_dict = {
+                                OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
+                                # OperationMode.TROT:  self.__gm.trot,
+                                OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk'))
+                                # OperationMode.CRAWL: lambda: self.__gm.crawl(vref=self.__base_vel_ref[[0, 1, 5]]),
+                                # OperationMode.DRAG: self.__gm.drag,
+                                # OperationMode.STEP: lambda: self.__gm.step(swing_contact='ball_1')
+        }
+
+    def __get_params(self, action_name) -> dict :
+
+        for param_name, ros_param in self.__walk_params_ros[action_name].items():
+            self.__param_action[action_name][param_name] = rospy.get_param(f'/horizon/{action_name}/{param_name}')
+
+        self.__logger.log(f'{self.__param_action}')
+        return self.__param_action[action_name]
 
     def setBasePoseWeight(self, w):
         self.__base_pose_weight = w
@@ -175,31 +227,15 @@ class GaitManagerROS:
 
         return {'success': True}
 
-    def __set_phases(self):
+    def __set_phases(self, *args, **kwargs):
 
-        if self.__operation_mode == OperationMode.CRAWL:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.crawl(vref=self.__base_vel_ref[[0, 1, 5]])
+        if self.__one_random_contact_timeline.getEmptyNodes() > 0:
+            action: Callable = self.__action_dict.get(self.__operation_mode)
 
-        if self.__operation_mode == OperationMode.TROT:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.trot()
-
-        if self.__operation_mode == OperationMode.STEP:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.step('ball_1')
-
-        if self.__operation_mode == OperationMode.STAND:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.stand()
-
-        if self.__operation_mode == OperationMode.DRAG:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.drag()
-
-        if self.__operation_mode == OperationMode.WALK:
-            if self.__one_random_contact_timeline.getEmptyNodes() > 0:
-                self.__gm.walk2()
+            if action:
+                action(*args, **kwargs)  # Call the function
+            else:
+                self.__logger.log("Invalid operation mode")
 
     def __set_base_commands(self):
 
