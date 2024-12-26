@@ -145,9 +145,9 @@ casadi::Function horizon::utils::codegen(const casadi::Function &f, std::string 
         std::cout << "not found: compiling " << fname << "... \n";
     }
 
-    // int ret = system(("clang -fPIC -shared -O3 -march=native " + fname + ".c -o " + fname + ".so").c_str());
+    int ret = system(("clang -fPIC -shared -O3 -march=native " + fname + ".c -o " + fname + ".so").c_str());
     // removed -march=native to allow (maybe) more cross compatibility
-    int ret = system(("clang -fPIC -shared -O3 " + fname + ".c -o " + fname + ".so").c_str());
+    // int ret = system(("clang -fPIC -shared -O3 " + fname + ".c -o " + fname + ".so").c_str());
 
     if(ret != 0)
     {
