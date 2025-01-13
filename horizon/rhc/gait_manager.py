@@ -8,6 +8,10 @@ from horizon.utils import trajectoryGenerator
 from horizon.utils import logger
 from functools import partial
 
+# how to operate:
+# ~/forest_ws/src/unitree_mujoco/simulate/build  ./unitree_mujoco
+# mon launch cogimon_controller g1_experimental.launch  xbot:=true joy:=true
+
 class PhaseGaitWrapper:
     def __init__(self, task_interface: TaskInterface, phase_manager:pymanager.PhaseManager, contact_list):
 
@@ -27,6 +31,12 @@ class PhaseGaitWrapper:
 
         self.__z_task_dict = {'l_sole': 'foot_z_l',
                               'r_sole': 'foot_z_r'}
+
+
+        self.__z_task_dict = {'contact_1': 'z_contact_1',
+                              'contact_2': 'z_contact_2',
+                              'contact_3': 'z_contact_3',
+                              'contact_4': 'z_contact_4'}
 
         # MAP -> contact name : timeline
         self.__contact_timelines = dict()
@@ -48,7 +58,9 @@ class PhaseGaitWrapper:
 
         self.__action_list = {
             'walk':  partial(self.__walk_cycle),
-            'stand': partial(self.__add_cycles, [[1, 1]], duration=1)
+            'crawl': partial(self.__crawl),
+            'trot': partial(self.__trot),
+            'stand': partial(self.__add_cycles, [[1] * len(self.__contact_list)], duration=1)
         }
     def __init_swing_trajectory(self, contact_list):
 
@@ -139,12 +151,14 @@ class PhaseGaitWrapper:
 
     def setSwingTrajectory(self, phases, contact_name, z_height):
 
+
         flight_duration = len(phases)
         ref_trj_z = np.zeros(shape=[7, 1])
         # self.__logger.log(f'{[phase.getName() for phase in phases]}')
         # self.__logger.log(f'setting swing trajectory of contact {contact_name}:')
         # self.__logger.log(f' --> step_duration: {flight_duration}')
         # self.__logger.log(f' --> step_height: {z_height}')
+
 
         temp_traj = self.__trajectory_generator.from_derivatives(flight_duration,
                                                                  self.__contact_z_position_initial[contact_name],
@@ -169,6 +183,31 @@ class PhaseGaitWrapper:
         self.__add_cycle([1, 1], duration=double_stance)
         self.__add_cycle([0, 1], duration=step_duration, height=step_height)
         self.__add_cycle([1, 1], duration=double_stance)
+
+    def __crawl(self, **kwargs):
+
+        step_duration = kwargs['step_duration']
+        step_height = kwargs['step_height']
+        double_stance = kwargs['double_stance']
+
+        self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+        self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+        self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+        self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+
+    def __trot(self, **kwargs):
+
+        step_duration = kwargs['step_duration']
+        step_height = kwargs['step_height']
+        double_stance = kwargs['double_stance']
+
+        self.__add_cycle([0, 1, 1, 0], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+        self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
 
 class GaitManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: pymanager.PhaseManager, contact_map):
@@ -217,15 +256,15 @@ class GaitManager:
             self.__flight_recovery_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_name}_recovery')
             self.__stance_recovery_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_name}_recovery')
 
-            # hardcoded
-            contact_task_dict = {'l_sole': 'foot_contact_l',
-                                 'r_sole': 'foot_contact_r'}
-
-            self.__stance_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_task_dict[contact_name]}')
-            self.__flight_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_task_dict[contact_name]}')
-
-            self.__stance_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_stance_{contact_task_dict[contact_name]}')
-            self.__flight_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_flight_{contact_task_dict[contact_name]}')
+            # # hardcoded
+            # contact_task_dict = {'l_sole': 'foot_contact_l',
+            #                      'r_sole': 'foot_contact_r'}
+            #
+            # self.__stance_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'stance_{contact_task_dict[contact_name]}')
+            # self.__flight_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'flight_{contact_task_dict[contact_name]}')
+            #
+            # self.__stance_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_stance_{contact_task_dict[contact_name]}')
+            # self.__flight_short_phases[contact_name] = self.__contact_timelines[contact_name].getRegisteredPhase(f'short_flight_{contact_task_dict[contact_name]}')
 
     def getContactTimelines(self):
 

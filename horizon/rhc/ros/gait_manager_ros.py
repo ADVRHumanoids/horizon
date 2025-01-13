@@ -80,6 +80,8 @@ class GaitManagerROS:
         self.__param_action = dict()
         self.__param_action['walk'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
         self.__param_action['stand'] = {'duration': 1}
+        self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
+        self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.1, 'double_stance': 3}
 
         self.__walk_params_ros = dict()
 
@@ -117,9 +119,9 @@ class GaitManagerROS:
 
         self.__action_dict = {
                                 OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
-                                # OperationMode.TROT:  self.__gm.trot,
-                                OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk'))
-                                # OperationMode.CRAWL: lambda: self.__gm.crawl(vref=self.__base_vel_ref[[0, 1, 5]]),
+                                OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot')),
+                                OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk')),
+                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl'))
                                 # OperationMode.DRAG: self.__gm.drag,
                                 # OperationMode.STEP: lambda: self.__gm.step(swing_contact='ball_1')
         }
