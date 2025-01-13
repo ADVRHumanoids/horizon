@@ -26,9 +26,6 @@ class PhaseGaitWrapper:
         self.__phase_manager = phase_manager
 
         # todo: this is now hardcoded
-        # self.__contact_task_dict = {'l_sole': 'foot_contact_l',
-        #                             'r_sole': 'foot_contact_r'}
-
         # self.__z_task_list = ['foot_z_l', 'foot_z_r']
         self.__z_task_list = ['z_contact_1', 'z_contact_2', 'z_contact_3', 'z_contact_4']
 
@@ -60,7 +57,6 @@ class PhaseGaitWrapper:
 
         default_height = 0.05
 
-
         self.__z_task_dict = {}
         for z_task_name in self.__z_task_list:
 
@@ -72,9 +68,7 @@ class PhaseGaitWrapper:
             self.__logger.log(f'Found task "{z_task_name}" in horizon task')
             self.__z_task_dict[z_task.getDistalLink()] = z_task_name
 
-
         for contact in contact_list:
-
             contact_initial_pose = self.__model.kd.fk(contact)(q=self.__model.q0)['ee_pos'].elements()
 
             self.__contact_z_position_initial[contact] = contact_initial_pose[2]
