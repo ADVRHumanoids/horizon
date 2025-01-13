@@ -297,6 +297,12 @@ class CartesianTask(Task):
         # todo should I keep track of the nodes here?
         #  in other words: should be setNodes resetting?
 
+    def getDistalLink(self):
+        return self.distal_link
+
+    def getBaseLink(self):
+        return self.base_link
+
     def getConstraint(self):
         return self.constr
 

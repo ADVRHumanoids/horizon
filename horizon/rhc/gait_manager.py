@@ -26,17 +26,11 @@ class PhaseGaitWrapper:
         self.__phase_manager = phase_manager
 
         # todo: this is now hardcoded
-        self.__contact_task_dict = {'l_sole': 'foot_contact_l',
-                                    'r_sole': 'foot_contact_r'}
+        # self.__contact_task_dict = {'l_sole': 'foot_contact_l',
+        #                             'r_sole': 'foot_contact_r'}
 
-        self.__z_task_dict = {'l_sole': 'foot_z_l',
-                              'r_sole': 'foot_z_r'}
-
-
-        self.__z_task_dict = {'contact_1': 'z_contact_1',
-                              'contact_2': 'z_contact_2',
-                              'contact_3': 'z_contact_3',
-                              'contact_4': 'z_contact_4'}
+        # self.__z_task_list = ['foot_z_l', 'foot_z_r']
+        self.__z_task_list = ['z_contact_1', 'z_contact_2', 'z_contact_3', 'z_contact_4']
 
         # MAP -> contact name : timeline
         self.__contact_timelines = dict()
@@ -65,6 +59,20 @@ class PhaseGaitWrapper:
     def __init_swing_trajectory(self, contact_list):
 
         default_height = 0.05
+
+
+        self.__z_task_dict = {}
+        for z_task_name in self.__z_task_list:
+
+            z_task = self.__task_interface.getTask(z_task_name)
+
+            if self.__task_interface.getTask(z_task_name) is None:
+                raise Exception(f'Task name "{z_task_name}" not found in horizon stack.')
+
+            self.__logger.log(f'Found task "{z_task_name}" in horizon task')
+            self.__z_task_dict[z_task.getDistalLink()] = z_task_name
+
+
         for contact in contact_list:
 
             contact_initial_pose = self.__model.kd.fk(contact)(q=self.__model.q0)['ee_pos'].elements()
