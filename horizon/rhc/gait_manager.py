@@ -48,7 +48,7 @@ class PhaseGaitWrapper:
     def __init_actions(self):
 
         self.__action_list = {
-            'walk':  partial(self.__walk_cycle),
+            'walk':  partial(self.__bipedal_walk_cycle),
             'crawl': partial(self.__crawl),
             'trot': partial(self.__trot),
             'stand': partial(self.__add_cycles, [[1] * len(self.__contact_list)], duration=1)
@@ -87,9 +87,13 @@ class PhaseGaitWrapper:
 
         experimental_duration = 1
         for contact in contact_list:
-            self.__logger.log(f'creating timeline for contact: {contact}')
 
             self.__contact_timelines[contact] = self.__phase_manager.createTimeline(f'{contact}_timeline')
+
+            if self.__contact_timelines[contact] is None:
+                raise Exception(f'Failed to create timeline for contact {contact}')
+
+            self.__logger.log(f'created timeline for contact: "{contact}"')
 
             self.__stance_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'stance_phase_{contact}')
             self.__flight_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'flight_phase_{contact}')
@@ -175,7 +179,7 @@ class PhaseGaitWrapper:
             # self.__logger.log(f'{ref_trj_z.T}')
             phases[phase_i].setItemReference(self.__z_task_dict[contact_name], ref_trj_z)
 
-    def __walk_cycle(self, **kwargs):
+    def __bipedal_walk_cycle(self, **kwargs):
 
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
