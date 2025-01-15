@@ -12,7 +12,16 @@ class PosturalTask(Task):
         super().__init__(*args, **kwargs)
         self._createWeightParam()
 
+        if all(isinstance(elem, str) for elem in self.indices):
+            self.indices = [self.kin_dyn.joint_iq(elem) - 7 for elem in self.indices]
+
+            if any(elem < 0 for elem in self.indices):
+                raise Exception('indices of PosturalTask cannot be negative')
+
+
         self.indices = np.array(list(range(self.kin_dyn.nq() - 7))).astype(int) if self.indices is None else np.array(self.indices).astype(int)
+
+
         self.q = self.prb.getVariables('q')[7:]
         self.q0_joints_ref = postural_ref[7:]
         self.q0_ref = self.q0_joints_ref[self.indices]

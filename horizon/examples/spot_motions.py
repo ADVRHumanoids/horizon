@@ -414,7 +414,7 @@ def main(args):
                                      cas_kin_dyn.CasadiKinDyn.LOCAL_WORLD_ALIGNED, kindyn)
 
         repl.sleep(1.)
-        repl.replay(is_floating_base=True)
+        repl.replay()
 
     else:
         print("To visualize the robot trajectory, start the script with the '--replay")

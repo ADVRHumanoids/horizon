@@ -277,6 +277,7 @@ class FullModelInverseDynamics:
         self.prb.setDynamics(self.xdot)
 
         # underactuation constraints
+
         if self.fmap:
 
             if self.sys_order_degree == 2:
@@ -286,15 +287,16 @@ class FullModelInverseDynamics:
                 a = self.state_vec['a']
                 nodes = range(self.prb.getNNodes())
 
+
             self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
             self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap)
             self.prb.createConstraint('dynamics', self.tau[:6], nodes=nodes)
 
             black_list_indices = list()
             # black_list = [#'LShLat', 'LShSag', 'LShYaw', 'LElbj', 'LForearmPlate', 'LWrj1',
-                          #'RShLat', 'RShSag', 'RShYaw', 'RElbj', 'RForearmPlate', 'RWrj1',
-                          #'WaistLat', 'WaistYaw',
-                          # 'LAnklePitch', 'RAnklePitch']
+            #'RShLat', 'RShSag', 'RShYaw', 'RElbj', 'RForearmPlate', 'RWrj1',
+            #'WaistLat', 'WaistYaw',
+            # 'LAnklePitch', 'RAnklePitch']
             black_list = []
             selected_joints = np.array(list(range(6, self.nv)))
             for joint in black_list:

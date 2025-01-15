@@ -19,6 +19,13 @@ class CartesianTask(Task):
         self.cartesian_type = 'position' if cartesian_type is None else cartesian_type
 
         super().__init__(*args, **kwargs)
+
+        # fast check if link exists
+        try:
+            self.kin_dyn.fk(self.distal_link)
+        except:
+            raise Exception(f"'{self.distal_link}' not found in URDF.")
+
         self._createWeightParam()
 
         self.indices = np.array([0, 1, 2]).astype(
@@ -289,6 +296,12 @@ class CartesianTask(Task):
 
         # todo should I keep track of the nodes here?
         #  in other words: should be setNodes resetting?
+
+    def getDistalLink(self):
+        return self.distal_link
+
+    def getBaseLink(self):
+        return self.base_link
 
     def getConstraint(self):
         return self.constr

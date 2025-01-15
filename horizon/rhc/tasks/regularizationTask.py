@@ -18,7 +18,7 @@ class RegularizationTask(Task):
         try:
             self.opt_variable = self.prb.getVariables(variable_name)
         except:
-            raise Exception("variable not found.")
+            raise Exception(f"variable '{variable_name}' not found.")
 
         if self.fun_type == 'constraint':
             self.instantiator = self.prb.createConstraint
