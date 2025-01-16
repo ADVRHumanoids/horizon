@@ -26,8 +26,8 @@ class PhaseGaitWrapper:
         self.__phase_manager = phase_manager
 
         # todo: this is now hardcoded
-        # self.__z_task_list = ['foot_z_l', 'foot_z_r']
-        self.__z_task_list = ['z_contact_1', 'z_contact_2', 'z_contact_3', 'z_contact_4']
+        self.__z_task_list = ['foot_z_l', 'foot_z_r']
+        # self.__z_task_list = ['z_contact_1', 'z_contact_2', 'z_contact_3', 'z_contact_4']
 
         # MAP -> contact name : timeline
         self.__contact_timelines = dict()
