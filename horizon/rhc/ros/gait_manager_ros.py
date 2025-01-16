@@ -242,9 +242,11 @@ class GaitManagerROS:
     def __set_base_commands(self):
 
         # =========================== X Y  ================================
-        base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
-                                       self.__current_solution['q'][1, 0], # x pos at node 1
-                                       0., 0., 0., 0., 0.]]).T
+        # base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
+        #                                self.__current_solution['q'][1, 0], # x pos at node 1
+        #                                0., 0., 0., 0., 0.]]).T
+
+        base_reference_xy = np.atleast_2d(self.__base_pose_xy_task.getValues()[:, -1]).T
 
         # move base on xy-axis in local frame
         linear_velocity_vector = np.array([self.__base_pose_weight * self.__base_vel_ref[0],
@@ -272,6 +274,8 @@ class GaitManagerROS:
 
         angular_velocity_vector = self.__incremental_rotate(self.__current_solution['q'][[6, 3, 4, 5], 0], d_angle, axis)
 
+        # angular_velocity_vector = np.atleast_2d(self.__base_yaw_ori_task.getValues()[:, -1]).T
+
         # base_reference_pitch = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
 
         # d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[4]
@@ -289,7 +293,7 @@ class GaitManagerROS:
         # ============================= Z =================================
 
         # can add to xy
-        base_reference_z = np.array([[0., 0, self.__current_solution['q'][2, 0], 0., 0., 0., 0.]]).T
+        base_reference_z = np.atleast_2d(self.__base_pose_z_task.getValues()[:, 0]).T
 
         linear_velocity_vector_z = np.array([0.,
                                              0.,
