@@ -26,7 +26,7 @@ class Task:
     # todo: how to initialize?
     type: str
     name: str
-    fun_type: str = 'constraint'
+    fun_type: str = 'residual'
     weight: Union[List, float] = 1.0
     nodes: Sequence = field(default_factory=list)
     indices: Union[List, np.ndarray] = None
