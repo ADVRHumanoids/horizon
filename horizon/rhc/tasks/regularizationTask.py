@@ -1,3 +1,5 @@
+from docutils.io import Input
+
 from horizon.rhc.tasks.task import Task
 from horizon.variables import Variable, InputVariable, RecedingInputVariable
 import casadi as cs
@@ -12,7 +14,7 @@ class RegularizationTask(Task):
         super().__init__(*args, **kwargs)
         self._createWeightParam()
 
-        self.opt_reference = dict()
+        self.opt_reference = None
         self.indices_dict = dict()
 
         try:
@@ -27,6 +29,11 @@ class RegularizationTask(Task):
         elif self.fun_type == 'residual':
             self.instantiator = self.prb.createResidual
 
+        # if self.last_node is None, the variable is an input, so it does not exist on the last node
+        self.last_node = None
+        if isinstance(self.opt_variable, (InputVariable, RecedingInputVariable)):
+            self.last_node = self.prb.getNNodes() - 1
+
         self.reg_fun = None
 
         self._initialize()
@@ -40,8 +47,8 @@ class RegularizationTask(Task):
         self.opt_reference = self.prb.createParameter(f'{self.opt_variable.getName()}_ref', self.indices.size)
         # todo hack about nodes
 
-        if isinstance(self.opt_variable, (InputVariable, RecedingInputVariable)):
-            nodes = [node for node in list(self.nodes) if node != self.prb.getNNodes() - 1]
+        if self.last_node:
+            nodes = [node for node in list(self.nodes) if node != self.last_node]
         else:
             nodes = self.nodes
 
@@ -55,6 +62,30 @@ class RegularizationTask(Task):
     def getRef(self):
         return self.opt_reference
 
+    def getDim(self):
+            return self.indices.size
+
+    def assign(self, val, nodes=None):
+        # necessary method for using this task as an item + reference in phaseManager
+        self.opt_reference.assign(val, nodes)
+        return 1
+
+    def getValues(self):
+        # necessary method for using this task as an item + reference in phaseManager
+        return self.opt_reference.getValues()
+
     def setNodes(self, nodes, erasing=True):
-        super().setNodes(nodes)
-        self.reg_fun.setNodes(nodes)
+        super().setNodes(nodes, erasing=erasing)
+
+        if self.last_node:
+            nodes = [node for node in list(self.nodes) if node != self.last_node]
+
+        if not nodes:
+            self.nodes = []
+            self.reg_fun.setNodes(self.nodes, erasing=erasing)
+            return 0
+
+        # core
+        self.reg_fun.setNodes(self.nodes[0:], erasing=erasing)  # <==== SET NODES
+
+
