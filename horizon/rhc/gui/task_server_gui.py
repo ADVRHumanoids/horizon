@@ -6,10 +6,13 @@ from PyQt5.QtCore import Qt
 import rospy
 from rosbot_param_server.srv import GetParameterInfo, SetString
 import yaml
+from horizon.utils.logger import Logger
 
 class DynamicSliderWindow(QMainWindow):
     def __init__(self, params):
         super().__init__()
+
+        self.logger = Logger(self)
         self.setWindowTitle("Dynamic Sliders with On-Demand Updates")
         self.setGeometry(100, 100, 600, 800)
 
@@ -33,6 +36,8 @@ class DynamicSliderWindow(QMainWindow):
         # Add sliders based on ROS parameters
         for param_name, value, descriptor in params:
             try:
+
+                self.logger.log(f"adding parameter: '{param_name}' ...")
                 min_val, max_val = self.parse_descriptor(descriptor)
                 initial_val = float(value)
 
@@ -128,6 +133,9 @@ class DynamicSliderWindow(QMainWindow):
                 self.param_labels[param_name] = value_label
 
                 layout.addLayout(v_layout)
+
+                self.logger.log(f"done")
+
             except Exception as e:
                 print(f"Error adding parameter {param_name}: {e}")
 
@@ -151,6 +159,7 @@ class DynamicSliderWindow(QMainWindow):
 
         main_layout.addWidget(reset_button)
 
+        self.logger.log(f"Initializing parameter GUI.")
         # Set the central widget layout
         self.setCentralWidget(central_widget)
 
