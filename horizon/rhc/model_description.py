@@ -28,11 +28,7 @@ class FullModelInverseDynamics:
         self.id_fn = None
         self.floating_base = floating_base
         self.__q_init = q_init.copy()
-
-        if self.floating_base:
-            self.__base_init = base_init.copy()
-        else:
-            self.__base_init = base_init
+        self.__base_init = base_init.copy()
 
         if sys_order_degree < 2:
             raise ValueError("The degree of the system must be at least 2.")
@@ -353,31 +349,11 @@ class FullModelInverseDynamics:
     def getContacts(self):
         return self.cmap.keys()
 
-    def getJointTorques(self):
-        return self.tau
     # def getInput(self):
     #     return self.a
     #
     # def getState(self):
     #     return
-
-    def save(self):
-
-        data = dict()
-
-        contact_map = dict()
-
-        for contact_name, var_name_list in self.cmap.items():
-            contact_map[contact_name] = [var.getName() for var in var_name_list]
-
-        data['contacts'] = contact_map
-        data['is_floating_base'] = self.floating_base
-        data['q_init'] = self.__q_init
-        data['base_init'] = self.__base_init.flatten('F').tolist()
-        data['fixed_joint_map'] = self.fixed_joint_map
-
-        return data
-
 
 class SingleRigidBodyDynamicsModel:
         #  problem, kd, q_init, base_init, floating_base=True):
@@ -652,9 +628,6 @@ class SingleRigidBodyDynamicsModel:
 
     def getContacts(self):
         return self.cmap.keys()
-
-    def getJointTorques(self):
-        return self.tau
 
 
 if __name__ == '__main__':
