@@ -12,7 +12,10 @@ class DynamicSliderWindow(QMainWindow):
     def __init__(self, params):
         super().__init__()
 
+
         self.logger = Logger(self)
+        self.logger.log(f"Initializing parameters GUI...")
+        
         self.setWindowTitle("Dynamic Sliders with On-Demand Updates")
         self.setGeometry(100, 100, 600, 800)
 
