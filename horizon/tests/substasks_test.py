@@ -54,6 +54,7 @@ tasks_dict['constraints'] = ['composite_task_1']
 tasks_dict['subtask_1'] = dict()
 tasks_dict['subtask_1']['type'] = 'testTask'
 tasks_dict['subtask_1']['parameter_1'] = 4.
+tasks_dict['subtask_1']['weight'] = 4.
 
 
 tasks_dict['subtask_2'] = dict()
@@ -63,6 +64,7 @@ tasks_dict['subtask_2']['parameter_1'] = 2.
 tasks_dict['composite_task_1'] = dict()
 tasks_dict['composite_task_1']['type'] = 'testCompositeTask'
 tasks_dict['composite_task_1']['subtask'] = ['subtask_1', 'subtask_2']
+tasks_dict['composite_task_1']['weight'] = 0.4
 
 
 with open("test_tasks_config.yaml", "w") as file:
