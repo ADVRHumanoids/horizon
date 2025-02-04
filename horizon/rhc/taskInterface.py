@@ -343,6 +343,11 @@ class TaskInterface(ProblemInterface):
                     if 'fun_type' not in subtask_description:
                         subtask_description['fun_type'] = task_description_copy['fun_type']
 
+                if 'weight' in task_description_copy:
+                    if 'weight' not in subtask_description:
+                        subtask_description['weight'] = task_description_copy['weight']
+
+
                 # todo: better handling of parameter propagation
                 # for key, value in task_description_copy.items():
                 #     if key not in subtask_description and key != 'subtask':

@@ -25,5 +25,6 @@ class TestTask(Task):
         elif self.fun_type == 'residual':
             self.instantiator = self.prb.createResidual
 
-        print(f'task {self.name} is: {self.fun_type}')
+        print(f'task {self.name} function type: {self.fun_type}')
+        print(f'task {self.name} weight: {self.weight}')
 
