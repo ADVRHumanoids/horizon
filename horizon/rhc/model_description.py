@@ -28,7 +28,11 @@ class FullModelInverseDynamics:
         self.id_fn = None
         self.floating_base = floating_base
         self.__q_init = q_init.copy()
-        self.__base_init = base_init.copy()
+
+        if self.floating_base:
+            self.__base_init = base_init.copy()
+        else:
+            self.__base_init = base_init
 
         if sys_order_degree < 2:
             raise ValueError("The degree of the system must be at least 2.")
