@@ -306,6 +306,7 @@ class TaskInterface(ProblemInterface):
         '''
 
         task_description_mod = task_description.copy()
+
         # automatically provided info:
 
         # add generic context
@@ -313,20 +314,13 @@ class TaskInterface(ProblemInterface):
         task_description_mod['kin_dyn'] = self.model.kd
         task_description_mod['model'] = self.model
 
-        # todo horrible to do it here
-        # add specific context
-        if task_description_mod['type'] == 'Postural':
-            task_description_mod['postural_ref'] = self.model.q0
-
-        if task_description_mod['type'] == 'TorqueLimits':
-            task_description_mod['var'] = self.model.tau
-
         return task_description_mod
 
     def _handle_subtask(self, task_description):
 
         # transform description of subtask (dict) into an instance of the task and pass it to the parent task
         task_description_copy = task_description.copy()
+
         # check for subtasks:
         subtasks = dict()
         if 'subtask' in task_description_copy:

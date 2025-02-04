@@ -128,9 +128,9 @@ class VelocityLimitsTask(Task):
 
 
 class TorqueLimitsTask(Task):
-    def __init__(self, var, bound_scaling=None, *args, **kwargs):  # bound_scaling, fun_type, *args, **kwargs
+    def __init__(self, bound_scaling=None, *args, **kwargs):  # bound_scaling, fun_type, *args, **kwargs
 
-        self.tau = var
+        self.tau = self.model.tau
         self._bound_scaling = 1.0 if bound_scaling is None else bound_scaling
 
         super().__init__(*args, **kwargs)

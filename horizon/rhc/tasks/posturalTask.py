@@ -21,6 +21,9 @@ class PosturalTask(Task):
         if any(elem < 0 for elem in self.indices):
             raise Exception('indices of PosturalTask cannot be negative')
 
+        if postural_ref is None:
+            postural_ref = self.model.q0.copy()
+
         self.q = self.prb.getVariables('q')[7:]
         self.q0_joints_ref = postural_ref[7:]
         self.q0_ref = self.q0_joints_ref[self.indices]
