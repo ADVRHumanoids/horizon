@@ -242,11 +242,11 @@ class GaitManagerROS:
     def __set_base_commands(self):
 
         # =========================== X Y  ================================
-        base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
-                                       self.__current_solution['q'][1, 0], # x pos at node 1
-                                       0., 0., 0., 0., 0.]]).T
+        # base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
+        #                                self.__current_solution['q'][1, 0], # x pos at node 1
+        #                                0., 0., 0., 0., 0.]]).T
 
-        # base_reference_xy = np.atleast_2d(self.__base_pose_xy_task.getValues()[:, -1]).T
+        base_reference_xy = np.atleast_2d(self.__base_pose_xy_task.getValues()[:, -1]).T
 
         # move base on xy-axis in local frame
         linear_velocity_vector = np.array([self.__base_pose_weight * self.__base_vel_ref[0],
