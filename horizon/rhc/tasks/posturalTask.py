@@ -7,7 +7,7 @@ import numpy as np
 #   if the base class changes I have to change all the derived classes. This, instead, prevent to change sub-classes when changing parent classes
 
 class PosturalTask(Task):
-    def __init__(self, postural_ref, *args, **kwargs):
+    def __init__(self, postural_ref=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self._createWeightParam()
