@@ -117,17 +117,17 @@ class PhaseGaitWrapper:
             else:
                 self.__add_phase(contact_timeline, self.__stance_phases[contact_name], duration=kwargs['duration'])
 
-            self.__last_added_phases[contact_name] = contact_timeline.getPhases()[-kwargs['duration']:]
+            # self.__last_added_phases[contact_name] = contact_timeline.getPhases()[-kwargs['duration']:]
             # self.__logger.log(f'adding {[phase.getName() for phase in self.__last_added_phases[contact_name]]} to timeline: {contact_timeline.getName()}')
 
-        return self.__last_added_phases
+        # return self.__last_added_phases
 
     def __add_cycles(self, cycle_lists, **kwargs):
 
         for cycle_i in cycle_lists:
             self.__add_cycle(cycle_i, **kwargs)
 
-        self.__phase_manager.update()
+        # self.__phase_manager.update()
 
     def action(self, action_name, *args, **kwargs):
 
