@@ -50,6 +50,7 @@ tasks_dict['solver']['type'] = 'ilqr'
 
 # tasks_dict['constraints'] = ['composite_task_1']
 tasks_dict['constraints'] = ['composite_task_1']
+tasks_dict['costs'] = ['postural_1']
 
 tasks_dict['subtask_1'] = dict()
 tasks_dict['subtask_1']['type'] = 'testTask'
@@ -65,7 +66,6 @@ tasks_dict['composite_task_1'] = dict()
 tasks_dict['composite_task_1']['type'] = 'testCompositeTask'
 tasks_dict['composite_task_1']['subtask'] = ['subtask_1', 'subtask_2']
 tasks_dict['composite_task_1']['weight'] = 0.4
-
 
 with open("test_tasks_config.yaml", "w") as file:
     yaml.dump(tasks_dict, file, default_flow_style=False, sort_keys=False)

@@ -22,10 +22,13 @@ class PosturalTask(Task):
             raise Exception('indices of PosturalTask cannot be negative')
 
         if postural_ref is None:
-            postural_ref = self.model.q0.copy()
+            self.postural_ref = self.model.q0.copy()[7:]
+        else:
+            self.postural_ref = np.array(postural_ref)
 
         self.q = self.prb.getVariables('q')[7:]
-        self.q0_joints_ref = postural_ref[7:]
+
+        self.q0_joints_ref = self.postural_ref
         self.q0_ref = self.q0_joints_ref[self.indices]
 
         # if 'postural_ref' not in task_node:
