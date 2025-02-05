@@ -27,19 +27,32 @@ def create_urdf():
     robot.add_joint(joint)
 
     # Add an arm link
-    arm_link = Link(name="arm_link")
-    robot.add_link(arm_link)
+    arm_0_link = Link(name="arm_0_link")
+    robot.add_link(arm_0_link)
+
+    arm_1_link = Link(name="arm_1_link")
+    robot.add_link(arm_1_link)
 
     # Add a revolute joint between base and arm
-    arm_joint = Joint(
-        name="middle_joint",
+    arm_0_joint = Joint(
+        name="shoulder_joint",
         parent="base_link",
-        child="arm_link",
+        child="arm_0_link",
         joint_type="revolute",
         axis=[0, 0, 1],
         limit=JointLimit(lower=-1.57, upper=1.57, effort=10.0, velocity=2.0)
     )
-    robot.add_joint(arm_joint)
+    robot.add_joint(arm_0_joint)
+
+    arm_1_joint = Joint(
+        name="elbow_joint",
+        parent="arm_0_link",
+        child="arm_1_link",
+        joint_type="revolute",
+        axis=[0, 0, 1],
+        limit=JointLimit(lower=-1.57, upper=1.57, effort=10.0, velocity=2.0)
+    )
+    robot.add_joint(arm_1_joint)
 
     return robot.to_xml_string()
 
@@ -53,7 +66,7 @@ tasks_dict['costs'] = ['postural_1']
 tasks_dict['postural_1'] = dict()
 tasks_dict['postural_1']['type'] = 'Postural'
 tasks_dict['postural_1']['weight'] = 0.56
-# tasks_dict['postural_1']['postural_ref'] = [32.]
+tasks_dict['postural_1']['postural_ref'] = [32., 15.]
 
 with open("test_tasks_config.yaml", "w") as file:
     yaml.dump(tasks_dict, file, default_flow_style=False, sort_keys=False)
@@ -71,7 +84,9 @@ kin_dyn = casadi_kin_dyn.CasadiKinDyn(urdf)
 
 
 q_init = dict()
-q_init['middle_joint'] = 4.5 * np.ones(1)
+q_init['shoulder_joint'] = 4.5 * np.ones(1)
+q_init['elbow_joint'] = 2.3 * np.ones(1)
+
 base_init = np.array([0, 0, 0, 0, 0, 0, 1])
 
 model = FullModelInverseDynamics(problem=prb,
