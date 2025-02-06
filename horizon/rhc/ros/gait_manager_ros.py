@@ -267,28 +267,27 @@ class GaitManagerROS:
 
         # ============================ YAW  =================================
 
-        base_reference = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
 
-        d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[5]
-        axis = [0, 0, 1]
 
-        angular_velocity_vector = self.__incremental_rotate(np.atleast_2d(self.__base_yaw_ori_task.getValues()[[6, 3, 4, 5], 0]).T, d_angle, axis)
+        if self.__base_yaw_ori_task.getCartesianType() == 'position':
+            base_reference = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
 
-        # angular_velocity_vector = np.atleast_2d(self.__base_yaw_ori_task.getValues()[:, -1]).T
+            d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[5]
+            axis = [0, 0, 1]
+            angular_velocity_vector = self.__incremental_rotate(np.atleast_2d(self.__base_yaw_ori_task.getValues()[[6, 3, 4, 5], 0]).T, d_angle, axis)
 
-        # base_reference_pitch = np.array([[0., 0., 0., 0, 0, 0, 0]]).T
+            base_reference[3] += angular_velocity_vector.x
+            base_reference[4] += angular_velocity_vector.y
+            base_reference[5] += angular_velocity_vector.z
+            base_reference[6] += angular_velocity_vector.w
 
-        # d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[4]
-        # axis = [0, 1, 0]
-        #
-        # angular_velocity_vector = self.__incremental_rotate(angular_velocity_vector_yaw, d_angle, axis)
+            self.__base_yaw_ori_task.setRef(base_reference)
 
-        base_reference[3] += angular_velocity_vector.x
-        base_reference[4] += angular_velocity_vector.y
-        base_reference[5] += angular_velocity_vector.z
-        base_reference[6] += angular_velocity_vector.w
+        else:
+            angular_velocity_vector = self.__base_rot_weight * self.__base_vel_ref[5]
+            print(angular_velocity_vector)
+            self.__base_yaw_ori_task.setRef(angular_velocity_vector)
 
-        self.__base_yaw_ori_task.setRef(base_reference)
 
         # ============================= Z =================================
 
