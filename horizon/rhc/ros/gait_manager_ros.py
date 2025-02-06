@@ -285,7 +285,6 @@ class GaitManagerROS:
 
         else:
             angular_velocity_vector = self.__base_rot_weight * self.__base_vel_ref[5]
-            print(angular_velocity_vector)
             self.__base_yaw_ori_task.setRef(angular_velocity_vector)
 
 
