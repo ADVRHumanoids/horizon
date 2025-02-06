@@ -6,6 +6,8 @@ from horizon.rhc.tasks.contactTask import ContactTask
 from horizon.rhc.tasks.interactionTask import InteractionTask, SurfaceContact, VertexContact
 from horizon.rhc.tasks.rollingTask import RollingTask
 from horizon.rhc.tasks.zmpTask import ZmpTask
+from horizon.rhc.tasks.testTask import TestTask
+from horizon.rhc.tasks.testCompositeTask import TestCompositeTask
 from horizon.rhc.model_description import FullModelInverseDynamics, SingleRigidBodyDynamicsModel
 from horizon.transcriptions.transcriptor import Transcriptor
 from horizon.rhc.tasks.posturalTask import PosturalTask
@@ -231,6 +233,12 @@ class ProblemInterface:
 
         return self.solver_bs, self.solver_rti
 
+    def getSolverRti(self):
+        return self.solver_rti
+
+    def getSolverBs(self):
+        return self.solver_bs
+
     def getProblem(self):
         return self.prb
 
@@ -255,6 +263,8 @@ class TaskInterface(ProblemInterface):
         task_factory.register('Regularization', RegularizationTask)
         task_factory.register('Rolling', RollingTask)
         task_factory.register('Zmp', ZmpTask)
+        task_factory.register('testTask', TestTask)
+        task_factory.register('testCompositeTask', TestCompositeTask)
 
         # task list
         self.task_list = []
@@ -302,6 +312,7 @@ class TaskInterface(ProblemInterface):
         '''
 
         task_description_mod = task_description.copy()
+
         # automatically provided info:
 
         # add generic context
@@ -309,20 +320,13 @@ class TaskInterface(ProblemInterface):
         task_description_mod['kin_dyn'] = self.model.kd
         task_description_mod['model'] = self.model
 
-        # todo horrible to do it here
-        # add specific context
-        if task_description_mod['type'] == 'Postural':
-            task_description_mod['postural_ref'] = self.model.q0
-
-        if task_description_mod['type'] == 'TorqueLimits':
-            task_description_mod['var'] = self.model.tau
-
         return task_description_mod
 
     def _handle_subtask(self, task_description):
 
         # transform description of subtask (dict) into an instance of the task and pass it to the parent task
         task_description_copy = task_description.copy()
+
         # check for subtasks:
         subtasks = dict()
         if 'subtask' in task_description_copy:
@@ -338,8 +342,17 @@ class TaskInterface(ProblemInterface):
                         if task['name'] == subtask_description:
                             subtask_description = task
                             break
+
                 # child inherit from parent the values, if not present
                 # parent define the context for the child: child can override it
+                if 'fun_type' in task_description_copy:
+                    if 'fun_type' not in subtask_description:
+                        subtask_description['fun_type'] = task_description_copy['fun_type']
+
+                if 'weight' in task_description_copy:
+                    if 'weight' not in subtask_description:
+                        subtask_description['weight'] = task_description_copy['weight']
+
 
                 # todo: better handling of parameter propagation
                 # for key, value in task_description_copy.items():

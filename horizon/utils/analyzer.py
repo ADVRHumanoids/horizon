@@ -64,7 +64,7 @@ class ProblemAnalyzer:
                             linewidth=np.inf,
                             precision=3,
                             threshold=np.inf,  # number of displayed elements for array
-                            formatter=None
+                            formatter={'float': '{: 0.3f}'.format}
                             )
 
         self._fun_color_dict()

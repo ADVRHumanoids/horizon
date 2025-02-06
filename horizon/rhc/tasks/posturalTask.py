@@ -7,23 +7,28 @@ import numpy as np
 #   if the base class changes I have to change all the derived classes. This, instead, prevent to change sub-classes when changing parent classes
 
 class PosturalTask(Task):
-    def __init__(self, postural_ref, *args, **kwargs):
+    def __init__(self, postural_ref=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self._createWeightParam()
 
+        if self.indices is None:
+            self.indices = np.array(list(range(self.kin_dyn.nq() - 7))).astype(int)
+
         if all(isinstance(elem, str) for elem in self.indices):
-            self.indices = [self.kin_dyn.joint_iq(elem) - 7 for elem in self.indices]
+            self.indices = np.array([self.kin_dyn.joint_iq(elem) - 7 for elem in self.indices]).astype(int)
 
-            if any(elem < 0 for elem in self.indices):
-                raise Exception('indices of PosturalTask cannot be negative')
+        if any(elem < 0 for elem in self.indices):
+            raise Exception('indices of PosturalTask cannot be negative')
 
-
-        self.indices = np.array(list(range(self.kin_dyn.nq() - 7))).astype(int) if self.indices is None else np.array(self.indices).astype(int)
-
+        if postural_ref is None:
+            self.postural_ref = self.model.q0.copy()[7:]
+        else:
+            self.postural_ref = np.array(postural_ref)
 
         self.q = self.prb.getVariables('q')[7:]
-        self.q0_joints_ref = postural_ref[7:]
+
+        self.q0_joints_ref = self.postural_ref
         self.q0_ref = self.q0_joints_ref[self.indices]
 
         # if 'postural_ref' not in task_node:

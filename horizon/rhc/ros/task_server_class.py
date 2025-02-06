@@ -21,7 +21,6 @@ class TaskServerClass:
                 self.setMinMax(task.weight_param.getName(),  min_val, max_val)
 
     def calculate_min_max(self, value):
-
         range_min = 0.
         range_max = value + 100 * abs(value)
 
@@ -29,6 +28,9 @@ class TaskServerClass:
 
     def addParameter(self, name: str, param: sv.Parameter):
         self.__pm.createParameter(name, param.assign, param.getValues()[0, 0])
+
+    def addROSParam(self, name: str, cb, val):
+        self.__pm.createParameter(name, cb, val)
 
     def setMin(self, name: str, min):
         self.__pm.setMin(name, str(min))

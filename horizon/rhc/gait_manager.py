@@ -1,6 +1,4 @@
 import numpy as np
-# from networkx.algorithms.bipartite.basic import color
-
 from horizon.rhc.taskInterface import TaskInterface
 from phase_manager import pyphase, pymanager, pytimeline
 import colorama
@@ -11,52 +9,30 @@ from functools import partial
 # how to operate:
 # ~/forest_ws/src/unitree_mujoco/simulate/build  ./unitree_mujoco
 # mon launch cogimon_controller g1_experimental.launch  xbot:=true joy:=true
-
-class PhaseGaitWrapper:
-    def __init__(self, task_interface: TaskInterface, phase_manager:pymanager.PhaseManager, contact_list):
+class SwingTrajectory:
+    def __init__(self, task_interface: TaskInterface, task_list):
 
         self.__logger = logger.Logger(self)
 
         self.__trajectory_generator = trajectoryGenerator.TrajectoryGenerator()
 
-        self.__contact_list = contact_list
+        self.__z_task_list = task_list.copy()
+
         self.__task_interface = task_interface
         self.__model = self.__task_interface.model
 
-        self.__phase_manager = phase_manager
-
-        # todo: this is now hardcoded
-        # self.__z_task_list = ['foot_z_l', 'foot_z_r']
-        self.__z_task_list = ['z_contact_1', 'z_contact_2', 'z_contact_3', 'z_contact_4']
-
-        # MAP -> contact name : timeline
-        self.__contact_timelines = dict()
-        self.__stance_phases = dict()
-        self.__flight_phases = dict()
-
-        self.__last_added_phases = dict()
+        self.__default_height = 0.05
 
         self.__contact_z_position_initial = dict()
         self.__contact_z_position_final = dict()
         self.__contact_z_height = dict()
 
+        self.__contact_list = self.__init_contacts()
+        self.__init_swing_trajectory()
 
-        self.__init_actions()
-        self.__init_swing_trajectory(contact_list)
-        self.__init_timelines(contact_list)
+    def __init_contacts(self):
 
-    def __init_actions(self):
-
-        self.__action_list = {
-            'walk':  partial(self.__walk_cycle),
-            'crawl': partial(self.__crawl),
-            'trot': partial(self.__trot),
-            'stand': partial(self.__add_cycles, [[1] * len(self.__contact_list)], duration=1)
-        }
-    def __init_swing_trajectory(self, contact_list):
-
-        default_height = 0.05
-
+        # get z_tasks from taskInterface
         self.__z_task_dict = {}
         for z_task_name in self.__z_task_list:
 
@@ -68,12 +44,81 @@ class PhaseGaitWrapper:
             self.__logger.log(f'Found task "{z_task_name}" in horizon task')
             self.__z_task_dict[z_task.getDistalLink()] = z_task_name
 
-        for contact in contact_list:
-            contact_initial_pose = self.__model.kd.fk(contact)(q=self.__model.q0)['ee_pos'].elements()
+            if z_task.getDistalLink() in self.__model.getContacts():
+                self.__logger.log(f'Task {z_task_name} linked to contact: {z_task.getDistalLink()}')
+            else:
+                raise Exception(f'Task {z_task_name} is not linked to any defined contact ({self.__model.getContacts()})')
 
-            self.__contact_z_position_initial[contact] = contact_initial_pose[2]
-            self.__contact_z_position_final[contact] = contact_initial_pose[2]
-            self.__contact_z_height[contact] = default_height
+
+
+    def __init_swing_trajectory(self):
+
+        for contact_link in self.__z_task_dict.keys():
+            contact_initial_pose = self.__model.kd.fk(contact_link)(q=self.__model.q0)['ee_pos'].elements()
+
+            self.__contact_z_position_initial[contact_link] = contact_initial_pose[2]
+            self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
+            self.__contact_z_height[contact_link] = self.__default_height
+
+    def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
+
+
+        flight_duration = len(phases)
+        ref_trj_z = np.zeros(shape=[7, 1])
+
+        # self.__logger.log(f'{[phase.getName() for phase in phases]}')
+        # self.__logger.log(f'setting swing trajectory of contact {contact_name}:')
+        # self.__logger.log(f' --> step_duration: {flight_duration}')
+        # self.__logger.log(f' --> step_height: {z_height}')
+
+        temp_traj = self.__trajectory_generator.from_derivatives(flight_duration,
+                                                                 self.__contact_z_position_initial[contact_name],
+                                                                 self.__contact_z_position_final[contact_name],
+                                                                 z_height,
+                                                                 [None, 0, None]
+                                                                 )
+
+        for phase_i in range(len(phases)):
+            ref_trj_z[2, :] = temp_traj[phase_i]
+            # self.__logger.log(f'setting reference to phase {phases[phase_i].getName()} ({contact_name}):')
+            # self.__logger.log(f'{ref_trj_z.T}')
+            phases[phase_i].setItemReference(self.__z_task_dict[contact_name], ref_trj_z)
+
+
+class PhaseGaitWrapper:
+    def __init__(self, task_interface: TaskInterface, phase_manager:pymanager.PhaseManager, contact_list, swing_task_list=None):
+
+        self.__logger = logger.Logger(self)
+
+        self.__contact_list = contact_list
+        self.__task_interface = task_interface
+        self.__model = self.__task_interface.model
+
+        self.__phase_manager = phase_manager
+
+        self.__swing_flag = False
+        if swing_task_list is not None:
+            self.__swing_flag = True
+            self.__swing_trajectory_manager = SwingTrajectory(self.__task_interface, swing_task_list)
+
+        # MAP -> contact name : timeline
+        self.__contact_timelines = dict()
+        self.__stance_phases = dict()
+        self.__flight_phases = dict()
+
+        self.__last_added_phases = dict()
+
+        self.__init_actions()
+        self.__init_timelines(contact_list)
+
+    def __init_actions(self):
+
+        self.__action_list = {
+            'walk':  partial(self.__bipedal_walk_cycle),
+            'crawl': partial(self.__crawl),
+            'trot': partial(self.__trot),
+            'stand': partial(self.__add_cycles, [[1] * len(self.__contact_list)], duration=1)
+        }
 
     def getContacts(self):
 
@@ -87,9 +132,13 @@ class PhaseGaitWrapper:
 
         experimental_duration = 1
         for contact in contact_list:
-            self.__logger.log(f'creating timeline for contact: {contact}')
 
             self.__contact_timelines[contact] = self.__phase_manager.createTimeline(f'{contact}_timeline')
+
+            if self.__contact_timelines[contact] is None:
+                raise Exception(f'Failed to create timeline for contact {contact}')
+
+            self.__logger.log(f'created timeline for contact: "{contact}"')
 
             self.__stance_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'stance_phase_{contact}')
             self.__flight_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'flight_phase_{contact}')
@@ -113,7 +162,8 @@ class PhaseGaitWrapper:
         for contact_flag, (contact_name, contact_timeline) in zip(cycle_list, self.__contact_timelines.items()):
             if contact_flag == 0:
                 self.__add_phase(contact_timeline, self.__flight_phases[contact_name], duration=kwargs['duration'])
-                self.setSwingTrajectory(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                if self.__swing_flag:
+                    self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
             else:
                 self.__add_phase(contact_timeline, self.__stance_phases[contact_name], duration=kwargs['duration'])
 
@@ -127,6 +177,7 @@ class PhaseGaitWrapper:
         for cycle_i in cycle_lists:
             self.__add_cycle(cycle_i, **kwargs)
 
+        # todo do this here, or in the main loop?
         # self.__phase_manager.update()
 
     def action(self, action_name, *args, **kwargs):
@@ -151,31 +202,7 @@ class PhaseGaitWrapper:
 
         self.__phase_manager.update()
 
-    def setSwingTrajectory(self, phases, contact_name, z_height):
-
-
-        flight_duration = len(phases)
-        ref_trj_z = np.zeros(shape=[7, 1])
-        # self.__logger.log(f'{[phase.getName() for phase in phases]}')
-        # self.__logger.log(f'setting swing trajectory of contact {contact_name}:')
-        # self.__logger.log(f' --> step_duration: {flight_duration}')
-        # self.__logger.log(f' --> step_height: {z_height}')
-
-
-        temp_traj = self.__trajectory_generator.from_derivatives(flight_duration,
-                                                                 self.__contact_z_position_initial[contact_name],
-                                                                 self.__contact_z_position_final[contact_name],
-                                                                 z_height,
-                                                                 [None, 0, None]
-                                                                 )
-
-        for phase_i in range(len(phases)):
-            ref_trj_z[2, :] = temp_traj[phase_i]
-            # self.__logger.log(f'setting reference to phase {phases[phase_i].getName()} ({contact_name}):')
-            # self.__logger.log(f'{ref_trj_z.T}')
-            phases[phase_i].setItemReference(self.__z_task_dict[contact_name], ref_trj_z)
-
-    def __walk_cycle(self, **kwargs):
+    def __bipedal_walk_cycle(self, **kwargs):
 
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
