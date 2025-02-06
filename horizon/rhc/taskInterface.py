@@ -233,6 +233,12 @@ class ProblemInterface:
 
         return self.solver_bs, self.solver_rti
 
+    def getSolverRti(self):
+        return self.solver_rti
+
+    def getSolverBs(self):
+        return self.solver_bs
+
     def getProblem(self):
         return self.prb
 
