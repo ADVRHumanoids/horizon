@@ -8,4 +8,4 @@ version = "0.4.5"
 description = ""
 authors = [{name = "Francesco Ruscelli", email = "francesco.ruscelli@iit.it"}]
 readme = "README.md"
-license = {file = "LICENSE.md"}
+license = {file = "LICENSE.txt"}
