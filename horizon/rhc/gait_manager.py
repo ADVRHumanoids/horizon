@@ -128,6 +128,10 @@ class PhaseGaitWrapper:
 
         return self.__task_interface
 
+    def getSwingTrajectoryManager(self):
+        
+        return self.__swing_trajectory_manager
+
     def __init_timelines(self, contact_list):
 
         experimental_duration = 1
