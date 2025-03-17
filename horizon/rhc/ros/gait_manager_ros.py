@@ -85,8 +85,8 @@ class GaitManagerROS:
         self.__param_action = dict()
         self.__param_action['walk'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
         self.__param_action['stand'] = {'duration': 1}
-        self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
-        self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.1, 'double_stance': 3}
+        self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.15, 'double_stance': 4}
+        self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.15, 'double_stance': 4}
 
         self.__walk_params_ros = dict()
 
@@ -155,7 +155,7 @@ class GaitManagerROS:
     def setBaseRotWeight(self, w):
         self.__base_rot_weight = w
 
-    def getNode(self):
+    def getROSNode(self):
         return self.__node
 
     def __init_options(self):
@@ -322,7 +322,6 @@ class GaitManagerROS:
 
         else:
             angular_velocity_vector = self.__base_rot_weight * self.__base_vel_ref[5]
-            print(angular_velocity_vector)
             self.__base_yaw_ori_task.setRef(angular_velocity_vector)
 
 
