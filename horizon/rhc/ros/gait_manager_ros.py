@@ -137,6 +137,9 @@ class GaitManagerROS:
     def setBasePoseWeight(self, w):
         self.__base_pose_weight = w
 
+    def getBasePoseWeight(self):
+        return self.__base_pose_weight
+
     def setBaseRotWeight(self, w):
         self.__base_rot_weight = w
 
