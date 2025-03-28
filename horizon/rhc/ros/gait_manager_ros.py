@@ -39,6 +39,7 @@ class OperationMode(Enum):
     STEP = 3
     DRAG = 4
     WALK = 5
+    IDLE = 6
 
 class GaitManagerROS:
     def __init__(self, gm: Union[GaitManager, PhaseGaitWrapper], opt : dict = None):
@@ -48,6 +49,8 @@ class GaitManagerROS:
 
         self.__gait_manager = gm
         self.__ti = self.__gait_manager.getTaskInterface()
+
+        self.__operation_mode_locked = False
 
         # horizon duration
         self.__T = self.__ti.getProblem().getDt() * (self.__ti.getProblem().getNNodes() - 1)
@@ -77,6 +80,8 @@ class GaitManagerROS:
         self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
         self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
         self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
+        self.__switch_idle_srv = rospy.Service('/horizon/idle/switch', SetBool, self.__switch_idle_cb)
+        self.__switch_stand_srv = rospy.Service('/horizon/stand/switch', SetBool, self.__switch_stand_cb)
         # self.__switch_postural_srv = rospy.Service('/horizon/postural/switch', SetBool, self.__switch_postural_cb)
 
         # param
@@ -112,7 +117,7 @@ class GaitManagerROS:
         self.__current_solution = None
 
         # initialize initial operation mode
-        self.__operation_mode = OperationMode.STAND
+        self.__operation_mode = OperationMode.IDLE
 
         self.__init_actions()
         self.__init_plugins()
@@ -124,6 +129,7 @@ class GaitManagerROS:
     def __init_actions(self):
 
         self.__action_dict = {
+                                OperationMode.IDLE: partial(self.__gait_manager.action, 'stand'),
                                 OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
                                 OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot')),
                                 OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk')),
@@ -153,7 +159,11 @@ class GaitManagerROS:
     def __create_service_wrapper(self, plugin_name, action_name):
         """Wrap the method to return a TriggerResponse for ROS service."""
         def wrapper(req):
-            # Call the actual method
+
+            if self.__operation_mode != OperationMode.IDLE:
+                return TriggerResponse(success=False, message=f"{action_name} cannot start.")
+
+                # Call the actual method
             self.__gait_manager.getPluginDict()[plugin_name].setStatus(action_name, 'Started')
 
             # Return a generic TriggerResponse for ROS service
@@ -205,26 +215,54 @@ class GaitManagerROS:
 
     def __base_vel_cb(self, msg: Twist):
 
-        self.__base_vel_ref[0] = msg.linear.x
-        self.__base_vel_ref[1] = msg.linear.y
-        self.__base_vel_ref[2] = msg.linear.z
-        self.__base_vel_ref[3] = msg.angular.x
-        self.__base_vel_ref[4] = msg.angular.y
-        self.__base_vel_ref[5] = msg.angular.z
+        if self.__operation_mode_locked:
+            self.__base_vel_ref[0] = msg.linear.x
+            self.__base_vel_ref[1] = msg.linear.y
+            self.__base_vel_ref[2] = msg.linear.z
+            self.__base_vel_ref[3] = msg.angular.x
+            self.__base_vel_ref[4] = msg.angular.y
+            self.__base_vel_ref[5] = msg.angular.z
 
     # def __switch_action_cb(self, req: SetBoolRequest, action_name):
-    #
-    #     if req.data:
-    #         self.__operation_mode = OperationMode.CRAWL
-    #     else:
-    #         if self.__operation_mode == OperationMode.CRAWL:
-    #             self.__operation_mode = OperationMode.STAND
-    #
-    #     return {'success': True}
+
+    def __switch_idle_cb(self, req: SetBoolRequest):
+
+        if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False}
+
+            self.__operation_mode = OperationMode.IDLE
+        else:
+            if self.__operation_mode == OperationMode.IDLE:
+                self.__operation_mode = OperationMode.STAND
+
+        return {'success': True}
+
+    def __switch_stand_cb(self, req: SetBoolRequest):
+
+        if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False}
+
+            self.__operation_mode = OperationMode.STAND
+        else:
+            if self.__operation_mode == OperationMode.STAND:
+                self.__operation_mode = OperationMode.STAND
+
+        return {'success': True}
 
     def __switch_crawl_cb(self, req: SetBoolRequest):
 
         if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False, 'message': 'OperationMode is locked.'}
+
+            if self.__operation_mode == OperationMode.IDLE:
+                return {'success': False, 'message': 'Cannot transition to CRAWL from IDLE.'}
+
             self.__operation_mode = OperationMode.CRAWL
         else:
             if self.__operation_mode == OperationMode.CRAWL:
@@ -235,6 +273,13 @@ class GaitManagerROS:
     def __switch_trot_cb(self, req: SetBoolRequest):
 
         if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False, 'message': 'OperationMode is locked.'}
+
+            if self.__operation_mode == OperationMode.IDLE:
+                return {'success': False, 'message': 'Cannot transition to TROT from IDLE.'}
+
             self.__operation_mode = OperationMode.TROT
         else:
             if self.__operation_mode == OperationMode.TROT:
@@ -245,6 +290,13 @@ class GaitManagerROS:
     def __switch_step_cb(self, req: SetBoolRequest):
 
         if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False, 'message': 'OperationMode is locked.'}
+
+            if self.__operation_mode == OperationMode.IDLE:
+                return {'success': False, 'message': 'Cannot transition to STEP from IDLE.'}
+
             self.__operation_mode = OperationMode.STEP
         else:
             if self.__operation_mode == OperationMode.STEP:
@@ -255,6 +307,13 @@ class GaitManagerROS:
     def __switch_drag_cb(self, req: SetBoolRequest):
 
         if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False, 'message': 'OperationMode is locked.'}
+
+            if self.__operation_mode == OperationMode.IDLE:
+                return {'success': False, 'message': 'Cannot transition to DRAG from IDLE.'}
+
             self.__operation_mode = OperationMode.DRAG
         else:
             if self.__operation_mode == OperationMode.DRAG:
@@ -265,6 +324,13 @@ class GaitManagerROS:
     def __switch_walk_cb(self, req: SetBoolRequest):
 
         if req.data:
+
+            if self.__operation_mode_locked:
+                return {'success': False, 'message': 'OperationMode is locked.'}
+
+            if self.__operation_mode == OperationMode.IDLE:
+                return {'success': False, 'message': 'Cannot transition to WALK from IDLE.'}
+
             self.__operation_mode = OperationMode.WALK
         else:
             if self.__operation_mode == OperationMode.WALK:
@@ -272,15 +338,6 @@ class GaitManagerROS:
 
         return {'success': True}
 
-    # def __switch_postural_cb(self, req: SetBoolRequest):
-    #
-    #     if req.data:
-    #         self.__operation_mode = OperationMode.POSTURAL
-    #     else:
-    #         if self.__operation_mode == OperationMode.POSTURAL:
-    #             self.__operation_mode = OperationMode.STAND
-    #
-    #     return {'success': True}
 
     def __set_phases(self, *args, **kwargs):
 
@@ -359,22 +416,29 @@ class GaitManagerROS:
 
     def run(self):
 
+        self.__logger.log(f'operation mode: {self.__operation_mode}')
+
         self.__update_solution()
 
         # set phases
         self.__set_phases()
 
-        self.__run_plugins()
+        if self.__operation_mode == OperationMode.IDLE:
+            self.__run_plugins()
 
         # set base_commands
         self.__set_base_commands()
 
+
     def __run_plugins(self):
+
+        self.__operation_mode_locked = False
 
         for plugin_name, plugin in self.__gait_manager.getPluginDict().items():
 
             for action_name, status in plugin.getStatus().items():
                 if status == 'Started' or status == 'Running':
+                    self.__operation_mode_locked = True
                     plugin.get_actions()[action_name]()
 
 
