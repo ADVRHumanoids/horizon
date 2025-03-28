@@ -215,7 +215,7 @@ class GaitManagerROS:
 
     def __base_vel_cb(self, msg: Twist):
 
-        if self.__operation_mode_locked:
+        if not self.__operation_mode_locked:
             self.__base_vel_ref[0] = msg.linear.x
             self.__base_vel_ref[1] = msg.linear.y
             self.__base_vel_ref[2] = msg.linear.z
