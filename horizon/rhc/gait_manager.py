@@ -5,10 +5,53 @@ import colorama
 from horizon.utils import trajectoryGenerator
 from horizon.utils import logger
 from functools import partial
-
+from dataclasses import dataclass, field
+from typing import Callable, Dict
 # how to operate:
 # ~/forest_ws/src/unitree_mujoco/simulate/build  ./unitree_mujoco
 # mon launch cogimon_controller g1_experimental.launch  xbot:=true joy:=true
+
+@dataclass
+class ActionPlugin:
+    def __init__(self, task_interface: TaskInterface):
+        """Initialize with task interface and name."""
+
+        self.__logger = logger.Logger(self)
+        self.__task_interface = task_interface
+        self.__action_dict = dict()
+        self.__action_status = dict()
+
+    def register_action(self, action_name: str, action_func: Callable):
+        """Register an action dynamically."""
+        self.__action_dict[action_name] = action_func
+        self.__action_status[action_name] = 'Stopped'
+
+    def get_actions(self):
+        """Return all registered actions."""
+        return self.__action_dict
+
+    def getTaskInterface(self):
+
+        return self.__task_interface
+
+    def getLogger(self):
+
+        return self.__logger
+
+    def getStatus(self):
+
+        return self.__action_status
+
+    def setStatus(self, action_name, status):
+
+        if status == 'Started' or status == 'Stopped' or status == 'Running':
+            self.__action_status[action_name] = status
+
+            return True
+        return False
+
+
+
 class SwingTrajectory:
     def __init__(self, task_interface: TaskInterface, task_list):
 
@@ -49,8 +92,6 @@ class SwingTrajectory:
             else:
                 raise Exception(f'Task {z_task_name} is not linked to any defined contact ({self.__model.getContacts()})')
 
-
-
     def __init_swing_trajectory(self):
 
         for contact_link in self.__z_task_dict.keys():
@@ -86,7 +127,7 @@ class SwingTrajectory:
 
 
 class PhaseGaitWrapper:
-    def __init__(self, task_interface: TaskInterface, phase_manager:pymanager.PhaseManager, contact_list, swing_task_list=None):
+    def __init__(self, task_interface: TaskInterface, phase_manager:pymanager.PhaseManager, contact_list, swing_task_list=None, plugin_actions=None):
 
         self.__logger = logger.Logger(self)
 
@@ -111,6 +152,16 @@ class PhaseGaitWrapper:
         self.__init_actions()
         self.__init_timelines(contact_list)
 
+        self.__plugin_dict = dict()
+
+        if plugin_actions:
+            self.__init_plugin_actions(plugin_actions)
+
+    def __init_plugin_actions(self, plugin_actions):
+
+        for plugin_action_name, action_plugin in plugin_actions.items():
+            self.__plugin_dict.update({plugin_action_name: action_plugin(task_interface=self.__task_interface)})
+
     def __init_actions(self):
 
         self.__action_list = {
@@ -119,6 +170,14 @@ class PhaseGaitWrapper:
             'trot': partial(self.__trot),
             'stand': partial(self.__add_cycles, [[1] * len(self.__contact_list)], duration=1)
         }
+
+    def getActionList(self):
+
+        return list(self.__action_list.keys())
+
+    def getPluginDict(self):
+
+        return self.__plugin_dict
 
     def getContacts(self):
 
@@ -193,6 +252,19 @@ class PhaseGaitWrapper:
         self.__action_list[action_name](**kwargs)
 
 
+    def call_plugin(self, plugin_name, action_name, *args, **kwargs):
+        """Call a method on a registered action dynamically."""
+        plugin = self.__plugin_dict.get(plugin_name)
+
+        if not plugin:
+            raise ValueError(f"Plugin '{plugin_name}' not found.")
+
+        action = getattr(plugin, action_name, None)
+        if not action or not callable(action):
+            raise ValueError(f"Action '{action_name}' not found in '{plugin_name}'.")
+
+        return action(*args, **kwargs)
+
     def initializeTimeline(self):
 
         for contact_name, contact_timeline in self.__contact_timelines.items():
@@ -241,6 +313,7 @@ class PhaseGaitWrapper:
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
         self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height)
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+
 
 class GaitManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: pymanager.PhaseManager, contact_map):

@@ -1,7 +1,7 @@
 import rospy
 from Cython.Compiler.TreePath import operations
 from geometry_msgs.msg import Twist
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerResponse
 from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
 import numpy as np
 from enum import Enum
@@ -68,12 +68,16 @@ class GaitManagerROS:
 
         self.__base_vel_ref = np.zeros(6)
 
-        # open ros services
+        # self.__action_switch_srv_dict = dict()
+        # for action_name in self.__gait_manager.getActionList():
+            # self.__action_switch_srv_dict.update({action_name, rospy.Service(f'/horizon/{action_name}/switch', SetBool, partial(self.__switch_action_cb, action_name))})
+            # open ros services
         self.__switch_crawl_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
         self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
         self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
         self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
+        # self.__switch_postural_srv = rospy.Service('/horizon/postural/switch', SetBool, self.__switch_postural_cb)
 
         # param
 
@@ -82,6 +86,7 @@ class GaitManagerROS:
         self.__param_action['stand'] = {'duration': 1}
         self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
         self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.1, 'double_stance': 3}
+        # self.__param_action['postural'] = {'type': 'None'}
 
         self.__walk_params_ros = dict()
 
@@ -110,6 +115,7 @@ class GaitManagerROS:
         self.__operation_mode = OperationMode.STAND
 
         self.__init_actions()
+        self.__init_plugins()
         # get one random contact phase to check when to add new phases
         self.__one_random_contact_timeline = next(iter(self.__gait_manager.getContactTimelines().values()))
 
@@ -121,17 +127,45 @@ class GaitManagerROS:
                                 OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
                                 OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot')),
                                 OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk')),
-                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl'))
+                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl')),
+                                # OperationMode.POSTURAL: lambda: self.__gait_manager.action('postural', **self.__get_params('postural'))
                                 # OperationMode.DRAG: self.__gm.drag,
                                 # OperationMode.STEP: lambda: self.__gm.step(swing_contact='ball_1')
         }
+
+    def __init_plugins(self):
+
+        self.__plugin_dict = dict()
+
+        # self.__actions_manager = dict()
+
+        for plugin_name, plugin in self.__gait_manager.getPluginDict().items():
+
+            for action_name, action_callable in plugin.get_actions().items():
+
+                # self.__actions_manager[action_name] = {'action_callable': action_callable, 'status':'Started'}
+
+                if callable(action_callable):
+                    service_name = f'/horizon/gait_manager/{plugin_name}/{action_name}/start'
+                    rospy.Service(service_name, Trigger, self.__create_service_wrapper(plugin_name, action_name))
+                    self.__logger.log(f"Registered '{plugin_name}:{action_name}' as ROS service: {service_name}")
+
+    def __create_service_wrapper(self, plugin_name, action_name):
+        """Wrap the method to return a TriggerResponse for ROS service."""
+        def wrapper(req):
+            # Call the actual method
+            self.__gait_manager.getPluginDict()[plugin_name].setStatus(action_name, 'Started')
+
+            # Return a generic TriggerResponse for ROS service
+            return TriggerResponse(success=True, message=f"{action_name} started.")
+
+        return wrapper
 
     def __get_params(self, action_name) -> dict :
 
         for param_name, ros_param in self.__walk_params_ros[action_name].items():
             self.__param_action[action_name][param_name] = rospy.get_param(f'/horizon/{action_name}/{param_name}')
 
-        self.__logger.log(f'{self.__param_action}')
         return self.__param_action[action_name]
 
     def setBasePoseWeight(self, w):
@@ -139,7 +173,6 @@ class GaitManagerROS:
 
     def setBaseRotWeight(self, w):
         self.__base_rot_weight = w
-
 
     def __init_options(self):
 
@@ -178,6 +211,16 @@ class GaitManagerROS:
         self.__base_vel_ref[3] = msg.angular.x
         self.__base_vel_ref[4] = msg.angular.y
         self.__base_vel_ref[5] = msg.angular.z
+
+    # def __switch_action_cb(self, req: SetBoolRequest, action_name):
+    #
+    #     if req.data:
+    #         self.__operation_mode = OperationMode.CRAWL
+    #     else:
+    #         if self.__operation_mode == OperationMode.CRAWL:
+    #             self.__operation_mode = OperationMode.STAND
+    #
+    #     return {'success': True}
 
     def __switch_crawl_cb(self, req: SetBoolRequest):
 
@@ -229,6 +272,16 @@ class GaitManagerROS:
 
         return {'success': True}
 
+    # def __switch_postural_cb(self, req: SetBoolRequest):
+    #
+    #     if req.data:
+    #         self.__operation_mode = OperationMode.POSTURAL
+    #     else:
+    #         if self.__operation_mode == OperationMode.POSTURAL:
+    #             self.__operation_mode = OperationMode.STAND
+    #
+    #     return {'success': True}
+
     def __set_phases(self, *args, **kwargs):
 
         if self.__one_random_contact_timeline.getEmptyNodes() > 0:
@@ -238,6 +291,7 @@ class GaitManagerROS:
                 action(*args, **kwargs)  # Call the function
             else:
                 self.__logger.log("Invalid operation mode")
+
 
     def __set_base_commands(self):
 
@@ -310,9 +364,18 @@ class GaitManagerROS:
         # set phases
         self.__set_phases()
 
+        self.__run_plugins()
+
         # set base_commands
         self.__set_base_commands()
 
+    def __run_plugins(self):
+
+        for plugin_name, plugin in self.__gait_manager.getPluginDict().items():
+
+            for action_name, status in plugin.getStatus().items():
+                if status == 'Started' or status == 'Running':
+                    plugin.get_actions()[action_name]()
 
 
     def __incremental_rotate(self, q_initial: np.quaternion, d_angle, axis) -> np.quaternion:
