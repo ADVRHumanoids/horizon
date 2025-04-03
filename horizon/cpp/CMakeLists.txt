@@ -1,6 +1,5 @@
 project(horizon)
-cmake_minimum_required(VERSION 3.0)
-
+cmake_minimum_required(VERSION 3.10)
 if(DEFINED ENV{CONDA_PREFIX})
 
   set(CMAKE_INSTALL_PREFIX $ENV{CONDA_PREFIX}/ CACHE PATH "bindings install prefix" FORCE)
