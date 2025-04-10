@@ -39,7 +39,7 @@ class ProblemInterface:
         to be called after all variables have been created
         """
         self.model.setDynamics()
-        self._create_solver(rti)
+        self.createSolver(rti)
 
     def bootstrap(self):
         t = time.time()
@@ -211,7 +211,7 @@ class ProblemInterface:
 
         self.si = solver_interface.SolverInterface(solver_type, is_receding, solver_options)
 
-    def _create_solver(self, rti=True):
+    def createSolver(self, rti=True):
 
         if self.si.type != 'ilqr':
             # todo get options from yaml
