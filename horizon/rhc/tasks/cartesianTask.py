@@ -26,8 +26,6 @@ class CartesianTask(Task):
         except:
             raise Exception(f"'{self.distal_link}' not found in URDF.")
 
-        self._createWeightParam()
-
         self.indices = np.array([0, 1, 2]).astype(
             int) if self.indices is None else np.array(self.indices).astype(int)
 
@@ -292,6 +290,7 @@ class CartesianTask(Task):
 
         final_name = f'{frame_name}_cartesian_task'
 
+        self._createWeightParam(fun.shape[0])
         self.constr = self.instantiator(final_name, self.weight_param * fun, nodes=self.nodes)
 
         # todo should I keep track of the nodes here?

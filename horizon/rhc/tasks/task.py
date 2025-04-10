@@ -53,14 +53,21 @@ class Task:
             self.indices = np.array(self.indices) if self.indices is not None else None
         # self.nodes = list(range(self.prb.getNNodes()))
 
-    def _createWeightParam(self):
+    def _createWeightParam(self, dim=1):
 
         # weight and dim must be the same dimension
         if isinstance(self.weight, (float, int)):
-            self.weight_param = self.prb.createParameter(f'{self.name}_weight', 1)
-            self.weight_param.assign(self.weight)
+            self.weight_matrix = self.weight * np.ones([dim, 1])
+        elif isinstance(self.weight, list):
+            try:
+                self.weight_matrix = np.array(self.weight).reshape([dim, 1])
+            except ValueError:
+                raise Exception(f'[{self.name}] wrong dimension of weight inserted ({len(self.weight)} != {dim})')
         else:
-            raise Exception(f"type of weight '{type(self.weight)} not supported.'")
+            raise Exception(f"[{self.name}] type of weight '{type(self.weight)} not supported.'")
+
+        self.weight_param = self.prb.createParameter(f'{self.name}_weight', dim)
+        self.weight_param.assign(self.weight_matrix)
         # elif isinstance(self.weight, List):
         #     self.weight_param = []
         #     for i_dim in range(len(self.weight)):

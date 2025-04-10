@@ -12,7 +12,7 @@ class RegularizationTask(Task):
 
     def __init__(self, variable_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._createWeightParam()
+        # self._createWeightParam()
 
         self.opt_reference = None
         self.indices_dict = dict()
@@ -51,6 +51,8 @@ class RegularizationTask(Task):
             nodes = [node for node in list(self.nodes) if node != self.last_node]
         else:
             nodes = self.nodes
+
+        self._createWeightParam(self.indices.size)
 
         self.reg_fun = self.instantiator(f'reg_{self.opt_variable.getName()}',
                                          self.weight_param * (self.opt_variable[self.indices] - self.opt_reference), nodes)

@@ -10,7 +10,7 @@ class PosturalTask(Task):
     def __init__(self, postural_ref=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-        self._createWeightParam()
+        # self._createWeightParam()
 
         if self.indices is None:
             self.indices = np.array(list(range(self.kin_dyn.nq() - 7))).astype(int)
@@ -48,6 +48,8 @@ class PosturalTask(Task):
 
         name_fun = f'postural_{self.name}'# '_'.join(map(str, self.indices))
         self.q0 = self.prb.createParameter(f'{name_fun}_tgt', self.indices.size)
+
+        self._createWeightParam(self.indices.size)
         self.fun = self.instantiator(f'{name_fun}_task', self.weight_param * (self.q[self.indices] - self.q0), nodes=self.nodes)
         self.q0.assign(self.q0_ref)
 
