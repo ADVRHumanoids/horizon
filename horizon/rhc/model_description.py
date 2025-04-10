@@ -353,6 +353,8 @@ class FullModelInverseDynamics:
     def getContacts(self):
         return self.cmap.keys()
 
+    def getJointTorques(self):
+        return self.tau
     # def getInput(self):
     #     return self.a
     #
@@ -632,6 +634,9 @@ class SingleRigidBodyDynamicsModel:
 
     def getContacts(self):
         return self.cmap.keys()
+
+    def getJointTorques(self):
+        return self.tau
 
 
 if __name__ == '__main__':
