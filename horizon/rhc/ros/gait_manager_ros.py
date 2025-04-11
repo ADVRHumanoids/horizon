@@ -2,9 +2,11 @@ import rospy
 from Cython.Compiler.TreePath import operations
 from geometry_msgs.msg import Twist
 from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerResponse
+from std_msgs.msg import String
+from horizon_msgs.msg import OperationMode as OperationModeMsg
 from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
 import numpy as np
-from enum import Enum
+from enum import IntEnum, Enum
 from horizon.utils.logger import Logger
 from typing import Callable, Union
 from functools import partial
@@ -71,6 +73,7 @@ class GaitManagerROS:
 
         self.__base_vel_ref = np.zeros(6)
 
+        self.__operation_mode_pub = rospy.Publisher('/horizon/operation_mode', OperationModeMsg, queue_size=10)
         # self.__action_switch_srv_dict = dict()
         # for action_name in self.__gait_manager.getActionList():
             # self.__action_switch_srv_dict.update({action_name, rospy.Service(f'/horizon/{action_name}/switch', SetBool, partial(self.__switch_action_cb, action_name))})
@@ -417,6 +420,7 @@ class GaitManagerROS:
     def run(self):
 
         self.__logger.log(f'operation mode: {self.__operation_mode}')
+        self.publish_operation_mode()
 
         self.__update_solution()
 
@@ -429,6 +433,12 @@ class GaitManagerROS:
         # set base_commands
         self.__set_base_commands()
 
+
+    def publish_operation_mode(self):
+        msg = OperationModeMsg()
+        msg.mode = self.__operation_mode.value
+        msg.mode_name = self.__operation_mode.name
+        self.__operation_mode_pub.publish(msg)
 
     def __run_plugins(self):
 
