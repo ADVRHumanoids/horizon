@@ -355,6 +355,12 @@ class GaitManagerROS:
             else:
                 self.__logger.log("Invalid operation mode")
 
+    def __update_swing_trj(self):
+        for contact, timeline in self.__gait_manager.getContactTimelines().items():
+            if timeline.getActivePhases()[0].getName().find('stance') != -1 and timeline.getActivePhases()[1].getName().find('flight') != -1:
+                active_flight_phases = timeline.getActivePhases()[1:self.__param_action['trot']['step_duration']]
+                if timeline.getActivePhases()[1].getActiveNodes()[0] == 1:
+                    self.__gait_manager.updateReferenceTrajectory(active_flight_phases, contact, 0.1)
 
     def __set_base_commands(self):
 
@@ -429,6 +435,9 @@ class GaitManagerROS:
 
         # set phases
         self.__set_phases()
+
+        # update swing trj
+        self.__update_swing_trj()
 
         if self.__operation_mode == OperationMode.IDLE:
             self.__run_plugins()
