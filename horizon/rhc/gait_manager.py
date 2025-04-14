@@ -18,6 +18,8 @@ class SwingTrajectory:
 
         self.__z_task_list = task_list.copy()
 
+        self.__flight_nodes_list = None
+
         self.__task_interface = task_interface
         self.__model = self.__task_interface.model
 
@@ -60,6 +62,10 @@ class SwingTrajectory:
             self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
             self.__contact_z_height[contact_link] = self.__default_height
 
+    def updateReferenceTrajectory(self, phases, contact, z_height):
+        self.__init_swing_trajectory()
+        self.setSwingTrajectoryToPhases(phases, contact, z_height)
+
     def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
 
 
@@ -75,7 +81,7 @@ class SwingTrajectory:
                                                                  self.__contact_z_position_initial[contact_name],
                                                                  self.__contact_z_position_final[contact_name],
                                                                  z_height,
-                                                                 [None, 0, None]
+                                                                 [None, 0, 0]
                                                                  )
 
         for phase_i in range(len(phases)):
@@ -168,6 +174,7 @@ class PhaseGaitWrapper:
                 self.__add_phase(contact_timeline, self.__flight_phases[contact_name], duration=kwargs['duration'])
                 if self.__swing_flag:
                     self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    
             else:
                 self.__add_phase(contact_timeline, self.__stance_phases[contact_name], duration=kwargs['duration'])
 
@@ -183,6 +190,9 @@ class PhaseGaitWrapper:
 
         # todo do this here, or in the main loop?
         # self.__phase_manager.update()
+
+    def updateReferenceTrajectory(self, phases, contact, z_height):
+        self.__swing_trajectory_manager.updateReferenceTrajectory(phases, contact, z_height)
 
     def action(self, action_name, *args, **kwargs):
 
