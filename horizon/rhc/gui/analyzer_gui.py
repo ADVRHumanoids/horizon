@@ -88,7 +88,6 @@ class ElementTab(QWidget):
         self.details = QTextEdit()
         self.details.setReadOnly(True)
         self.details.setMaximumHeight(100)  # Smaller by default
-        self.layout.addWidget(self.details)
 
         self.nodeDisplay = NodeDisplay(total_nodes=total_nodes)
         self.nodeDisplay.setMinimumHeight(160)
@@ -100,15 +99,10 @@ class ElementTab(QWidget):
         self.layout.addWidget(self.details)
         self.showDetailsFn = showDetailsFn
 
-        self.tableWidget = QTableWidget()
-        self.tableWidget.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.tableWidget.setSelectionMode(QTableWidget.NoSelection)
-        self.tableWidget.setFocusPolicy(Qt.NoFocus)
-        self.layout.addWidget(self.tableWidget)
+        self.currentTables = None
 
         self.checkboxShowInactive = QCheckBox("Show inactive nodes")
         self.checkboxShowInactive.setChecked(True)
-        self.checkboxShowInactive.stateChanged.connect(lambda _: self.refreshTable())
         self.layout.addWidget(self.checkboxShowInactive)
 
         self.nodeDisplay.nodeClicked.connect(self.highlightColumnForNode)
@@ -117,36 +111,37 @@ class ElementTab(QWidget):
         self.details.setVisible(self.checkboxShowDetails.isChecked())
 
     def highlightColumnForNode(self, node):
-        for col in range(self.tableWidget.columnCount()):
-            header_item = self.tableWidget.horizontalHeaderItem(col)
-            if header_item and int(header_item.text()) == node:
-                self.highlightColumn(col)
+        if not self.currentTables:
+            return
 
-                # Scroll to the first cell in the column
-                item = self.tableWidget.item(0, col)
-                if item:
-                    self.tableWidget.scrollToItem(item, QTableWidget.PositionAtCenter)
-                break
+        for current_tab in self.currentTables:
+            for col in range(current_tab.columnCount()):
+                header_item = current_tab.horizontalHeaderItem(col)
+                if header_item and int(header_item.text()) == node:
+                    self.highlightColumn(col)
+                    item = current_tab.item(0, col)
+                    if item:
+                        current_tab.scrollToItem(item, QTableWidget.PositionAtCenter)
+                    break
 
     def highlightColumn(self, col):
-        for r in range(self.tableWidget.rowCount()):
-            item = self.tableWidget.item(r, col)
-            if item:
-                item.setBackground(QColor("#cceeff"))  # blue highlight
+        if not self.currentTables:
+            return
 
-        for other_col in range(self.tableWidget.columnCount()):
-            if other_col == col:
-                continue
-            for r in range(self.tableWidget.rowCount()):
-                item = self.tableWidget.item(r, other_col)
+        for current_tab in self.currentTables:
+
+            for r in range(current_tab.rowCount()):
+                item = current_tab.item(r, col)
                 if item:
-                    item.setBackground(Qt.white if item.text() else QColor("#eeeeee"))
+                    item.setBackground(QColor("#cceeff"))
 
-    def refreshTable(self):
-        current = self.listWidget.currentItem()
-        if current:
-            name, obj = current.data(1000)
-            self.populateTable(name, obj)
+            for other_col in range(current_tab.columnCount()):
+                if other_col == col:
+                    continue
+                for r in range(current_tab.rowCount()):
+                    item = current_tab.item(r, other_col)
+                    if item:
+                        item.setBackground(Qt.white if item.text() else QColor("#eeeeee"))
 
     def showDetails(self, item):
         if item:
@@ -157,50 +152,90 @@ class ElementTab(QWidget):
             self.populateTable(name, obj)
 
     def populateTable(self, name, obj):
-        self.tableWidget.clear()
+        # Remove old tables (if any)
+        if hasattr(self, 'lowerTable') and self.lowerTable is not None:
+            self.layout.removeWidget(self.lowerTable)
+            self.lowerTable.deleteLater()
+            self.lowerTable = None
+
+        if hasattr(self, 'upperTable') and self.upperTable is not None:
+            self.layout.removeWidget(self.upperTable)
+            self.upperTable.deleteLater()
+            self.upperTable = None
+
+        if hasattr(self, 'valueTable') and self.valueTable is not None:
+            self.layout.removeWidget(self.valueTable)
+            self.valueTable.deleteLater()
+            self.valueTable = None
 
         show_inactive = self.checkboxShowInactive.isChecked()
-
+        self.checkboxShowInactive.stateChanged.connect(self.refreshTable)
+        self.checkboxShowInactive.setChecked(True)
         has_bounds = hasattr(obj, "getBounds")
         has_values = hasattr(obj, "getValues")
         has_nodes = hasattr(obj, "getNodes")
-
-        rows = []
-        row_labels = []
 
         active_nodes = obj.getNodes() if has_nodes else []
         total_nodes = self.nodeDisplay.total_nodes
         all_nodes = list(range(total_nodes)) if show_inactive else active_nodes
 
-        data_map = {}  # node -> data
-        if has_bounds and not has_values:
+        if has_bounds:
             lower, upper = obj.getBounds()
-            lower = np.ravel(lower)
-            upper = np.ravel(upper)
+            lower = np.atleast_2d(np.array(lower))
+            upper = np.atleast_2d(np.array(upper))
 
-            row_labels = ["Lower Bound", "Upper Bound"]
-            rows = [lower, upper]
+            dim = lower.shape[0]
+            row_labels_lower = [f"Lower Bound [dim {d}]" for d in range(dim)]
+            row_labels_upper = [f"Upper Bound [dim {d}]" for d in range(dim)]
 
-            data_map = {node: (lower[i], upper[i]) for i, node in enumerate(active_nodes)}
+            # Create and add lower bounds table
+            self.lowerTable = QTableWidget()
+            self.setupBoundsTable(self.lowerTable, lower, row_labels_lower, all_nodes)
+            self.layout.addWidget(self.lowerTable)
+
+
+            # Create and add upper bounds table
+            self.upperTable = QTableWidget()
+            self.setupBoundsTable(self.upperTable, upper, row_labels_upper, all_nodes)
+            self.layout.addWidget(self.upperTable)
+
+            self.currentTables = [self.lowerTable, self.upperTable]
 
         elif has_values:
-            values = np.ravel(obj.getValues())
-            row_labels = ["Values"]
-            rows = [values]
-            data_map = {node: (values[i],) for i, node in enumerate(active_nodes)}
+            values = np.atleast_2d(np.array(obj.getValues()))
+            dim = values.shape[0]
+            row_labels = [f"Value [dim {d}]" for d in range(dim)]
 
-        self.tableWidget.setRowCount(len(rows))
-        self.tableWidget.setColumnCount(len(all_nodes))
+            self.valueTable = QTableWidget()
+            self.setupBoundsTable(self.valueTable, values, row_labels, all_nodes)
+            self.layout.addWidget(self.valueTable)
+            self.currentTables = [self.valueTable]
 
-        self.tableWidget.setHorizontalHeaderLabels([str(n) for n in all_nodes])
-        self.tableWidget.setVerticalHeaderLabels(row_labels)
+        else:
+            self.currentTables = None
+
+    def refreshTable(self):
+        current_item = self.listWidget.currentItem()
+        if current_item:
+            self.showDetails(current_item)
+
+    def setupBoundsTable(self, tableWidget, rows, row_labels, all_nodes):
+        tableWidget.setEditTriggers(QTableWidget.NoEditTriggers)
+        tableWidget.setSelectionMode(QTableWidget.NoSelection)
+        tableWidget.setFocusPolicy(Qt.NoFocus)
+
+        tableWidget.setRowCount(len(row_labels))
+        tableWidget.setColumnCount(len(all_nodes))
+
+        tableWidget.setHorizontalHeaderLabels([str(n) for n in all_nodes])
+        tableWidget.setVerticalHeaderLabels(row_labels)
 
         for row_idx, label in enumerate(row_labels):
             for col_idx, node in enumerate(all_nodes):
                 item = QTableWidgetItem()
+                value = rows[row_idx][col_idx] if row_idx < len(rows) and col_idx < len(rows[row_idx]) else None
 
-                if node in data_map:
-                    value = data_map[node][row_idx]
+                if value is not None:
                     item.setText(f"{value:.4g}")
                     item.setTextAlignment(Qt.AlignCenter)
                 else:
@@ -208,7 +243,8 @@ class ElementTab(QWidget):
                     item.setBackground(QColor("#eeeeee"))
                     item.setForeground(QColor("#aaaaaa"))
 
-                self.tableWidget.setItem(row_idx, col_idx, item)
+                tableWidget.setItem(row_idx, col_idx, item)
+
 
 # ---- Main Window ---- #
 class AnalyzerGUI(QMainWindow):
