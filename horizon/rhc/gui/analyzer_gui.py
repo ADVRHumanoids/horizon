@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QLabel, QHBoxLayout, QMainWindow, QListWidgetItem, QTextEdit, QCheckBox, QPushButton
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPainter, QColor
+from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QVBoxLayout
 from PyQt5.QtCore import Qt
 
@@ -20,6 +20,11 @@ class NodeDisplay(QWidget):
         self.total_nodes = total_nodes
         self.active_nodes = []
         self.nodeRects = {}  # ← keep track of rects for clicks
+        self.unbounded_nodes = set()
+
+    def setUnboundedNodes(self, node_ids):
+        self.unbounded_nodes = set(node_ids)
+        self.update()  # trigger redraw
 
     def setActiveNodes(self, nodes):
         self.active_nodes = nodes
@@ -47,14 +52,22 @@ class NodeDisplay(QWidget):
 
             self.nodeRects[i] = (x, y, node_width, node_height)
 
-            if i in self.active_nodes:
+            if i in self.unbounded_nodes:
+                # Blue border, white fill
+                painter.setBrush(QColor("#ffffff"))
+                painter.setPen(QColor("#3498db"))
+            elif i in self.active_nodes:
+                # Blue fill, dark border
                 painter.setBrush(QColor("#3498db"))
                 painter.setPen(QColor("#2c3e50"))
             else:
+                # Light gray fill, light gray border
                 painter.setBrush(QColor("#ecf0f1"))
                 painter.setPen(QColor("#bdc3c7"))
 
             painter.drawRoundedRect(x, y, node_width, node_height, 6, 6)
+
+            # Node label
             painter.setPen(QColor("#2c3e50"))
             painter.drawText(x + 6, y + 16, str(i))
 
@@ -183,6 +196,15 @@ class ElementTab(QWidget):
             lower, upper = obj.getBounds()
             lower = np.atleast_2d(np.array(lower))
             upper = np.atleast_2d(np.array(upper))
+
+            unbounded_nodes = set()
+            if lower is not None and upper is not None:
+                for i, node in enumerate(active_nodes):
+                    if np.all(lower[:, i] == -np.inf) and np.all(upper[:, i] == np.inf):
+                        unbounded_nodes.add(node)
+
+            self.nodeDisplay.setUnboundedNodes(unbounded_nodes)
+
 
             dim = lower.shape[0]
             row_labels_lower = [f"Lower Bound [dim {d}]" for d in range(dim)]
