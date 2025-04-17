@@ -373,7 +373,8 @@ class CompareTab(QWidget):
         self.total_nodes = total_nodes
         self.layout = QVBoxLayout(self)
 
-        self.itemColorMap = {}
+        self.itemColorMap = {}  # (QListWidget, row) -> QColor
+        self.nextColorIndex = 0
 
         # Create a layout to hold the category widgets
         self.categoryLists = {}  # Will hold { "Constraint": QListWidget, ... }
@@ -426,26 +427,34 @@ class CompareTab(QWidget):
             listWidget.addItem(item)
 
     def updateDisplay(self):
-        self.itemColorMap.clear()
-        selected_items = []
-
-        for listWidget in self.categoryLists.values():
-            for item in listWidget.selectedItems():
-                selected_items.append((listWidget, item))
+        current_selected_keys = set()
 
         data = []
-        for idx, (listWidget, item) in enumerate(selected_items):
-            color = QColor(self.COLORS[idx % len(self.COLORS)])
-            row = listWidget.row(item)
-            self.itemColorMap[(listWidget, row)] = color
+        for listWidget in self.categoryLists.values():
+            for item in listWidget.selectedItems():
+                key = (listWidget, listWidget.row(item))
+                current_selected_keys.add(key)
 
-            obj = item.data(Qt.UserRole)
-            nodes = obj.getNodes() if hasattr(obj, "getNodes") else []
-            data.append((nodes, color))
+                # Assign color only if not already assigned
+                if key not in self.itemColorMap:
+                    color = QColor(self.COLORS[self.nextColorIndex % len(self.COLORS)])
+                    self.itemColorMap[key] = color
+                    self.nextColorIndex += 1
+                else:
+                    color = self.itemColorMap[key]
+
+                obj = item.data(Qt.UserRole)
+                nodes = obj.getNodes() if hasattr(obj, "getNodes") else []
+                data.append((nodes, color))
+
+        # Remove deselected items from colorMap
+        keys_to_remove = [key for key in self.itemColorMap if key not in current_selected_keys]
+        for key in keys_to_remove:
+            del self.itemColorMap[key]
 
         self.nodeDisplay.setColorGroups(data)
 
-        # Refresh all delegates
+        # Refresh delegates
         for lw in self.categoryLists.values():
             lw.viewport().update()
 
