@@ -2,12 +2,12 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QTabWidget, QVBoxLayout, QListWidget,
-    QLabel, QHBoxLayout, QMainWindow, QListWidgetItem, QTextEdit, QCheckBox, QPushButton
+    QLabel, QHBoxLayout, QMainWindow, QListWidgetItem, QTextEdit, QCheckBox, QPushButton, QStyledItemDelegate, QStyle
 )
+
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPen
 from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem, QVBoxLayout
-from PyQt5.QtCore import Qt
 
 from horizon.functions import Constraint, Cost, RecedingCost, RecedingConstraint
 from horizon.variables import Parameter, RecedingParameter, RecedingVariable, Variable
@@ -341,6 +341,24 @@ class AnalyzerGUI(QMainWindow):
         nodes = ", ".join(map(str, obj.getNodes())) if hasattr(obj, "getNodes") else ""
         return f"Name: {name}\nNodes: {nodes}"
 
+class ColorSyncedDelegate(QStyledItemDelegate):
+    def __init__(self, parentListWidget, color_map):
+        super().__init__(parentListWidget)
+        self.color_map = color_map
+
+    def paint(self, painter, option, index):
+        list_widget = self.parent()
+        row = index.row()
+        color = self.color_map.get((list_widget, row), None)
+
+        if color:
+            painter.save()
+            painter.fillRect(option.rect, color)
+            painter.setPen(Qt.black)
+            painter.drawText(option.rect, Qt.AlignVCenter | Qt.AlignLeft, index.data())
+            painter.restore()
+        else:
+            super().paint(painter, option, index)
 
 class CompareTab(QWidget):
     COLORS = [
@@ -354,6 +372,8 @@ class CompareTab(QWidget):
         self.model = model
         self.total_nodes = total_nodes
         self.layout = QVBoxLayout(self)
+
+        self.itemColorMap = {}
 
         # Create a layout to hold the category widgets
         self.categoryLists = {}  # Will hold { "Constraint": QListWidget, ... }
@@ -371,6 +391,7 @@ class CompareTab(QWidget):
             vbox = QVBoxLayout(group)
 
             listWidget = QListWidget()
+            listWidget.setItemDelegate(ColorSyncedDelegate(listWidget, self.itemColorMap))
             listWidget.setSelectionMode(QListWidget.MultiSelection)
             listWidget.itemSelectionChanged.connect(self.updateDisplay)
 
@@ -405,18 +426,28 @@ class CompareTab(QWidget):
             listWidget.addItem(item)
 
     def updateDisplay(self):
+        self.itemColorMap.clear()
         selected_items = []
+
         for listWidget in self.categoryLists.values():
-            selected_items.extend(listWidget.selectedItems())
+            for item in listWidget.selectedItems():
+                selected_items.append((listWidget, item))
 
         data = []
-        for idx, item in enumerate(selected_items):
+        for idx, (listWidget, item) in enumerate(selected_items):
             color = QColor(self.COLORS[idx % len(self.COLORS)])
+            row = listWidget.row(item)
+            self.itemColorMap[(listWidget, row)] = color
+
             obj = item.data(Qt.UserRole)
             nodes = obj.getNodes() if hasattr(obj, "getNodes") else []
             data.append((nodes, color))
 
         self.nodeDisplay.setColorGroups(data)
+
+        # Refresh all delegates
+        for lw in self.categoryLists.values():
+            lw.viewport().update()
 
     def resetSelection(self):
         for listWidget in self.categoryLists.values():
