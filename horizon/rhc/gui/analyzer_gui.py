@@ -21,10 +21,15 @@ class NodeDisplay(QWidget):
         self.active_nodes = []
         self.nodeRects = {}  # ← keep track of rects for clicks
         self.unbounded_nodes = set()
+        self.highlighted_nodes = set()  # ← NEW
 
     def setUnboundedNodes(self, node_ids):
         self.unbounded_nodes = set(node_ids)
         self.update()  # trigger redraw
+
+    def setHighlightNodes(self, node_ids):
+        self.highlighted_nodes = set(node_ids)
+        self.update()
 
     def setActiveNodes(self, nodes):
         self.active_nodes = nodes
@@ -52,23 +57,32 @@ class NodeDisplay(QWidget):
 
             self.nodeRects[i] = (x, y, node_width, node_height)
 
-            if i in self.unbounded_nodes:
-                # Blue border, white fill
+            if i in self.highlighted_nodes:
+                painter.setBrush(QColor("#21618c"))
+                painter.setPen(QColor("2c3e50"))  # <-- Lighter blue tone
+            elif i in self.unbounded_nodes:
                 painter.setBrush(QColor("#ffffff"))
-                painter.setPen(QColor("#3498db"))
+                painter.setPen(QColor("#3498db"))  # Standard blue
             elif i in self.active_nodes:
-                # Blue fill, dark border
-                painter.setBrush(QColor("#3498db"))
-                painter.setPen(QColor("#2c3e50"))
+                painter.setBrush(QColor("#3498db"))  # Fill blue
+                painter.setPen(QColor("#2c3e50"))  # Dark border
             else:
-                # Light gray fill, light gray border
-                painter.setBrush(QColor("#ecf0f1"))
-                painter.setPen(QColor("#bdc3c7"))
+                painter.setBrush(QColor("#ecf0f1"))  # Light gray
+                painter.setPen(QColor("#bdc3c7"))  # Gray border
 
             painter.drawRoundedRect(x, y, node_width, node_height, 6, 6)
 
             # Node label
-            painter.setPen(QColor("#2c3e50"))
+            font = painter.font()
+            if i in self.highlighted_nodes:
+                font.setBold(True)
+                painter.setFont(font)
+                painter.setPen(QColor("#bdc3c7"))
+            else:
+                font.setBold(False)
+                painter.setFont(font)
+                painter.setPen(QColor("#2c3e50"))
+
             painter.drawText(x + 6, y + 16, str(i))
 
     def mousePressEvent(self, event):
@@ -222,6 +236,8 @@ class ElementTab(QWidget):
             self.setupBoundsTable(self.upperTable, upper, active_nodes, row_labels_upper, all_nodes)
             self.layout.addWidget(self.upperTable)
 
+            self.lowerTable.resizeColumnsToContents()
+            self.upperTable.resizeColumnsToContents()
             self.currentTables = [self.lowerTable, self.upperTable]
 
         elif has_values:
@@ -230,9 +246,18 @@ class ElementTab(QWidget):
             row_labels = [f"Value [dim {d}]" for d in range(dim)]
 
             self.valueTable = QTableWidget()
-            self.setupBoundsTable(self.valueTable, values, row_labels, all_nodes)
+            self.setupBoundsTable(self.valueTable, values, active_nodes, row_labels, all_nodes)
+
+            self.valueTable.resizeColumnsToContents()
             self.layout.addWidget(self.valueTable)
             self.currentTables = [self.valueTable]
+
+            nonzero_nodes = set()
+            for i, node in enumerate(active_nodes):
+                node_vals = values[:, i]
+                if np.any(np.abs(node_vals) > 1e-8):  # threshold to account for float imprecision
+                    nonzero_nodes.add(node)
+            self.nodeDisplay.setHighlightNodes(nonzero_nodes)
 
         else:
             self.currentTables = None
