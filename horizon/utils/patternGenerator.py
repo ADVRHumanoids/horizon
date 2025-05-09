@@ -26,8 +26,6 @@ class PatternGenerator():
         for contact in self.contacts:
             # the first node of the phase depends upon phi
 
-
-
             phase_start_node = int(cycle_nodes * phi[i_contact])
             stance_duration = int(cycle_nodes * duty_cycle)
 
@@ -134,6 +132,33 @@ class PatternGenerator():
             stance_nodes_rep[name] = [x for x in value if x < self.n_nodes]
 
         return stance_nodes_rep, swing_nodes_rep
+
+    def pattern_from_step_duration(self, flight_nodes, double_stance_nodes, contact_order):
+
+        reordered_contact =  [self.contacts[i] for i in contact_order]
+        stance_nodes = dict()
+        swing_nodes = dict()
+
+        for contact in self.contacts:
+            stance_nodes[contact] = []
+            swing_nodes[contact] = []
+
+        total_step_duration = (flight_nodes + double_stance_nodes)
+        cycle_duration = int(total_step_duration * len(self.contacts))
+
+        contact_offset = 0
+        for contact in reordered_contact:
+
+            swing_nodes[contact] = list(range(contact_offset, int(contact_offset + flight_nodes)))
+            stance_nodes[contact] = [elem for elem in list(range(0, cycle_duration)) if elem not in swing_nodes[contact]]
+            contact_offset += total_step_duration
+
+        return stance_nodes, swing_nodes
+
+
+
+
+
 
     def visualizer(self, cycle_nodes, stance_nodes: dict, swing_nodes: dict):
         import matplotlib.pyplot as plt
