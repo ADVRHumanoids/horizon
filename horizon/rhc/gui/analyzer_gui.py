@@ -81,7 +81,7 @@ class NodeDisplay(QWidget):
 
 # ---- The GUI Tab ---- #
 class ElementTab(QWidget):
-    def __init__(self, elements_dict, showDetailsFn, total_nodes=41):
+    def __init__(self, elements_dict, showDetailsFn, total_nodes):
         super().__init__()
         self.layout = QVBoxLayout(self)
 
@@ -107,16 +107,18 @@ class ElementTab(QWidget):
 
         self.listWidget.currentItemChanged.connect(self.showDetails)
 
+        self.checkboxShowInactive = QCheckBox("Show inactive nodes")
+        self.checkboxShowInactive.setChecked(True)
+        self.checkboxShowInactive.stateChanged.connect(self.refreshTable)
+
         self.layout.addWidget(self.listWidget)
         self.layout.addWidget(self.nodeDisplay)
+        self.layout.addWidget(self.checkboxShowInactive)
         self.layout.addWidget(self.details)
         self.showDetailsFn = showDetailsFn
 
         self.currentTables = None
 
-        self.checkboxShowInactive = QCheckBox("Show inactive nodes")
-        self.checkboxShowInactive.setChecked(True)
-        self.layout.addWidget(self.checkboxShowInactive)
 
         self.nodeDisplay.nodeClicked.connect(self.highlightColumnForNode)
 
@@ -182,8 +184,7 @@ class ElementTab(QWidget):
             self.valueTable = None
 
         show_inactive = self.checkboxShowInactive.isChecked()
-        self.checkboxShowInactive.stateChanged.connect(self.refreshTable)
-        self.checkboxShowInactive.setChecked(True)
+
         has_bounds = hasattr(obj, "getBounds")
         has_values = hasattr(obj, "getValues")
         has_nodes = hasattr(obj, "getNodes")
@@ -212,13 +213,13 @@ class ElementTab(QWidget):
 
             # Create and add lower bounds table
             self.lowerTable = QTableWidget()
-            self.setupBoundsTable(self.lowerTable, lower, row_labels_lower, all_nodes)
+            self.setupBoundsTable(self.lowerTable, lower, active_nodes, row_labels_lower, all_nodes)
             self.layout.addWidget(self.lowerTable)
 
 
             # Create and add upper bounds table
             self.upperTable = QTableWidget()
-            self.setupBoundsTable(self.upperTable, upper, row_labels_upper, all_nodes)
+            self.setupBoundsTable(self.upperTable, upper, active_nodes, row_labels_upper, all_nodes)
             self.layout.addWidget(self.upperTable)
 
             self.currentTables = [self.lowerTable, self.upperTable]
@@ -241,7 +242,8 @@ class ElementTab(QWidget):
         if current_item:
             self.showDetails(current_item)
 
-    def setupBoundsTable(self, tableWidget, rows, row_labels, all_nodes):
+    def setupBoundsTable(self, tableWidget, rows_data, active_nodes, row_labels, all_nodes):
+
         tableWidget.setEditTriggers(QTableWidget.NoEditTriggers)
         tableWidget.setSelectionMode(QTableWidget.NoSelection)
         tableWidget.setFocusPolicy(Qt.NoFocus)
@@ -249,15 +251,23 @@ class ElementTab(QWidget):
         tableWidget.setRowCount(len(row_labels))
         tableWidget.setColumnCount(len(all_nodes))
 
+        tableWidget.verticalHeader().setDefaultSectionSize(20)
+        tableWidget.horizontalHeader().setDefaultSectionSize(40)
+
         tableWidget.setHorizontalHeaderLabels([str(n) for n in all_nodes])
         tableWidget.setVerticalHeaderLabels(row_labels)
 
         for row_idx, label in enumerate(row_labels):
+
+            dim_i_data = rows_data[row_idx]
+            nodes_i_data = dict(zip(active_nodes, dim_i_data))
+
             for col_idx, node in enumerate(all_nodes):
                 item = QTableWidgetItem()
-                value = rows[row_idx][col_idx] if row_idx < len(rows) and col_idx < len(rows[row_idx]) else None
 
-                if value is not None:
+                if node in active_nodes:
+                    value = nodes_i_data[node]
+
                     item.setText(f"{value:.4g}")
                     item.setTextAlignment(Qt.AlignCenter)
                 else:
