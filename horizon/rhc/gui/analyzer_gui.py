@@ -95,9 +95,10 @@ class NodeDisplay(QWidget):
 
 # ---- The GUI Tab ---- #
 class ElementTab(QWidget):
-    def __init__(self, elements_dict, showDetailsFn, total_nodes):
+    def __init__(self, elements_dict, showDetailsFn, total_nodes, tab_type):
         super().__init__()
         self.layout = QVBoxLayout(self)
+        self.tab_type = tab_type  # Store the tab type
 
         self.listWidget = QListWidget()
         for name, obj in elements_dict.items():
@@ -107,7 +108,7 @@ class ElementTab(QWidget):
 
         # Add a checkbox to toggle the details box
         self.checkboxShowDetails = QCheckBox("Show details")
-        self.checkboxShowDetails.setChecked(True)
+        self.checkboxShowDetails.setChecked(False)
         self.checkboxShowDetails.stateChanged.connect(self.toggleDetailsBox)
         self.layout.addWidget(self.checkboxShowDetails)
 
@@ -115,6 +116,7 @@ class ElementTab(QWidget):
         self.details = QTextEdit()
         self.details.setReadOnly(True)
         self.details.setMaximumHeight(100)  # Smaller by default
+        self.details.setVisible(False)
 
         self.nodeDisplay = NodeDisplay(total_nodes=total_nodes)
         self.nodeDisplay.setMinimumHeight(160)
@@ -125,14 +127,22 @@ class ElementTab(QWidget):
         self.checkboxShowInactive.setChecked(True)
         self.checkboxShowInactive.stateChanged.connect(self.refreshTable)
 
+        # Only add the "Show unbounded nodes" checkbox for the "Variables" tab
+        if self.tab_type == "Variables":
+            self.checkboxShowUnbounded = QCheckBox("Show unbounded nodes")
+            self.checkboxShowUnbounded.setChecked(True)
+            self.checkboxShowUnbounded.stateChanged.connect(self.refreshTable)
+
+
         self.layout.addWidget(self.listWidget)
         self.layout.addWidget(self.nodeDisplay)
         self.layout.addWidget(self.checkboxShowInactive)
+        if self.tab_type == "Variables":
+            self.layout.addWidget(self.checkboxShowUnbounded)
         self.layout.addWidget(self.details)
         self.showDetailsFn = showDetailsFn
 
         self.currentTables = None
-
 
         self.nodeDisplay.nodeClicked.connect(self.highlightColumnForNode)
 
@@ -197,29 +207,45 @@ class ElementTab(QWidget):
             self.valueTable.deleteLater()
             self.valueTable = None
 
+        if hasattr(self, 'initialGuessTable') and self.initialGuessTable is not None:
+            self.layout.removeWidget(self.initialGuessTable)
+            self.initialGuessTable.deleteLater()
+            self.initialGuessTable = None
+
+
         show_inactive = self.checkboxShowInactive.isChecked()
+
+
 
         has_bounds = hasattr(obj, "getBounds")
         has_values = hasattr(obj, "getValues")
         has_nodes = hasattr(obj, "getNodes")
+        has_initial_guess = hasattr(obj, "getInitialGuess")
 
         active_nodes = obj.getNodes() if has_nodes else []
         total_nodes = self.nodeDisplay.total_nodes
         all_nodes = list(range(total_nodes)) if show_inactive else active_nodes
 
+        self.currentTables = []
+
         if has_bounds:
+
+            show_unbounded = self.checkboxShowUnbounded.isChecked() if self.tab_type == "Variables" else True
+
             lower, upper = obj.getBounds()
             lower = np.atleast_2d(np.array(lower))
             upper = np.atleast_2d(np.array(upper))
 
             unbounded_nodes = set()
+            bounded_nodes = set()
             if lower is not None and upper is not None:
                 for i, node in enumerate(active_nodes):
                     if np.all(lower[:, i] == -np.inf) and np.all(upper[:, i] == np.inf):
                         unbounded_nodes.add(node)
+                    else:
+                        bounded_nodes.add(node)
 
             self.nodeDisplay.setUnboundedNodes(unbounded_nodes)
-
 
             dim = lower.shape[0]
             row_labels_lower = [f"Lower Bound [dim {d}]" for d in range(dim)]
@@ -227,20 +253,29 @@ class ElementTab(QWidget):
 
             # Create and add lower bounds table
             self.lowerTable = QTableWidget()
-            self.setupBoundsTable(self.lowerTable, lower, active_nodes, row_labels_lower, all_nodes)
+            if show_unbounded:
+                self.setupBoundsTable(self.lowerTable, lower, active_nodes, row_labels_lower, all_nodes)
+            else:
+                self.setupBoundsTable(self.lowerTable, lower[:, list(bounded_nodes)], bounded_nodes, row_labels_lower, bounded_nodes)
+
             self.layout.addWidget(self.lowerTable)
+            self.currentTables.append(self.lowerTable)
 
 
             # Create and add upper bounds table
             self.upperTable = QTableWidget()
-            self.setupBoundsTable(self.upperTable, upper, active_nodes, row_labels_upper, all_nodes)
+            if show_unbounded:
+                self.setupBoundsTable(self.upperTable, upper, active_nodes, row_labels_upper, all_nodes)
+            else:
+                self.setupBoundsTable(self.upperTable, upper[:, list(bounded_nodes)], bounded_nodes, row_labels_upper, bounded_nodes)
             self.layout.addWidget(self.upperTable)
 
             self.lowerTable.resizeColumnsToContents()
             self.upperTable.resizeColumnsToContents()
-            self.currentTables = [self.lowerTable, self.upperTable]
+            self.currentTables.append(self.upperTable)
 
-        elif has_values:
+
+        if has_values:
             values = np.atleast_2d(np.array(obj.getValues()))
             dim = values.shape[0]
             row_labels = [f"Value [dim {d}]" for d in range(dim)]
@@ -250,7 +285,7 @@ class ElementTab(QWidget):
 
             self.valueTable.resizeColumnsToContents()
             self.layout.addWidget(self.valueTable)
-            self.currentTables = [self.valueTable]
+            self.currentTables.append(self.valueTable)
 
             nonzero_nodes = set()
             for i, node in enumerate(active_nodes):
@@ -259,8 +294,17 @@ class ElementTab(QWidget):
                     nonzero_nodes.add(node)
             self.nodeDisplay.setHighlightNodes(nonzero_nodes)
 
-        else:
-            self.currentTables = None
+        if has_initial_guess:
+            ig = np.atleast_2d(np.array(obj.getInitialGuess()))
+            dim = ig.shape[0]
+            row_labels = [f"Initial Guess [dim {d}]" for d in range(dim)]
+
+            self.initialGuessTable = QTableWidget()
+            self.setupBoundsTable(self.initialGuessTable, ig, active_nodes, row_labels, all_nodes)
+            self.initialGuessTable.resizeColumnsToContents()
+            self.layout.addWidget(self.initialGuessTable)
+            self.currentTables.append(self.initialGuessTable)
+
 
     def refreshTable(self):
         current_item = self.listWidget.currentItem()
@@ -313,26 +357,26 @@ class AnalyzerGUI(QMainWindow):
         self.__prb = problem
         tabs = QTabWidget()
 
-        self.__total_modes = self.__prb.getNNodes()
+        self.__total_nodes = self.__prb.getNNodes()
         analyzeTabs = QTabWidget()
         analyzeTabs.addTab(
-            ElementTab(self.__prb.getConstraints(), self.describeConstraint, self.__total_modes),
+            ElementTab(self.__prb.getConstraints(), self.describeConstraint, self.__total_nodes, "Constraints"),
             "Constraints"
         )
         analyzeTabs.addTab(
-            ElementTab(self.__prb.getCosts(), self.describeGeneric, self.__total_modes),
+            ElementTab(self.__prb.getCosts(), self.describeGeneric, self.__total_nodes, "Costs"),
             "Costs"
         )
         analyzeTabs.addTab(
-            ElementTab(self.__prb.getVariables(), self.describeGeneric, self.__total_modes),
+            ElementTab(self.__prb.getVariables(), self.describeVariable, self.__total_nodes, "Variables"),
             "Variables"
         )
         analyzeTabs.addTab(
-            ElementTab(self.__prb.getParameters(), self.describeParameter, self.__total_modes),
+            ElementTab(self.__prb.getParameters(), self.describeParameter, self.__total_nodes, "Parameters"),
             "Parameters"
         )
         tabs.addTab(analyzeTabs, "Analyze")
-        tabs.addTab(CompareTab(self.__prb, self.__total_modes), "Compare")
+        tabs.addTab(CompareTab(self.__prb, self.__total_nodes), "Compare")
 
         self.setCentralWidget(tabs)
 
@@ -357,6 +401,36 @@ class AnalyzerGUI(QMainWindow):
                 bounds_str = f"\nBounds: {bounds}"
 
         return f"Name: {name}\nNodes: {nodes}\n{bounds_str}"
+
+    def describeVariable(self, name, constraint):
+        nodes = ", ".join(map(str, constraint.getNodes()))
+        bounds_str = ""
+        ig_str = ""
+
+        if hasattr(constraint, "getBounds"):
+            bounds = constraint.getBounds()
+            if isinstance(bounds, tuple) and len(bounds) == 2:
+                lower, upper = bounds
+
+                # Flatten and format arrays cleanly
+                lower_flat = np.ravel(lower)
+                upper_flat = np.ravel(upper)
+
+                lower_str = ", ".join(f"{v:.4g}" for v in lower_flat)
+                upper_str = ", ".join(f"{v:.4g}" for v in upper_flat)
+
+                bounds_str = f"\nLower Bounds: [{lower_str}]\nUpper Bounds: [{upper_str}]"
+            else:
+                bounds_str = f"\nBounds: {bounds}"
+
+        if hasattr(constraint, "getInitialGuess"):
+            ig = constraint.getInitialGuess()
+            ig_flat = np.ravel(ig)
+            ig_str = ", ".join(f"{v:.4g}" for v in ig_flat)
+            ig_str = f"\nInitial Guess: [{ig_str}]"
+
+        return f"Name: {name}\nNodes: {nodes}{bounds_str}{ig_str}"
+
 
     def describeParameter(self, name, param):
         nodes = ", ".join(map(str, param.getNodes())) if hasattr(param, "getNodes") else ""
