@@ -62,8 +62,22 @@ class SwingTrajectory:
             self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
             self.__contact_z_height[contact_link] = self.__default_height
 
-    def updateReferenceTrajectory(self, phases, contact, z_height):
-        self.__init_swing_trajectory()
+    def __update_swing_trajectory(self, solution, contact=None):
+        z_task_dict = dict()
+        if contact is not None:
+            z_task_dict = {contact: self.__z_task_dict[contact]}
+        else:
+            z_task_dict = self.__z_task_dict
+
+        for contact_link in z_task_dict.keys():
+            contact_initial_pose = self.__model.kd.fk(contact_link)(q=solution['q'][:, 0])['ee_pos'].elements()
+
+            self.__contact_z_position_initial[contact_link] = contact_initial_pose[2]
+            self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
+            self.__contact_z_height[contact_link] = self.__default_height
+
+    def updateReferenceTrajectory(self, solution, phases, contact, z_height):
+        self.__update_swing_trajectory(solution, contact)
         self.setSwingTrajectoryToPhases(phases, contact, z_height)
 
     def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
@@ -83,7 +97,6 @@ class SwingTrajectory:
                                                                  z_height,
                                                                  [None, 0, 0]
                                                                  )
-
         for phase_i in range(len(phases)):
             ref_trj_z[2, :] = temp_traj[phase_i]
             # self.__logger.log(f'setting reference to phase {phases[phase_i].getName()} ({contact_name}):')
@@ -191,12 +204,12 @@ class PhaseGaitWrapper:
         # todo do this here, or in the main loop?
         # self.__phase_manager.update()
 
-    def updateReferenceTrajectory(self, phases, contact, z_height):
-        self.__swing_trajectory_manager.updateReferenceTrajectory(phases, contact, z_height)
+    def updateReferenceTrajectory(self, solution, phases, contact, z_height):
+        self.__swing_trajectory_manager.updateReferenceTrajectory(solution, phases, contact, z_height)
 
     def action(self, action_name, *args, **kwargs):
 
-        self.__logger.log(f'action called: {action_name}')
+        # self.__logger.log(f'action called: {action_name}')
         # self.__logger.log(f'args: {args}')
         # self.__logger.log(f'kwargs: {kwargs}')
 

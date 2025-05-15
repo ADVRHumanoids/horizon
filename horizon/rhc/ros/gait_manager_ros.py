@@ -1,10 +1,9 @@
-import rclpy
+import rospy
+from Cython.Compiler.TreePath import operations
 from geometry_msgs.msg import Twist
-import rclpy.parameter
-from std_srvs.srv import SetBool #, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest
 from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
 import numpy as np
-import quaternion
 from enum import Enum
 from horizon.utils.logger import Logger
 from typing import Callable, Union
@@ -42,7 +41,7 @@ class OperationMode(Enum):
     WALK = 5
 
 class GaitManagerROS:
-    def __init__(self, gm: Union[GaitManager, PhaseGaitWrapper], opt : dict = None, node = None):
+    def __init__(self, gm: Union[GaitManager, PhaseGaitWrapper], opt : dict = None):
 
         self.__opt = opt
         self.__logger = Logger(self)
@@ -59,11 +58,7 @@ class GaitManagerROS:
 
         # this version receives commands as base velocity
         # open ros topic
-        if node == None:
-            self.__node = rclpy.create_node('gait_manager')
-        else:
-            self.__node = node
-        self.__base_vel_sub = self.__node.create_subscription(Twist, '/horizon/base_velocity/reference', self.__base_vel_cb, 10)
+        self.__base_vel_sub = rospy.Subscriber('/horizon/base_velocity/reference', Twist, self.__base_vel_cb)
 
         # init tasks connection
         self.__init_options()
@@ -74,36 +69,26 @@ class GaitManagerROS:
         self.__base_vel_ref = np.zeros(6)
 
         # open ros services
-        self.__switch_crawl_srv = self.__node.create_service(SetBool, '/horizon/crawl/switch', self.__switch_crawl_cb)
-        self.__switch_trot_srv = self.__node.create_service(SetBool, '/horizon/trot/switch', self.__switch_trot_cb)
-        self.__switch_step_srv = self.__node.create_service(SetBool, '/horizon/step/switch', self.__switch_step_cb)
-        self.__switch_drag_srv = self.__node.create_service(SetBool, '/horizon/drag/switch', self.__switch_drag_cb) 
-        self.__switch_walk_srv = self.__node.create_service(SetBool, '/horizon/walk/switch', self.__switch_walk_cb)
+        self.__switch_crawl_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
+        self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
+        self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
+        self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
+        self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
 
         # param
 
         self.__param_action = dict()
         self.__param_action['walk'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
         self.__param_action['stand'] = {'duration': 1}
-        self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.15, 'double_stance': 4}
-        self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.15, 'double_stance': 4}
+        self.__param_action['crawl'] = {'step_duration': 10, 'step_height': 0.05, 'double_stance': 3}
+        self.__param_action['trot'] = {'step_duration': 10, 'step_height': 0.1, 'double_stance': 3}
 
         self.__walk_params_ros = dict()
 
-        type_mapping = {
-            int: rclpy.Parameter.Type.INTEGER,
-            float: rclpy.Parameter.Type.DOUBLE
-        }
         for action_name, param_actions in self.__param_action.items():
             self.__walk_params_ros[action_name] = dict()
             for param_name, param_value in param_actions.items():
-                self.__node.declare_parameter(f'/horizon/{action_name}/{param_name}')
-                self.__walk_params_ros[action_name][param_name] = rclpy.Parameter(
-                    f'/horizon/{action_name}/{param_name}',
-                    type_mapping[type(param_value)],
-                    param_value
-                )
-                self.__node.set_parameters([self.__walk_params_ros[action_name][param_name]])
+                self.__walk_params_ros[action_name][param_name] = rospy.set_param(f'/horizon/{action_name}/{param_name}', param_value)
 
         # self.__contact_params_srv = dict()
         # self.__contact_params = dict()
@@ -144,9 +129,9 @@ class GaitManagerROS:
     def __get_params(self, action_name) -> dict :
 
         for param_name, ros_param in self.__walk_params_ros[action_name].items():
-            self.__param_action[action_name][param_name] = self.__node.get_parameter(f'/horizon/{action_name}/{param_name}').value
-            
-        self.__logger.log(f'{self.__param_action}')
+            self.__param_action[action_name][param_name] = rospy.get_param(f'/horizon/{action_name}/{param_name}')
+
+        # self.__logger.log(f'{self.__param_action}')
         return self.__param_action[action_name]
 
     def setBasePoseWeight(self, w):
@@ -158,8 +143,6 @@ class GaitManagerROS:
     def setBaseRotWeight(self, w):
         self.__base_rot_weight = w
 
-    def getROSNode(self):
-        return self.__node
 
     def __init_options(self):
 
@@ -199,75 +182,55 @@ class GaitManagerROS:
         self.__base_vel_ref[4] = msg.angular.y
         self.__base_vel_ref[5] = msg.angular.z
 
-    def __switch_crawl_cb(self, request, response):
+    def __switch_crawl_cb(self, req: SetBoolRequest):
 
-        if request.data:
+        if req.data:
             self.__operation_mode = OperationMode.CRAWL
-            response.success = True
-            response.message = "Switched to CRAWL Mode"
         else:
             if self.__operation_mode == OperationMode.CRAWL:
                 self.__operation_mode = OperationMode.STAND
-                response.message = "Switched to STAND Mode"
-                response.success = True
-        
-        return response
 
-    def __switch_trot_cb(self, request, response):
-        
-        if request.data:
+        return {'success': True}
+
+    def __switch_trot_cb(self, req: SetBoolRequest):
+
+        if req.data:
             self.__operation_mode = OperationMode.TROT
-            response.success = True
-            response.message = "Switched to TROT Mode"
         else:
             if self.__operation_mode == OperationMode.TROT:
                 self.__operation_mode = OperationMode.STAND
-                response.success = True
-                response.message = "Switched to STAND Mode"
 
-        return response
+        return {'success': True}
 
-    def __switch_step_cb(self, request, response):
+    def __switch_step_cb(self, req: SetBoolRequest):
 
-        if request.data:
+        if req.data:
             self.__operation_mode = OperationMode.STEP
-            response.success = True
-            response.message = "Switched to STEP Mode"
         else:
             if self.__operation_mode == OperationMode.STEP:
                 self.__operation_mode = OperationMode.STAND
-                response.success = True
-                response.message = "Switched to STAND Mode"
 
-        return response
+        return {'success': True}
 
-    def __switch_drag_cb(self, request, response):
+    def __switch_drag_cb(self, req: SetBoolRequest):
 
-        if request.data:
+        if req.data:
             self.__operation_mode = OperationMode.DRAG
-            response.success = True
-            response.message = "Switched to DRAG Mode"
         else:
             if self.__operation_mode == OperationMode.DRAG:
                 self.__operation_mode = OperationMode.STAND
-                response.success = True
-                response.message = "Switched to STAND Mode"
 
-        return response
+        return {'success': True}
 
-    def __switch_walk_cb(self, request, response):
+    def __switch_walk_cb(self, req: SetBoolRequest):
 
-        if request.data:
+        if req.data:
             self.__operation_mode = OperationMode.WALK
-            response.success = True
-            response.message = "Switched to WALK Mode"
         else:
             if self.__operation_mode == OperationMode.WALK:
                 self.__operation_mode = OperationMode.STAND
-                response.success = True
-                response.message = "Switched to STAND Mode"
 
-        return response
+        return {'success': True}
 
     def __set_phases(self, *args, **kwargs):
 
@@ -281,19 +244,26 @@ class GaitManagerROS:
 
     def __update_swing_trj(self):
         for contact, timeline in self.__gait_manager.getContactTimelines().items():
-            if timeline.getActivePhases()[0].getName().find('stance') != -1 and timeline.getActivePhases()[1].getName().find('flight') != -1:
-                active_flight_phases = timeline.getActivePhases()[1:self.__param_action['trot']['step_duration']]
-                if timeline.getActivePhases()[1].getActiveNodes()[0] == 1:
-                    self.__gait_manager.updateReferenceTrajectory(active_flight_phases, contact, 0.1)
+            if timeline.getActivePhases()[5].getName().find('stance') != -1 and timeline.getActivePhases()[6].getName().find('flight') != -1:
+                active_flight_phases = timeline.getActivePhases()[6:6+self.__param_action['trot']['step_duration']]
+                self.__gait_manager.updateReferenceTrajectory(self.__current_solution, active_flight_phases, contact, 0.1)
+
+        init_phases = [timeline.getActivePhases()[0] for timeline in self.__gait_manager.getContactTimelines().values()]
+        if all(phase.getName().find('stance') != -1 for phase in init_phases):
+            ref = np.zeros([7])
+            ref[2] = self.__current_solution['q'][2, 0] #+ foot_pos_z
+            self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
+            
 
     def __set_base_commands(self):
 
         # =========================== X Y  ================================
-        # base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
-        #                                self.__current_solution['q'][1, 0], # x pos at node 1
-        #                                0., 0., 0., 0., 0.]]).T
-
-        base_reference_xy = np.atleast_2d(self.__base_pose_xy_task.getValues()[:, -1]).T
+        if self.__base_pose_xy_task.getCartesianType() == 'position':
+            base_reference_xy = np.array([[self.__current_solution['q'][0, 0], # x pos at node 0
+                                           self.__current_solution['q'][1, 0], # x pos at node 1
+                                           0., 0., 0., 0., 0.]]).T
+        else:
+            base_reference_xy = np.atleast_2d(self.__base_pose_xy_task.getValues()[:, -1]).T
 
         # move base on xy-axis in local frame
         linear_velocity_vector = np.array([self.__base_pose_weight * self.__base_vel_ref[0],
@@ -332,6 +302,7 @@ class GaitManagerROS:
 
         else:
             angular_velocity_vector = self.__base_rot_weight * self.__base_vel_ref[5]
+            # print(angular_velocity_vector)
             self.__base_yaw_ori_task.setRef(angular_velocity_vector)
 
 
