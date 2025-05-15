@@ -131,7 +131,7 @@ class GaitManagerROS:
         for param_name, ros_param in self.__walk_params_ros[action_name].items():
             self.__param_action[action_name][param_name] = rospy.get_param(f'/horizon/{action_name}/{param_name}')
 
-        self.__logger.log(f'{self.__param_action}')
+        # self.__logger.log(f'{self.__param_action}')
         return self.__param_action[action_name]
 
     def setBasePoseWeight(self, w):
@@ -244,10 +244,16 @@ class GaitManagerROS:
 
     def __update_swing_trj(self):
         for contact, timeline in self.__gait_manager.getContactTimelines().items():
-            if timeline.getActivePhases()[0].getName().find('stance') != -1 and timeline.getActivePhases()[1].getName().find('flight') != -1:
-                active_flight_phases = timeline.getActivePhases()[1:self.__param_action['trot']['step_duration']]
-                if timeline.getActivePhases()[1].getActiveNodes()[0] == 1:
-                    self.__gait_manager.updateReferenceTrajectory(active_flight_phases, contact, 0.1)
+            if timeline.getActivePhases()[5].getName().find('stance') != -1 and timeline.getActivePhases()[6].getName().find('flight') != -1:
+                active_flight_phases = timeline.getActivePhases()[6:6+self.__param_action['trot']['step_duration']]
+                self.__gait_manager.updateReferenceTrajectory(self.__current_solution, active_flight_phases, contact, 0.1)
+
+        init_phases = [timeline.getActivePhases()[0] for timeline in self.__gait_manager.getContactTimelines().values()]
+        if all(phase.getName().find('stance') != -1 for phase in init_phases):
+            ref = np.zeros([7])
+            ref[2] = self.__current_solution['q'][2, 0] #+ foot_pos_z
+            self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
+            
 
     def __set_base_commands(self):
 
@@ -296,7 +302,7 @@ class GaitManagerROS:
 
         else:
             angular_velocity_vector = self.__base_rot_weight * self.__base_vel_ref[5]
-            print(angular_velocity_vector)
+            # print(angular_velocity_vector)
             self.__base_yaw_ori_task.setRef(angular_velocity_vector)
 
 
