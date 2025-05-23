@@ -119,9 +119,9 @@ class GaitManagerROS:
 
         self.__action_dict = {
                                 OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
-                                OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot')),
+                                OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot'), solution=self.__current_solution),
                                 OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk')),
-                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl'))
+                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl'), solution=self.__current_solution)
                                 # OperationMode.DRAG: self.__gm.drag,
                                 # OperationMode.STEP: lambda: self.__gm.step(swing_contact='ball_1')
         }
@@ -185,12 +185,13 @@ class GaitManagerROS:
     def __switch_crawl_cb(self, req: SetBoolRequest):
 
         if req.data:
-            self.__operation_mode = OperationMode.CRAWL
+            # self.__operation_mode = OperationMode.CRAWL
+            pass
         else:
             if self.__operation_mode == OperationMode.CRAWL:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'crawl' action not available"}
 
     def __switch_trot_cb(self, req: SetBoolRequest):
 
@@ -205,32 +206,35 @@ class GaitManagerROS:
     def __switch_step_cb(self, req: SetBoolRequest):
 
         if req.data:
-            self.__operation_mode = OperationMode.STEP
+            # self.__operation_mode = OperationMode.STEP
+            pass
         else:
             if self.__operation_mode == OperationMode.STEP:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'step' action not available"}
 
     def __switch_drag_cb(self, req: SetBoolRequest):
 
         if req.data:
-            self.__operation_mode = OperationMode.DRAG
+            # self.__operation_mode = OperationMode.DRAG
+            pass
         else:
             if self.__operation_mode == OperationMode.DRAG:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'drag' action not available"}
 
     def __switch_walk_cb(self, req: SetBoolRequest):
 
         if req.data:
-            self.__operation_mode = OperationMode.WALK
+            # self.__operation_mode = OperationMode.WALK
+            pass
         else:
             if self.__operation_mode == OperationMode.WALK:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'walk' action not available"}
 
     def __set_phases(self, *args, **kwargs):
 
@@ -243,16 +247,18 @@ class GaitManagerROS:
                 self.__logger.log("Invalid operation mode")
 
     def __update_swing_trj(self):
-        for contact, timeline in self.__gait_manager.getContactTimelines().items():
-            if timeline.getActivePhases()[5].getName().find('stance') != -1 and timeline.getActivePhases()[6].getName().find('flight') != -1:
-                active_flight_phases = timeline.getActivePhases()[6:6+self.__param_action['trot']['step_duration']]
-                self.__gait_manager.updateReferenceTrajectory(self.__current_solution, active_flight_phases, contact, 0.1)
+        # for contact, timeline in self.__gait_manager.getContactTimelines().items():
+        #     if timeline.getActivePhases()[20].getName().find('stance') != -1 and timeline.getActivePhases()[21].getName().find('flight') != -1:
+        #         active_flight_phases = timeline.getActivePhases()[6:6+self.__param_action['trot']['step_duration']]
+        #         self.__gait_manager.updateReferenceTrajectory(self.__current_solution, active_flight_phases, contact, 0.1)
 
         init_phases = [timeline.getActivePhases()[0] for timeline in self.__gait_manager.getContactTimelines().values()]
         if all(phase.getName().find('stance') != -1 for phase in init_phases):
             ref = np.zeros([7])
             ref[2] = self.__current_solution['q'][2, 0] #+ foot_pos_z
+            # ref[3:] = self.__current_solution['q'][3:7, 0]
             self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
+            # self.__ti.getTask('base_orientation').setRef(np.atleast_2d(ref).T)
             
 
     def __set_base_commands(self):

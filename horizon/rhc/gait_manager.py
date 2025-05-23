@@ -5,6 +5,7 @@ import colorama
 from horizon.utils import trajectoryGenerator
 from horizon.utils import logger
 from functools import partial
+from scipy.spatial.transform import Rotation
 
 # how to operate:
 # ~/forest_ws/src/unitree_mujoco/simulate/build  ./unitree_mujoco
@@ -81,7 +82,6 @@ class SwingTrajectory:
         self.setSwingTrajectoryToPhases(phases, contact, z_height)
 
     def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
-
 
         flight_duration = len(phases)
         ref_trj_z = np.zeros(shape=[7, 1])
@@ -186,7 +186,8 @@ class PhaseGaitWrapper:
             if contact_flag == 0:
                 self.__add_phase(contact_timeline, self.__flight_phases[contact_name], duration=kwargs['duration'])
                 if self.__swing_flag:
-                    self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    self.__swing_trajectory_manager.updateReferenceTrajectory(kwargs['solution'], contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    # self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
                     
             else:
                 self.__add_phase(contact_timeline, self.__stance_phases[contact_name], duration=kwargs['duration'])
@@ -241,28 +242,96 @@ class PhaseGaitWrapper:
         self.__add_cycle([1, 1], duration=double_stance)
 
     def __crawl(self, **kwargs):
-
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
         double_stance = kwargs['double_stance']
+        solution = kwargs['solution']
 
-        self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+        q = solution['q'][:, 0]
+        w_R_b = Rotation.from_quat([q[3], q[4], q[5], q[6]]).as_matrix()
+
+        vref = self.__task_interface.getTask('final_base_xy').ref.getValues()[:, 0]
+
+        vref= w_R_b[:2, :2].T @ vref.T
+        vx, vy = vref[0], vref[1]
+        omega = self.__task_interface.getTask('base_yaw_orientation').ref.getValues()[0, 0] 
+
+        if vx**2 + vy**2 <= omega**2:
+
+            # turning gait
+            if omega > 0:
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+            else:
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+        else:
+            # forward
+            if vx > abs(vy): 
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+
+            elif vx < -abs(vy):
+                # backward
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+
+            elif vy > abs(vx):
+                # left
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+                
+            else:
+                # right
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+
 
     def __trot(self, **kwargs):
 
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
         double_stance = kwargs['double_stance']
+        solution = kwargs['solution']
 
-        self.__add_cycle([0, 1, 1, 0], duration=step_duration, height=step_height)
+        self.__add_cycle([0, 1, 1, 0], duration=step_duration, height=step_height, solution=solution)
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height, solution=solution)
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
 
 class GaitManager:
