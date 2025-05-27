@@ -60,6 +60,9 @@ class FullModelInverseDynamics:
         self.state_vec['q'] = self.prb.createStateVariable('q', self.nq)
         self.state_vec['v'] = self.prb.createStateVariable('v', self.nv)
 
+        self.gravity = self.prb.createParameter('g', 3)
+        self.gravity.assign([0, 0, -9.81])
+
         # minimum order 2
         n_degree = self.sys_order_degree - 2
 
@@ -292,8 +295,8 @@ class FullModelInverseDynamics:
                 nodes = range(self.prb.getNNodes())
 
 
-            self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame)
-            self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap)
+            self.id_fn = kin_dyn.InverseDynamics(self.kd, self.fmap.keys(), self.kd_frame, sym_g=True)
+            self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap, g=self.gravity)
             self.prb.createConstraint('dynamics', self.tau[:6], nodes=nodes)
 
             black_list_indices = list()

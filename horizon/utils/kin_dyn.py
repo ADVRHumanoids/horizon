@@ -216,7 +216,7 @@ class InverseDynamics():
     Class which computes inverse dynamics:
     given generalized position, velocities, accelerations and contact forces, returns generalized torques
     """
-    def __init__(self, kindyn, contact_frames = [], force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL):
+    def __init__(self, kindyn, contact_frames = [], force_reference_frame = cas_kin_dyn.CasadiKinDyn.LOCAL, sym_g = False):
         """
         Args:
             kindyn: casadi_kin_dyn object
@@ -226,12 +226,13 @@ class InverseDynamics():
                 WORLD
                 LOCAL_WORLD_ALIGNED
         """
-        self.id = kindyn.rnea()
+        self.id = kindyn.rnea(sym_g)
+        self.sym_g = sym_g
         self.contact_jacobians = dict()
         for frame in contact_frames:
             self.contact_jacobians[frame] = kindyn.jacobian(frame, force_reference_frame)
 
-    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0):
+    def call(self, q, qdot, qddot, frame_force_mapping=dict(), tau_ext=0, g=None):
         """
         Computes generalized torques:
         Args:
@@ -244,6 +245,12 @@ class InverseDynamics():
         Returns:
             tau: generalized torques
         """
+        args = dict(q=q, v=qdot, a=qddot)
+        if self.sym_g:
+            if g is None:
+                raise RuntimeError("gravity is symbolic, provide g vector to the ID call")
+            args.update({"g": g})
+        
         JtF_sum = 0
         for frame, wrench in frame_force_mapping.items():
             J = self.contact_jacobians[frame](q=q)['J']
@@ -253,7 +260,7 @@ class InverseDynamics():
                 JtF = cs.mtimes(J.T, wrench)
             JtF_sum += JtF
 
-        tau = self.id(q=q, v=qdot, a=qddot)['tau'] - JtF_sum - tau_ext
+        tau = self.id(**args)['tau'] - JtF_sum - tau_ext
         return tau
 
 
