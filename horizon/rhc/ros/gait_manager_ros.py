@@ -134,10 +134,9 @@ class GaitManagerROS:
         self.__action_dict = {
                                 OperationMode.IDLE: partial(self.__gait_manager.action, 'stand'),
                                 OperationMode.STAND: partial(self.__gait_manager.action, 'stand'),
-                                OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot')),
+                                OperationMode.TROT:  lambda: self.__gait_manager.action('trot', **self.__get_params('trot'), solution=self.__current_solution),
                                 OperationMode.WALK: lambda: self.__gait_manager.action('walk', **self.__get_params('walk')),
-                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl')),
-                                # OperationMode.POSTURAL: lambda: self.__gait_manager.action('postural', **self.__get_params('postural'))
+                                OperationMode.CRAWL: lambda: self.__gait_manager.action('crawl', **self.__get_params('crawl'), solution=self.__current_solution)
                                 # OperationMode.DRAG: self.__gm.drag,
                                 # OperationMode.STEP: lambda: self.__gm.step(swing_contact='ball_1')
         }
@@ -275,7 +274,7 @@ class GaitManagerROS:
             if self.__operation_mode == OperationMode.CRAWL:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'crawl' action not available"}
 
     def __switch_trot_cb(self, req: SetBoolRequest):
 
@@ -309,7 +308,7 @@ class GaitManagerROS:
             if self.__operation_mode == OperationMode.STEP:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'step' action not available"}
 
     def __switch_drag_cb(self, req: SetBoolRequest):
 
@@ -326,7 +325,7 @@ class GaitManagerROS:
             if self.__operation_mode == OperationMode.DRAG:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'drag' action not available"}
 
     def __switch_walk_cb(self, req: SetBoolRequest):
 
@@ -343,7 +342,7 @@ class GaitManagerROS:
             if self.__operation_mode == OperationMode.WALK:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': True}
+        return {'success': False, 'message': "'walk' action not available"}
 
 
     def __set_phases(self, *args, **kwargs):
@@ -366,7 +365,9 @@ class GaitManagerROS:
         if all(phase.getName().find('stance') != -1 for phase in init_phases):
             ref = np.zeros([7])
             ref[2] = self.__current_solution['q'][2, 0] #+ foot_pos_z
+            # ref[3:] = self.__current_solution['q'][3:7, 0]
             self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
+            # self.__ti.getTask('base_orientation').setRef(np.atleast_2d(ref).T)
             
 
     def __set_base_commands(self):
