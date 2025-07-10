@@ -97,11 +97,11 @@ class replay_trajectory:
         self.future_tv = dict()
 
         if node is None:
-            try:
-                self.node = rclpy.create_node('joint_state_publisher')
-                rclpy.get_global_executor().add_node(self.node)
-            except rclpy.exceptions.ROSException as e:
-                pass
+            # check if rclpy is initialized
+            if not rclpy.ok():
+                rclpy.init(args=None)
+            self.node = rclpy.create_node('joint_state_publisher')
+            rclpy.get_global_executor().add_node(self.node)
         else:
             self.node = node
         
@@ -211,7 +211,7 @@ class replay_trajectory:
         joint_state_pub.name = self.joints_1dof + list(self.fixed_joint_map.keys())
         t = self.node.get_clock().now().to_msg()
         br = self.br
-        nq = len(qk)
+        qk = qk.flatten()
 
         for iq, (parent, child) in zip(self.iq_floating, self.parent_child_floating):
 
