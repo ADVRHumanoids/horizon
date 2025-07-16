@@ -1,20 +1,40 @@
 import colorama
 import random
+import warnings
+
 class Logger:
     def __init__(self, self_class, color=None):
-        self.__color_class = colorama.Fore.MAGENTA
-
         blacklist = ['BLACK', 'LIGHTBLACK_EX', 'LIGHTWHITE_EX']
-        colors = list()
+        valid_colors = {
+            name.upper(): val
+            for name, val in vars(colorama.Fore).items()
+            if name.upper() not in blacklist
+        }
+        colors = list(valid_colors.values())
 
-        for name, color in vars(colorama.Fore).items():
-            if name not in blacklist:
-                colors.append(color)
+        def warn_colored(message):
+            print(
+                colorama.Fore.YELLOW + "[Logger Warning] " + message + colorama.Fore.RESET
+            )
 
-        if not color:
-            self.__color_class = random.choice(colors)
+        if isinstance(color, str):
+            color_upper = color.upper()
+            if color_upper in valid_colors:
+                self.__color_class = valid_colors[color_upper]
+            else:
+                warn_colored(
+                    f"Invalid color '{color}'. Falling back to random color.\n"
+                    f"Valid options are: {', '.join(valid_colors.keys())}"
+                )
+                self.__color_class = random.choice(colors)
+        elif color in colors or color is None:
+            self.__color_class = color or random.choice(colors)
         else:
-            self.__color_class = color
+            warn_colored(
+                "Invalid color format. Falling back to random color.\n"
+                "Use a valid colorama.Fore color or color name string."
+            )
+            self.__color_class = random.choice(colors)
 
         self.name_class = self_class.__class__.__name__
 
