@@ -1105,64 +1105,64 @@ class Problem:
         data = dict()
 
         data['n_nodes'] = self.getNNodes() - 1
+        data['dt'] = self.getDt()
 
         # save state variables
-        data['state'] = list()
+        data['state'] = dict()
         for sv in self.getState():
             var_data = dict()
-            var_data['name'] = sv.getName()
             var_data['size'] = sv.size1()
             var_data['lb'] = sv.getLowerBounds().flatten('F').tolist()
             var_data['ub'] = sv.getUpperBounds().flatten('F').tolist()
             var_data['initial_guess'] = sv.getInitialGuess().flatten('F').tolist()
-            data['state'].append(var_data)
+            data['state'][sv.getName()] = var_data
 
         # save input variables
-        data['input'] = list()
+        data['input'] = dict()
         for sv in self.getInput():
             var_data = dict()
-            var_data['name'] = sv.getName()
             var_data['size'] = sv.size1()
             var_data['lb'] = sv.getLowerBounds().flatten('F').tolist()
             var_data['ub'] = sv.getUpperBounds().flatten('F').tolist()
             var_data['initial_guess'] = sv.getInitialGuess().flatten('F').tolist()
-            data['input'].append(var_data)
+            data['input'][sv.getName()] = var_data
 
         # save parameters
         data['param'] = dict()
         for p in self.var_container.getParList():
             var_data = dict()
-            var_data['name'] = p.getName()
             var_data['size'] = p.getDim()
             var_data['values'] = p.getValues().flatten('F').tolist()
-            data['param'][var_data['name']] = var_data
+            data['param'][p.getName()] = var_data
 
         # save cost and constraints
         data['cost'] = dict()
         for f in self.function_container.getCost().values():
             f: fc.Function = f
             var_data = dict()
-            var_data['name'] = f.getName()
+            nodes = f.getNodes()
             var_data['repr'] = str(f.getFunction())
             var_data['var_depends'] = [v.getName() for v in f.getVariables()]
             var_data['param_depends'] = [v.getName() for v in f.getParameters()]
-            var_data['nodes'] = f.getNodes()
+            var_data['nodes'] = nodes if isinstance(nodes, list) else nodes.tolist()
             var_data['function'] = f.getFunction().serialize()
-            data['cost'][var_data['name']] = var_data
+            data['cost'][f.getName()] = var_data
 
         data['constraint'] = dict()
         for f in self.function_container.getCnstr().values():
             f: fc.Function = f
             var_data = dict()
-            var_data['name'] = f.getName()
+            nodes = f.getNodes()
             var_data['repr'] = str(f.getFunction())
             var_data['var_depends'] = [v.getName() for v in f.getVariables()]
             var_data['param_depends'] = [v.getName() for v in f.getParameters()]
-            var_data['nodes'] = f.getNodes()
+            var_data['nodes'] = nodes if isinstance(nodes, list) else nodes.tolist()
             var_data['function'] = f.getFunction().serialize()
             var_data['lb'] = f.getLowerBounds().flatten('F').tolist()
             var_data['ub'] = f.getUpperBounds().flatten('F').tolist()
-            data['constraint'][var_data['name']] = var_data
+            data['constraint'][f.getName()] = var_data
+
+        data['dynamics'] = self.getIntegrator().serialize()
 
         return data
 

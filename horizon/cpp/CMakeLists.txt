@@ -105,5 +105,10 @@ target_link_libraries(sqp_test sqp)
 add_executable(sqp_test2 src/sqp_test2.cpp)
 target_link_libraries(sqp_test2 sqp)
 
+add_executable(parser_test src/parser_test.cpp)
+target_link_libraries(parser_test ilqr horizon yaml-cpp)
+
+add_executable(classes_test src/classes_test.cpp)
+target_link_libraries(classes_test ilqr horizon yaml-cpp)
 
 add_subdirectory(tests)
