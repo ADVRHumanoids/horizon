@@ -1,40 +1,40 @@
 #! /usr/bin/env python
 import copy
 import random
-import rclpy
+import rospy
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import TwistStamped, Pose, Point, Vector3, Quaternion
 from std_msgs.msg import Header, ColorRGBA, String
 from sensor_msgs.msg import JointState
 import subprocess
 import time
-# from numpy_ros import to_numpy, to_message
 
 
 class TrajectoryViewer:
 
-    def __init__(self, frame, opts=None, node=None):
+    def __init__(self, frame, opts=None):
 
         self.__init_opts(opts)
 
         self.frame = frame
         self.count = 0
-        if node is None:
-            try:
-                self.node = rclpy.create_node('trajectory_viewer')
-                rclpy.get_global_executor().add_node(self.node)
-            except rclpy.exceptions.ROSException as e:
-                pass
-        else:
-            self.node = node
-        self.sphere_publisher = self.node.create_publisher(MarkerArray, self.prefix + self.frame, 100)
-        self.line_publisher = self.node.create_publisher(MarkerArray, self.prefix + self.frame, 100)
+        self.sphere_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
+        self.line_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
 
-        # rclpy.Subscriber("/joint_states", JointState, self.event_in_cb)
+        # rospy.Subscriber("/joint_states", JointState, self.event_in_cb)
         self.a = [1, 1, 1]
         self.sphere_array = MarkerArray()
         self.line_array = MarkerArray()
-        time.sleep(0.5)
+        rospy.sleep(0.5)
+
+    def to_point_message(self, arr):
+
+        msg = Point()
+        if isinstance(arr, np.ndarray):
+            arr = arr.tolist()
+
+        msg.x, msg.y, msg.z = arr
+        return msg
 
     # def event_in_cb(self, msg):
     #     self.waypoints = msg
@@ -63,10 +63,7 @@ class TrajectoryViewer:
         if 'scale' in opts:
             self.scale = opts['scale']
         else:
-            self.scale = Vector3()
-            self.scale.x = 0.01
-            self.scale.y = 0.01
-            self.scale.z = 0.01
+            self.scale = Vector3(0.01, 0.01, 0.01)
 
     def publish_sphere(self, action=None, markers_max=1000, marker_lifetime=10):
 
@@ -82,7 +79,7 @@ class TrajectoryViewer:
         marker = Marker(
                         type=Marker.SPHERE,
                         action=action,
-                        lifetime=rclpy.Duration(marker_lifetime),
+                        lifetime=rospy.Duration(marker_lifetime),
                         pose=Pose(Point(self.a[0] / 10 ** 5, self.a[1] / 10 ** 5, self.a[2] / 10 ** 5), Quaternion(0, 0, 0, 1)),
                         scale=self.scale,
                         header=Header(frame_id=self.parent),
@@ -90,7 +87,7 @@ class TrajectoryViewer:
                         )
 
         # self.marker.id = self.count
-        marker.header.stamp = rclpy.Time.now()
+        marker.header.stamp = rospy.Time.now()
 
         if (self.count > self.markers_max):
             if self.sphere_array.markers:
@@ -120,7 +117,7 @@ class TrajectoryViewer:
 
         for col in range(points.shape[1]):
 
-            point = Point(points[:3, col])
+            point = self.to_point_message(points[:3, col])
             marker.points.append(point)
 
         self.line_array.markers.append(marker)
@@ -128,28 +125,28 @@ class TrajectoryViewer:
 
 
 if __name__ == '__main__':
-    # rclpy.init_node("trajectory_interactive_markers_node", anonymous=True)
+    # rospy.init_node("trajectory_interactive_markers_node", anonymous=True)
     # tv = TrajectoryViewer()
     #
-    # rate = rclpy.Rate(1 / 0.01)
-    # while not rclpy.is_shutdown():
+    # rate = rospy.Rate(1 / 0.01)
+    # while not rospy.is_shutdown():
     #     tv.publish_once('ball_1')
     #     rate.sleep()
     # #
-    # # rclpy.sleep(0.5)
-    # # rclpy.spin()
+    # # rospy.sleep(0.5)
+    # # rospy.spin()
     import numpy as np
-    rclpy.init_node("something", anonymous=True)
+    rospy.init_node("something", anonymous=True)
     tv = TrajectoryViewer("com")
 
     vec = np.array([[1, 1, 1, 0, 0, 0, 1],
                     [2, 2, 1, 0, 0, 0, 1],
                     [3, 1, 3, 0, 0, 0, 1]])
 
-    rate = rclpy.Rate(1 / 0.01)
-    while not rclpy.is_shutdown():
+    rate = rospy.Rate(1 / 0.01)
+    while not rospy.is_shutdown():
         tv.publish_once_pose(vec)
         rate.sleep()
     #
-    # rclpy.sleep(0.5)
-    # rclpy.spin()
+    # rospy.sleep(0.5)
+    # rospy.spin()
