@@ -8,7 +8,6 @@ from std_msgs.msg import Header, ColorRGBA, String
 from sensor_msgs.msg import JointState
 import subprocess
 import time
-from numpy_ros import to_numpy, to_message
 
 
 class TrajectoryViewer:
@@ -27,6 +26,15 @@ class TrajectoryViewer:
         self.sphere_array = MarkerArray()
         self.line_array = MarkerArray()
         rospy.sleep(0.5)
+
+    def to_point_message(self, arr):
+
+        msg = Point()
+        if isinstance(arr, np.ndarray):
+            arr = arr.tolist()
+
+        msg.x, msg.y, msg.z = arr
+        return msg
 
     # def event_in_cb(self, msg):
     #     self.waypoints = msg
@@ -109,7 +117,7 @@ class TrajectoryViewer:
 
         for col in range(points.shape[1]):
 
-            point = to_message(Point, points[:3, col])
+            point = self.to_point_message(points[:3, col])
             marker.points.append(point)
 
         self.line_array.markers.append(marker)
