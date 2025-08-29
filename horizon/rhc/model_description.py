@@ -299,17 +299,17 @@ class FullModelInverseDynamics:
             self.tau = self.id_fn.call(self.state_vec['q'], self.state_vec['v'], a, self.fmap, g=self.gravity)
             self.prb.createConstraint('dynamics', self.tau[:6], nodes=nodes)
 
-            black_list_indices = list()
-            # black_list = [#'LShLat', 'LShSag', 'LShYaw', 'LElbj', 'LForearmPlate', 'LWrj1',
-            #'RShLat', 'RShSag', 'RShYaw', 'RElbj', 'RForearmPlate', 'RWrj1',
-            #'WaistLat', 'WaistYaw',
-            # 'LAnklePitch', 'RAnklePitch']
-            black_list = []
-            selected_joints = np.array(list(range(6, self.nv)))
-            for joint in black_list:
-                black_list_indices.append(self.joint_names.index(joint))
-            selected_joints = np.delete(selected_joints, black_list_indices)
-            # self.prb.createIntermediateResidual('min_tau', 0.1 * self.tau)
+            # black_list_indices = list()
+            # white_list_indices = list()
+            # white_list = ['hip_roll_1', 'hip_roll_2', 'hip_roll_3', 'hip_roll_4']
+            # for joint in white_list:
+            #     white_list_indices.append(6 + self.joint_names.index(joint))
+            # black_list = []
+            # selected_joints = np.array(list(range(6, self.nv)))
+            # for joint in black_list:
+            #     black_list_indices.append(self.joint_names.index(joint))
+            # selected_joints = np.delete(selected_joints, black_list_indices)
+            # self.prb.createIntermediateResidual('min_tau', 0.1 * self.tau[white_list_indices])
         # else:
         #     id_fn = kin_dyn.InverseDynamics(self.kd)
 

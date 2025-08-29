@@ -68,6 +68,10 @@ class GaitManagerROS:
 
         self.__base_vel_ref = np.zeros(6)
 
+        # check for all stance at the first node of the timeline
+        self.all_stance = True
+        self.is_first_all_stance = True
+
         # open ros services
         self.__switch_crawl_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
         self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
@@ -254,11 +258,15 @@ class GaitManagerROS:
 
         init_phases = [timeline.getActivePhases()[0] for timeline in self.__gait_manager.getContactTimelines().values()]
         if all(phase.getName().find('stance') != -1 for phase in init_phases):
+            self.is_first_all_stance = not self.all_stance
+            self.all_stance = True
+
             ref = np.zeros([7])
             ref[2] = self.__current_solution['q'][2, 0] #+ foot_pos_z
-            # ref[3:] = self.__current_solution['q'][3:7, 0]
             self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
-            # self.__ti.getTask('base_orientation').setRef(np.atleast_2d(ref).T)
+        else:
+            self.all_stance = False
+            self.is_first_all_stance = False
             
 
     def __set_base_commands(self):
