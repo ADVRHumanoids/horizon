@@ -1,0 +1,10 @@
+solver:
+  type: ilqr
+costs:
+- postural_1
+postural_1:
+  type: Postural
+  weight: 0.56
+  postural_ref:
+  - 32.0
+  - 15.0

@@ -2,339 +2,6 @@
 
 using namespace horizon;
 
-Bounds::Bounds(int dim, int n_nodes):
-_dim(dim),
-_n_nodes(n_nodes)
-{
-    _lower_bounds.resize(_dim, _n_nodes);
-    _upper_bounds.resize(_dim, _n_nodes);
-}
-
-bool Bounds::setLowerBounds(const Eigen::MatrixXd& lower_bounds, const std::vector<int>& nodes)
-{
-
-    if (nodes.empty())
-    {
-        _lower_bounds = lower_bounds;
-        std::cout << "lb: \n" << lower_bounds << std::endl;
-    }
-    else
-    {
-        std::cout << "lb at nodes: " << std::endl;
-
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "with values: \n" << lower_bounds << std::endl;
-
-         for (int i = 0; i < nodes.size(); i++) {
-             _lower_bounds(nodes[i]) = lower_bounds(i);
-         }
-
-    }
-
-
-     return true;
-}
-
-bool Bounds::setUpperBounds(const Eigen::MatrixXd& upper_bounds, const std::vector<int>& nodes)
-{
-    if (nodes.empty())
-    {
-        _upper_bounds = upper_bounds;
-        std::cout << "ub: \n" << upper_bounds << std::endl;
-    }
-    else
-    {
-        std::cout << "ub at nodes: " << std::endl;
-
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "with values: \n" << upper_bounds << std::endl;
-
-         for (int i = 0; i < nodes.size(); i++) {
-             _upper_bounds(nodes[i]) = upper_bounds(i);
-         }
-
-    }
-
-
-     return true;
-}
-
-bool Bounds::setBounds(const Eigen::MatrixXd& lower_bounds, const Eigen::MatrixXd& upper_bounds, const std::vector<int>& nodes)
-{
-    setLowerBounds(lower_bounds, nodes);
-    setUpperBounds(upper_bounds, nodes);
-    return true;
-}
-
-std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> Bounds::getBounds()
-{
-    return {_lower_bounds, _upper_bounds};
-}
-
-Eigen::MatrixXd Bounds::getLowerBounds()
-{
-    return _lower_bounds;
-}
-
-Eigen::MatrixXd Bounds::getUpperBounds()
-{
-    return _upper_bounds;
-}
-
-
-Variable::Variable(std::string name, int dim, int n_nodes):
-    _name(name),
-    _dim(dim),
-    _n_nodes(n_nodes)
-{
-
-    _initial_guess.resize(_dim, _n_nodes);
-    _bounds = std::make_unique<Bounds>(_dim, _n_nodes);
-
-    _sym = casadi::SX::sym(_name, _dim);
-}
-
-bool Variable::setNodes(std::vector<int> nodes, bool erasing)
-{
-    _nodes = nodes;
-    return true;
-}
-
-bool Variable::setLowerBounds(Eigen::MatrixXd lb, std::vector<int> nodes)
-{
-    return _bounds->setLowerBounds(lb, nodes);
-}
-
-bool Variable::setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes)
-{
-    return _bounds->setUpperBounds(ub, nodes);
-}
-
-bool Variable::setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> nodes)
-{
-    if (nodes.empty())
-    {
-        _initial_guess = initial_guess;
-        std::cout << "ig: \n" << initial_guess << std::endl;
-    }
-    else
-    {
-        std::cout << "ig at nodes: " << std::endl;
-
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "with values: \n" << initial_guess << std::endl;
-
-         for (int i = 0; i < nodes.size(); i++) {
-             _initial_guess(nodes[i]) = initial_guess(i);
-         }
-
-    }
-
-
-     return true;
-}
-
-std::vector<int> Variable::getNodes()
-{
-    return _nodes;
-}
-
-std::string Variable::getName()
-{
-    return _name;
-}
-
-int Variable::getDim()
-{
-    return _dim;
-}
-
-Eigen::MatrixXd Variable::getLowerBounds()
-{
-    return _bounds->getLowerBounds();
-}
-
-Eigen::MatrixXd Variable::getUpperBounds()
-{
-    return _bounds->getUpperBounds();
-}
-
-Eigen::MatrixXd Variable::getInitialGuess()
-{
-    return _initial_guess;
-}
-
-casadi::SX Variable::getSym()
-{
-    return _sym;
-}
-
-Parameter::Parameter(std::string name, int dim, int n_nodes):
-    _name(name),
-    _dim(dim),
-    _n_nodes(n_nodes)
-{
-    _values.resize(_dim, _n_nodes);
-
-    _sym = casadi::SX::sym(_name, _dim);
-}
-
-bool Parameter::setNodes(std::vector<int> nodes, bool erasing)
-{
-    _nodes = nodes;
-    return true;
-}
-
-bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>& nodes)
-{
-
-    if (nodes.empty())
-    {
-        _values = values;
-        std::cout << "parameter values: \n" << values << std::endl;
-    }
-    else
-    {
-        std::cout << "par at nodes: " << std::endl;
-
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
-        std::cout << "with values: \n" << values << std::endl;
-
-         for (int i = 0; i < nodes.size(); i++) {
-             _values(nodes[i]) = values(i);
-         }
-
-    }
-
-
-     return true;
-}
-
-std::vector<int> Parameter::getNodes()
-{
-    return _nodes;
-}
-
-std::string Parameter::getName()
-{
-    return _name;
-}
-
-int Parameter::getDim()
-{
-    return _dim;
-}
-
-Eigen::MatrixXd Parameter::getValues()
-{
-    return _values;
-}
-
-
-casadi::SX Parameter::getSym()
-{
-    return _sym;
-}
-
-
-Function::Function(casadi::Function fun, int n_nodes):
-    _n_nodes(n_nodes)
-{
-    _name = fun.name();
-    _dim = fun.size1_out(0);
-    _fun = fun;
-
-//    _nodes.resize(n_nodes);
-//    for (int i = 0; i < n_nodes; ++i)
-//    {
-//        _nodes[i] = i;
-//    }
-
-}
-
-std::vector<int> Function::getNodes()
-{
-    return _nodes;
-}
-
-std::string Function::getName()
-{
-    return _name;
-}
-
-int Function::getDim()
-{
-    return _dim;
-}
-
-casadi::Function Function::getFunction()
-{
-    return _fun;
-}
-
-Constraint::Constraint(casadi::Function fun, int n_nodes):
-    Function(fun, n_nodes)
-{
-    _bounds = std::make_unique<Bounds>(getDim(), n_nodes);
-}
-
-bool Constraint::setNodes(std::vector<int> nodes, bool erasing)
-{
-    // also setting nodes to _bounds?
-    _nodes = nodes;
-    return true;
-}
-
-bool Constraint::setLowerBounds(Eigen::MatrixXd lb, std::vector<int> nodes)
-{
-    return _bounds->setLowerBounds(lb, nodes);
-}
-
-bool Constraint::setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes)
-{
-    return _bounds->setUpperBounds(ub, nodes);
-}
-
-Eigen::MatrixXd Constraint::getLowerBounds()
-{
-    return _bounds->getLowerBounds();
-}
-
-Eigen::MatrixXd Constraint::getUpperBounds()
-{
-    return _bounds->getUpperBounds();
-}
-
-Cost::Cost(casadi::Function fun, int n_nodes):
-    Function(fun, n_nodes)
-{
-}
-
-bool Cost::setNodes(std::vector<int> nodes, bool erasing)
-{
-    _nodes = nodes;
-    return true;
-}
-
 Variable::Ptr Problem::yaml_to_variable(std::pair<YAML::Node, YAML::Node> item)
 {
 
@@ -351,13 +18,16 @@ Variable::Ptr Problem::yaml_to_variable(std::pair<YAML::Node, YAML::Node> item)
     {
         auto lb_yaml = var_data["lb"].as<std::vector<double>>();
         auto ub_yaml = var_data["ub"].as<std::vector<double>>();
-        auto ini = var_data["initial_guess"].as<std::vector<double>>();
+        auto ini_yaml = var_data["initial_guess"].as<std::vector<double>>();
 
         auto lb = Eigen::MatrixXd::Map(lb_yaml.data(), size, lb_yaml.size()/size);
         var->setLowerBounds(lb);
 
         auto ub = Eigen::MatrixXd::Map(ub_yaml.data(), size, ub_yaml.size()/size);
         var->setUpperBounds(ub);
+
+        auto ini = Eigen::MatrixXd::Map(ini_yaml.data(), size, ini_yaml.size()/size);
+        var->setInitialGuess(ini);
 
     }
     catch(YAML::Exception&)
@@ -381,7 +51,6 @@ Parameter::Ptr Problem::yaml_to_parameter(std::pair<YAML::Node, YAML::Node> item
     try
     {
         auto values_yaml = var_data["values"].as<std::vector<double>>();
-        std::cout << values_yaml << std::endl;
         auto values = Eigen::MatrixXd::Map(values_yaml.data(), size, values_yaml.size()/size);
         var->setValues(values);
     }
@@ -576,6 +245,9 @@ void Problem::from_yaml(YAML::Node problem_yaml)
     // retrive costs
     for(auto item : problem_yaml["cost"])
     {
+
+         std::cout << "----- creating cost function: -------" << std::endl;
+
         auto f = yaml_to_cost(item);
 
         cost_map[f->getName()] = f;
@@ -585,7 +257,7 @@ void Problem::from_yaml(YAML::Node problem_yaml)
     for(auto item : problem_yaml["constraint"])
     {
 
-        std::cout << "----- creating constraint constraint function: -------" << std::endl;
+        std::cout << "----- creating constraint function: -------" << std::endl;
 
         auto f = yaml_to_constraint(item);
 

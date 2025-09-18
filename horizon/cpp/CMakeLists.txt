@@ -12,6 +12,10 @@ find_package(Eigen3 REQUIRED)
 find_package(casadi REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
+#find_package(phase_manager REQUIRED)
+
+find_package(catkin REQUIRED COMPONENTS phase_manager)
+
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 set(CMAKE_CXX_STANDARD 20)
 
@@ -30,6 +34,9 @@ add_library(ilqr STATIC
     src/profiling.cpp
     src/codegen_function.cpp
     src/iterate_filter.cpp
+    src/variables.cpp
+    src/bounds.cpp
+    src/functions.cpp
 )
 
 # sqp library
@@ -110,5 +117,8 @@ target_link_libraries(parser_test ilqr horizon yaml-cpp)
 
 add_executable(classes_test src/classes_test.cpp)
 target_link_libraries(classes_test ilqr horizon yaml-cpp)
+
+add_executable(phase_manager_test src/phase_manager_test.cpp)
+target_link_libraries(phase_manager_test ilqr horizon yaml-cpp ${catkin_LIBRARIES})
 
 add_subdirectory(tests)
