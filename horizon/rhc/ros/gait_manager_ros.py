@@ -185,13 +185,12 @@ class GaitManagerROS:
     def __switch_crawl_cb(self, req: SetBoolRequest):
 
         if req.data:
-            # self.__operation_mode = OperationMode.CRAWL
-            pass
+            self.__operation_mode = OperationMode.CRAWL
         else:
             if self.__operation_mode == OperationMode.CRAWL:
                 self.__operation_mode = OperationMode.STAND
 
-        return {'success': False, 'message': "'crawl' action not available"}
+        return {'success': True}
 
     def __switch_trot_cb(self, req: SetBoolRequest):
 
