@@ -258,8 +258,14 @@ class GaitManagerROS:
             # ref[3:] = self.__current_solution['q'][3:7, 0]
             self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
             # self.__ti.getTask('base_orientation').setRef(np.atleast_2d(ref).T)
-            
-
+    
+    def __update_height(self):
+        init_phases = [timeline.getActivePhases()[0] for timeline in self.__gait_manager.getContactTimelines().values()]
+        if all(phase.getName().find('stance') != -1 for phase in init_phases):
+            ref = np.zeros([7])
+            ref[2] = self.__current_solution['q'][2, 0]
+            self.__ti.getTask('com_height').setRef(np.atleast_2d(ref).T)
+        
     def __set_base_commands(self):
 
         # =========================== X Y  ================================
@@ -333,7 +339,10 @@ class GaitManagerROS:
         self.__set_phases()
 
         # update swing trj
-        self.__update_swing_trj()
+        # self.__update_swing_trj()
+
+        # update height task
+        self.__update_height() 
 
         # set base_commands
         self.__set_base_commands()
