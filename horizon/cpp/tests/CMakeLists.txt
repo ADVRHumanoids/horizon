@@ -26,7 +26,7 @@ link_directories(${GTEST_LIB_DIRS})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} )
 enable_testing()
 
-SET(TestLibs ilqr ${GTEST_BOTH_LIBRARIES} pthread Eigen3::Eigen casadi)
+SET(TestLibs ilqr ${GTEST_BOTH_LIBRARIES} pthread Eigen3::Eigen casadi::casadi)
 
 
 set(HORIZON_CPP_TESTS

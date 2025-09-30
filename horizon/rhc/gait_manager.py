@@ -5,6 +5,9 @@ import colorama
 from horizon.utils import trajectoryGenerator
 from horizon.utils import logger
 from functools import partial
+from scipy.spatial.transform import Rotation
+
+import time
 
 # how to operate:
 # ~/forest_ws/src/unitree_mujoco/simulate/build  ./unitree_mujoco
@@ -17,6 +20,8 @@ class SwingTrajectory:
         self.__trajectory_generator = trajectoryGenerator.TrajectoryGenerator()
 
         self.__z_task_list = task_list.copy()
+
+        self.__flight_nodes_list = None
 
         self.__task_interface = task_interface
         self.__model = self.__task_interface.model
@@ -34,6 +39,7 @@ class SwingTrajectory:
 
         # get z_tasks from taskInterface
         self.__z_task_dict = {}
+        self.__fk_dict = {}
         for z_task_name in self.__z_task_list:
 
             z_task = self.__task_interface.getTask(z_task_name)
@@ -43,6 +49,7 @@ class SwingTrajectory:
 
             self.__logger.log(f'Found task "{z_task_name}" in horizon task')
             self.__z_task_dict[z_task.getDistalLink()] = z_task_name
+            self.__fk_dict[z_task.getDistalLink()] = self.__model.kd.fk(z_task.getDistalLink())
 
             if z_task.getDistalLink() in self.__model.getContacts():
                 self.__logger.log(f'Task {z_task_name} linked to contact: {z_task.getDistalLink()}')
@@ -60,8 +67,25 @@ class SwingTrajectory:
             self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
             self.__contact_z_height[contact_link] = self.__default_height
 
-    def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
+    def __update_swing_trajectory(self, solution, contact=None):
+        z_task_dict = dict()
+        if contact is not None:
+            z_task_dict = {contact: self.__z_task_dict[contact]}
+        else:
+            z_task_dict = self.__z_task_dict
 
+        for contact_link in z_task_dict.keys():
+            contact_initial_pose = self.__fk_dict[contact_link](q=solution['q'][:, 0])['ee_pos'].elements()
+
+            self.__contact_z_position_initial[contact_link] = contact_initial_pose[2]
+            self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
+            self.__contact_z_height[contact_link] = self.__default_height
+
+    def updateReferenceTrajectory(self, solution, phases, contact, z_height):
+        self.__update_swing_trajectory(solution, contact)
+        self.setSwingTrajectoryToPhases(phases, contact, z_height)
+
+    def setSwingTrajectoryToPhases(self, phases, contact_name, z_height):
 
         flight_duration = len(phases)
         ref_trj_z = np.zeros(shape=[7, 1])
@@ -75,9 +99,8 @@ class SwingTrajectory:
                                                                  self.__contact_z_position_initial[contact_name],
                                                                  self.__contact_z_position_final[contact_name],
                                                                  z_height,
-                                                                 [None, 0, None]
+                                                                 [None, 0, 0]
                                                                  )
-
         for phase_i in range(len(phases)):
             ref_trj_z[2, :] = temp_traj[phase_i]
             # self.__logger.log(f'setting reference to phase {phases[phase_i].getName()} ({contact_name}):')
@@ -167,7 +190,9 @@ class PhaseGaitWrapper:
             if contact_flag == 0:
                 self.__add_phase(contact_timeline, self.__flight_phases[contact_name], duration=kwargs['duration'])
                 if self.__swing_flag:
-                    self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    self.__swing_trajectory_manager.updateReferenceTrajectory(kwargs['solution'], contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    # self.__swing_trajectory_manager.setSwingTrajectoryToPhases(contact_timeline.getPhases()[-kwargs['duration']:], contact_name, kwargs['height'])
+                    
             else:
                 self.__add_phase(contact_timeline, self.__stance_phases[contact_name], duration=kwargs['duration'])
 
@@ -184,9 +209,12 @@ class PhaseGaitWrapper:
         # todo do this here, or in the main loop?
         # self.__phase_manager.update()
 
+    def updateReferenceTrajectory(self, solution, phases, contact, z_height):
+        self.__swing_trajectory_manager.updateReferenceTrajectory(solution, phases, contact, z_height)
+
     def action(self, action_name, *args, **kwargs):
 
-        self.__logger.log(f'action called: {action_name}')
+        # self.__logger.log(f'action called: {action_name}')
         # self.__logger.log(f'args: {args}')
         # self.__logger.log(f'kwargs: {kwargs}')
 
@@ -218,28 +246,96 @@ class PhaseGaitWrapper:
         self.__add_cycle([1, 1], duration=double_stance)
 
     def __crawl(self, **kwargs):
-
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
         double_stance = kwargs['double_stance']
+        solution = kwargs['solution']
 
-        self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
-        self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+        q = solution['q'][:, 0]
+        w_R_b = Rotation.from_quat([q[3], q[4], q[5], q[6]]).as_matrix()
+
+        vref = self.__task_interface.getTask('final_base_xy').ref.getValues()[:, 0]
+
+        vref= w_R_b[:2, :2].T @ vref.T
+        vx, vy = vref[0], vref[1]
+        omega = self.__task_interface.getTask('base_yaw_orientation').ref.getValues()[0, 0] 
+
+        if vx**2 + vy**2 <= omega**2:
+
+            # turning gait
+            if omega > 0:
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+            else:
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+        else:
+            # forward
+            if vx > abs(vy): 
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+
+            elif vx < -abs(vy):
+                # backward
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+
+            elif vy > abs(vx):
+                # left
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)   
+                
+            else:
+                # right
+                self.__add_cycle([0, 1, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 0, 1, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 0, 1], duration=step_duration, height=step_height)
+                self.__add_cycle([1, 1, 1, 1], duration=double_stance)
+                self.__add_cycle([1, 1, 1, 0], duration=step_duration, height=step_height)
+
 
     def __trot(self, **kwargs):
 
         step_duration = kwargs['step_duration']
         step_height = kwargs['step_height']
         double_stance = kwargs['double_stance']
+        solution = kwargs['solution']
 
-        self.__add_cycle([0, 1, 1, 0], duration=step_duration, height=step_height)
+        self.__add_cycle([0, 1, 1, 0], duration=step_duration, height=step_height, solution=solution)
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
-        self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height)
+        self.__add_cycle([1, 0, 0, 1], duration=step_duration, height=step_height, solution=solution)
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
 
 class GaitManager:

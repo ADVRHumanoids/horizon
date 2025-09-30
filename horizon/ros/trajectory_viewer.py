@@ -8,7 +8,6 @@ from std_msgs.msg import Header, ColorRGBA, String
 from sensor_msgs.msg import JointState
 import subprocess
 import time
-# from numpy_ros import to_numpy, to_message
 
 
 class TrajectoryViewer:
