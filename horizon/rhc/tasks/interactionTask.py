@@ -190,6 +190,13 @@ class VertexContact(InteractionTask):
 
         self.all_nodes = self.forces[0].getNodes()
 
+        if self.fun_type == 'constraint':
+            self.instantiator = self.prb.createConstraint
+        elif self.fun_type == 'cost':
+            self.instantiator = self.prb.createCost
+        elif self.fun_type == 'residual':
+            self.instantiator = self.prb.createResidual
+
         self.__initialize()
 
     def __initialize(self):
@@ -210,7 +217,7 @@ class VertexContact(InteractionTask):
         for f in self.forces:
             fn_barrier_cost.append(barrier_fun(f[2] - self.fn_min))
         fn_barrier_cost = cs.vertcat(*fn_barrier_cost)
-        fn_barrier = self.prb.createResidual(f'{self.frame}_unil_barrier', 1e1 * fn_barrier_cost, self.all_nodes)
+        fn_barrier = self.instantiator(f'{self.frame}_unil_barrier', 1e1 * fn_barrier_cost, self.all_nodes)
         return fn_barrier
 
     def make_friction_cone(self):
@@ -221,7 +228,7 @@ class VertexContact(InteractionTask):
             fcost.append(fcost_f)
 
         fcost = cs.vertcat(*fcost)
-        fc = self.prb.createIntermediateResidual(f'{self.frame}_fc', 3e-1 * fcost, self.all_nodes)
+        fc = self.instantiator(f'{self.frame}_fc', 3e-1 * fcost, self.all_nodes)
         return fc
 
     def setContact(self, nodes, erasing=True):
