@@ -339,25 +339,23 @@ class GaitManagerROS:
         # set base_commands
         self.__set_base_commands()
 
-
-
-    def __incremental_rotate(self, q_initial: np.quaternion, d_angle, axis) -> np.quaternion:
-        # np.quaternion is [w,x,y,z]
-        q_incremental = np.array([np.cos(d_angle / 2),
-                                  axis[0] * np.sin(d_angle / 2),
-                                  axis[1] * np.sin(d_angle / 2),
-                                  axis[2] * np.sin(d_angle / 2)
-                                  ])
-
-        # normalize the quaternion
-        q_incremental /= np.linalg.norm(q_incremental)
-
-        # initial orientation of the base
-
-        # final orientation of the base
-        q_result = np.quaternion(*q_incremental) * np.quaternion(*q_initial)
-
-        return q_result
+    # def __incremental_rotate(self, q_initial: np.quaternion, d_angle, axis) -> np.quaternion:
+    #     # np.quaternion is [w,x,y,z]
+    #     q_incremental = np.array([np.cos(d_angle / 2),
+    #                               axis[0] * np.sin(d_angle / 2),
+    #                               axis[1] * np.sin(d_angle / 2),
+    #                               axis[2] * np.sin(d_angle / 2)
+    #                               ])
+    #
+    #     # normalize the quaternion
+    #     q_incremental /= np.linalg.norm(q_incremental)
+    #
+    #     # initial orientation of the base
+    #
+    #     # final orientation of the base
+    #     q_result = np.quaternion(*q_incremental) * np.quaternion(*q_initial)
+    #
+    #     return q_result
 
     def __rotate_vector(self, vector, quaternion):
 
