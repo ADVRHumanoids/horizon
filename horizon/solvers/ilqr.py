@@ -73,6 +73,7 @@ class SolverILQR(Solver):
         # create ilqr solver
         self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
 
+
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
 
@@ -121,6 +122,7 @@ class SolverILQR(Solver):
         # set initial state
         x0 = self.prb.getInitialState()
         xinit = self.prb.getState().getInitialGuess()
+
         uinit = self.prb.getInput().getInitialGuess()
 
         # update initial guess
@@ -140,6 +142,7 @@ class SolverILQR(Solver):
 
         # solve
         ret = self.ilqr.solve(self.max_iter)
+
 
         # get solution
         self.x_opt = self.ilqr.getStateTrajectory()
@@ -240,8 +243,12 @@ class SolverILQR(Solver):
         for fname, f in self.prb.function_container.getCost().items():
             self.ilqr.setIndices(fname, f.getNodes())
 
+            # print("updating cost nodes:", fname, f.getNodes())
+
         for fname, f in self.prb.function_container.getCnstr().items():
             self.ilqr.setIndices(fname, f.getNodes())
+
+            # print("updating constr nodes:", fname, f.getNodes())
 
         self.ilqr.updateIndices()
     
@@ -291,14 +298,13 @@ class SolverILQR(Solver):
                 set_to_ilqr_actual = self.ilqr.setIntermediateResidual
             elif isinstance(f, (Residual, RecedingResidual)) and not self.use_gn:
                 value = cs.sumsqr(value)
-                
+
             # wrap function
             l = cs.Function(fname, 
                             [self.x, self.u] + param_list, [value], 
                             ['x', 'u'] + [p.getName() for p in param_list], 
                             [outname_actual]
                             )
-
 
             set_to_ilqr_actual(f.getNodes(), l)
         
@@ -319,12 +325,16 @@ class SolverILQR(Solver):
             p_vals = np.empty((p.getDim(), self.N+1))
             p_vals[:] = np.nan
             p_vals[:, p.getNodes()] = p_vals_temp
+            np.set_printoptions(suppress=True, precision=4, linewidth=2000)
+            print('setting parameter value: ', p.getName(), '\n', p_vals)
             self.ilqr.setParameterValue(p.getName(), p_vals)
 
         if isinstance(self.prb.getDt(), Parameter):
             self.ilqr.setParameterValue('dt', self.prb.getDt().getValues())
+            print('setting dt:', self.prb.getDt().getValues())
         else:
             self.ilqr.setParameterValue('dt', np.full((1, self.N + 1), self.prb.getDt()))
+            print('setting dt:', np.full((1, self.N + 1), self.prb.getDt()))
 
     
     def _iter_callback(self, fpres):

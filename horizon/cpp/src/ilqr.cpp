@@ -286,7 +286,6 @@ void IterativeLQR::setCost(std::vector<int> indices, const casadi::Function& int
 void IterativeLQR::setResidual(std::vector<int> indices,
                                const casadi::Function& residual)
 {
-
     // add parameters to param_map
     add_param_to_map(residual);
 

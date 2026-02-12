@@ -2,6 +2,7 @@ from horizon.problem import Problem
 import numpy as np
 import casadi as cs
 import yaml
+from horizon.solvers import Solver
 from collections import OrderedDict
 
 N = 10
@@ -54,11 +55,19 @@ constr1.setNodes([0, 1, 2, 3, 4])
 print(constr1.getNodes())
 print(constr1.getLowerBounds())
 
-exit()
 data = prb.save()
 
-with open("data.yaml", "w") as file:
+with open("test_problem_save_0.yaml", "w") as file:
     yaml.dump(data, file)
+
+# ilqrsol = Solver.make_solver('ilqr', prb) #opts={'max_iter': 1, 'ilqr.integrator': 'RK4'}
+# ilqrsol.solve()
+#
+# np.set_printoptions(suppress=True, precision=4, linewidth=2000)
+# for item, sol in ilqrsol.getSolutionDict().items():
+#     if item != 'x_opt' or item != 'u_opt':
+#         print(item, sol.shape)
+#         print(sol)
 
 exit()
 # ============================================================

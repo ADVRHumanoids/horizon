@@ -119,3 +119,30 @@ bool Cost::setNodes(std::vector<int> nodes, bool erasing)
     }
     return true;
 }
+
+Residual::Residual(casadi::Function fun, int n_nodes):
+    Function(fun, n_nodes)
+{
+}
+
+bool Residual::setNodes(std::vector<int> nodes, bool erasing)
+{
+
+//    std::cout << "erasing: " << erasing << std::endl;
+//    std::cout << "nodes: " << std::endl;
+//    for (auto node : nodes)
+//    {
+//        std::cout << node << " ";
+//    }
+//    std::cout << std::endl;
+
+    if (erasing) {
+        _nodes = std::move(nodes);
+    } else {
+        _nodes.insert(_nodes.end(), nodes.begin(), nodes.end());
+        std::sort(_nodes.begin(), _nodes.end());
+        _nodes.erase(std::unique(_nodes.begin(), _nodes.end()), _nodes.end());
+    }
+    return true;
+}
+

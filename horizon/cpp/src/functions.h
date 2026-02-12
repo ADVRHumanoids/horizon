@@ -71,5 +71,18 @@ class Cost: public Function
 
 };
 
+class Residual: public Function
+{
+ public:
+
+    typedef std::shared_ptr<Residual> Ptr;
+
+    Residual(casadi::Function fun, int n_nodes);
+
+    bool setNodes(std::vector<int> nodes, bool erasing) override;
+
+};
+
+
 }
 #endif // FUNCTIONS_H

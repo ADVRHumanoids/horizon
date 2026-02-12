@@ -37,19 +37,19 @@ bool Variable::setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> n
     if (nodes.empty())
     {
         _initial_guess = initial_guess;
-        std::cout << "ig: \n" << initial_guess << std::endl;
+//        std::cout << "ig: \n" << initial_guess << std::endl;
     }
     else
     {
-        std::cout << "ig at nodes: " << std::endl;
+//        std::cout << "ig at nodes: " << std::endl;
 
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
+//        for (int elem : nodes)
+//        {
+//            std::cout << elem << " ";
+//        }
+//        std::cout << std::endl;
 
-        std::cout << "with values: \n" << initial_guess << std::endl;
+//        std::cout << "with values: \n" << initial_guess << std::endl;
 
          for (int i = 0; i < nodes.size(); i++) {
              _initial_guess(nodes[i]) = initial_guess(i);
@@ -114,31 +114,60 @@ bool Parameter::setNodes(std::vector<int> nodes, bool erasing)
 
 bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>& nodes)
 {
-
+    // Case 1: Replace entire matrix
     if (nodes.empty())
     {
-        _values = values;
-        std::cout << "parameter values: \n" << values << std::endl;
-    }
-    else
-    {
-        std::cout << "par at nodes: " << std::endl;
-
-        for (int elem : nodes)
+        // If _values is already initialized, enforce size consistency
+        if (_values.size() != 0)
         {
-            std::cout << elem << " ";
+            if (_values.rows() != values.rows() ||
+                _values.cols() != values.cols())
+            {
+                std::cerr << "setValues error: dimension mismatch when replacing full matrix.\n"
+                          << "Expected (" << _values.rows() << ", " << _values.cols()
+                          << ") but got (" << values.rows() << ", " << values.cols() << ").\n";
+                return false;
+            }
         }
-        std::cout << std::endl;
-        std::cout << "with values: \n" << values << std::endl;
 
-         for (int i = 0; i < nodes.size(); i++) {
-             _values(nodes[i]) = values(i);
-         }
-
+        _values = values;
+        return true;
     }
 
+    // Case 2: Set specific node columns
 
-     return true;
+    // Guard 1: column count must match number of nodes
+    if (values.cols() != static_cast<int>(nodes.size()))
+    {
+        std::cerr << "setValues error: values.cols() must equal nodes.size().\n";
+        return false;
+    }
+
+    // Guard 2: row count must match parameter dimension
+    if (values.rows() != _values.rows())
+    {
+        std::cerr << "setValues error: row mismatch.\n";
+        return false;
+    }
+
+    // Guard 3: node indices must be valid
+    for (int node : nodes)
+    {
+        if (node < 0 || node >= _values.cols())
+        {
+            std::cerr << "setValues error: node index out of bounds: "
+                      << node << "\n";
+            return false;
+        }
+    }
+
+    // Assignment
+    for (int i = 0; i < static_cast<int>(nodes.size()); ++i)
+    {
+        _values.col(nodes[i]) = values.col(i);
+    }
+
+    return true;
 }
 
 std::vector<int> Parameter::getNodes()

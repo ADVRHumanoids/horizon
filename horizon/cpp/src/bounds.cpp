@@ -15,19 +15,19 @@ bool Bounds::setLowerBounds(const Eigen::MatrixXd& lower_bounds, const std::vect
     if (nodes.empty())
     {
         _lower_bounds = lower_bounds;
-        std::cout << "lb: \n" << lower_bounds << std::endl;
+//        std::cout << "lb: \n" << lower_bounds << std::endl;
     }
     else
     {
-        std::cout << "lb at nodes: " << std::endl;
+//        std::cout << "lb at nodes: " << std::endl;
 
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
+//        for (int elem : nodes)
+//        {
+//            std::cout << elem << " ";
+//        }
+//        std::cout << std::endl;
 
-        std::cout << "with values: \n" << lower_bounds << std::endl;
+//        std::cout << "with values: \n" << lower_bounds << std::endl;
 
          for (int i = 0; i < nodes.size(); i++) {
              _lower_bounds(nodes[i]) = lower_bounds(i);
@@ -44,19 +44,19 @@ bool Bounds::setUpperBounds(const Eigen::MatrixXd& upper_bounds, const std::vect
     if (nodes.empty())
     {
         _upper_bounds = upper_bounds;
-        std::cout << "ub: \n" << upper_bounds << std::endl;
+//        std::cout << "ub: \n" << upper_bounds << std::endl;
     }
     else
     {
-        std::cout << "ub at nodes: " << std::endl;
+//        std::cout << "ub at nodes: " << std::endl;
 
-        for (int elem : nodes)
-        {
-            std::cout << elem << " ";
-        }
-        std::cout << std::endl;
+//        for (int elem : nodes)
+//        {
+//            std::cout << elem << " ";
+//        }
+//        std::cout << std::endl;
 
-        std::cout << "with values: \n" << upper_bounds << std::endl;
+//        std::cout << "with values: \n" << upper_bounds << std::endl;
 
          for (int i = 0; i < nodes.size(); i++) {
              _upper_bounds(nodes[i]) = upper_bounds(i);

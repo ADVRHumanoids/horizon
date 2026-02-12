@@ -30,6 +30,7 @@ public:
 
     std::map<std::string, horizon::Function::Ptr> fun_map;
     std::map<std::string, horizon::Cost::Ptr> cost_map;
+    std::map<std::string, horizon::Residual::Ptr> residual_map;
     std::map<std::string, horizon::Constraint::Ptr> constr_map;
 
     std::vector<horizon::Variable::Ptr> state_vec, input_vec;
@@ -42,7 +43,7 @@ public:
     casadi_utils::WrappedFunction inv_dyn;
 
     int N;
-    double dt;
+    Eigen::VectorXd dt;
 
 private:
 
@@ -50,6 +51,7 @@ private:
     Parameter::Ptr yaml_to_parameter(std::pair<YAML::Node, YAML::Node> item);
     casadi::Function make_casadi_function(std::pair<YAML::Node, YAML::Node> item, std::string outname);
     Constraint::Ptr yaml_to_constraint(std::pair<YAML::Node, YAML::Node> item);
+    Residual::Ptr yaml_to_residual(std::pair<YAML::Node, YAML::Node> item);
     Cost::Ptr yaml_to_cost(std::pair<YAML::Node, YAML::Node> item);
 
 

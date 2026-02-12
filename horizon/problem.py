@@ -1102,10 +1102,21 @@ class Problem:
         return self
 
     def save(self):
+
+        from horizon.functions import Residual, RecedingResidual
+        from horizon.variables import Parameter
+
         data = dict()
 
         data['n_nodes'] = self.getNNodes() - 1
-        data['dt'] = self.getDt()
+
+        if isinstance(self.getDt(), Parameter):
+            data['dt'] = self.getDt().getValues().flatten('F').tolist()
+        else:
+            data['dt'] = [self.getDt()] * self.getNNodes()
+
+        data['state_list'] = [sv.getName() for sv in self.getState()]
+        data['input_list'] = [iv.getName() for iv in self.getInput()]
 
         # save state variables
         data['state'] = dict()
@@ -1115,6 +1126,8 @@ class Problem:
             var_data['lb'] = sv.getLowerBounds().flatten('F').tolist()
             var_data['ub'] = sv.getUpperBounds().flatten('F').tolist()
             var_data['initial_guess'] = sv.getInitialGuess().flatten('F').tolist()
+            print(sv.getName())
+            print(var_data['initial_guess'])
             data['state'][sv.getName()] = var_data
 
         # save input variables
@@ -1133,20 +1146,53 @@ class Problem:
             var_data = dict()
             var_data['size'] = p.getDim()
             var_data['values'] = p.getValues().flatten('F').tolist()
+            var_data['nodes'] = p.getNodes() if isinstance(p.getNodes(), list) else p.getNodes().tolist()
             data['param'][p.getName()] = var_data
 
         # save cost and constraints
         data['cost'] = dict()
+        data['residual'] = dict()
         for f in self.function_container.getCost().values():
-            f: fc.Function = f
-            var_data = dict()
-            nodes = f.getNodes()
-            var_data['repr'] = str(f.getFunction())
-            var_data['var_depends'] = [v.getName() for v in f.getVariables()]
-            var_data['param_depends'] = [v.getName() for v in f.getParameters()]
-            var_data['nodes'] = nodes if isinstance(nodes, list) else nodes.tolist()
-            var_data['function'] = f.getFunction().serialize()
-            data['cost'][f.getName()] = var_data
+
+            if isinstance(f, (Residual, RecedingResidual)):
+
+                # get input variables for this function
+                name = f.getName()
+
+                input_list = f.getVariables()
+                param_list = f.getParameters()
+
+                # fn value
+                value = f.getFunction()(*input_list, *param_list)
+
+                # set to ilqr fn could change if this is a residual
+                # and we're in gn mode
+                res = cs.Function(f.getFunction().name(),
+                                input_list + param_list, [value],
+                                [var.getName() for var in input_list] + [p.getName() for p in param_list],
+                                ['res']
+                                )
+
+                res: fc.Function = res
+                var_data = dict()
+                nodes = f.getNodes()
+                var_data['repr'] = str(res)
+                var_data['var_depends'] = [v.getName() for v in f.getVariables()]
+                var_data['param_depends'] = [p.getName() for p in f.getParameters()]
+                var_data['nodes'] = nodes if isinstance(nodes, list) else nodes.tolist()
+                var_data['function'] = res.serialize()
+                data['residual'][name] = var_data
+            else:
+
+                f: fc.Function = f
+                var_data = dict()
+                nodes = f.getNodes()
+                var_data['repr'] = str(f.getFunction())
+                var_data['var_depends'] = [v.getName() for v in f.getVariables()]
+                var_data['param_depends'] = [p.getName() for p in f.getParameters()]
+                var_data['nodes'] = nodes if isinstance(nodes, list) else nodes.tolist()
+                var_data['function'] = f.getFunction().serialize()
+                data['cost'][f.getName()] = var_data
 
         data['constraint'] = dict()
         for f in self.function_container.getCnstr().values():
