@@ -78,3 +78,13 @@ class PosturalTask(Task):
         # print(f'task {self.name} nodes: {self.pos_constr.getNodes().tolist()}')
         # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
         # print('===================================')
+
+    def getInfo(self):
+
+        info = dict(
+            function=self.fun.getName(),
+            weight_param=self.weight_param.getName(),
+            ref_param=self.q0.getName()
+        )
+
+        return info

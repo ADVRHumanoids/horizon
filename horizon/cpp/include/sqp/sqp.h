@@ -2,15 +2,15 @@
 #define __HORIZON__SQP__H__
 
 #include <casadi/casadi.hpp>
-#include "wrapped_function.h"
+#include "horizon/wrapped_function.h"
 #include <Eigen/Dense>
 #include <memory>
 #include <chrono>
 
 
-#include "profiling.h"
+#include "horizon/profiling.h"
 
-#include "ilqr.h"
+#include "ilqr/ilqr.h"
 
 #define GR 1.61803398875
 

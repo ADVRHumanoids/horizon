@@ -31,3 +31,12 @@ class ContactTask(Task):
 
         self.dynamics_task.setContact(nodes, erasing=erasing)  # this is from taskInterface
         self.kinematics_task.setNodes(nodes, erasing=erasing)  # state + starting from node 1  # this is from taskInterface
+
+    def getInfo(self):
+
+        info_dym = self.dynamics_task.getInfo()
+        info_kin = self.kinematics_task.getInfo()
+
+        info_merged = {**info_dym, **info_kin}
+
+        return info_merged

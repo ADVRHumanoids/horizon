@@ -1,7 +1,7 @@
 #ifndef PYSQP_HELPERS_H
 #define PYSQP_HELPERS_H
 
-#include "src/sqp.h"
+#include "sqp/sqp.h"
 #include "pyilqr_helpers.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>

@@ -1,4 +1,4 @@
-#include "sqp.h"
+#include "sqp/sqp.h"
 #include <casadi/casadi.hpp>
 
 int main()

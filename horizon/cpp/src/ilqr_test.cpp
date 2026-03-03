@@ -1,6 +1,6 @@
-#include "ilqr.h"
+#include "ilqr/ilqr.h"
 #include <unistd.h>
-#include "wrapped_function.h"
+#include "horizon/wrapped_function.h"
 
 int main()
 {

@@ -1,9 +1,3 @@
-cmake_minimum_required(VERSION 2.8.11)
-include(ExternalProject)
-
-set(PROJECTNAME tests)
-project(${PROJECTNAME})
-
 find_package(Eigen3 REQUIRED)
 find_package(casadi 3.5.5 REQUIRED)
 

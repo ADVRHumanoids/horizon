@@ -2,7 +2,7 @@
 #define ILQR_IMPL_H
 
 #include "ilqr.h"
-#include "wrapped_function.h"
+#include "horizon/wrapped_function.h"
 
 using namespace horizon;
 using namespace casadi_utils;

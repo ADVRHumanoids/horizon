@@ -1,7 +1,7 @@
 #ifndef PYILQR_HELPERS_H
 #define PYILQR_HELPERS_H
 
-#include "src/ilqr.h"
+#include "ilqr/ilqr.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <pybind11/embed.h>

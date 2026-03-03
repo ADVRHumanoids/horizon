@@ -1,4 +1,4 @@
-#include "codegen_function.h"
+#include "horizon/codegen_function.h"
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
-#include "wrapped_function.h"
+#include "horizon/wrapped_function.h"
 
 namespace
 {

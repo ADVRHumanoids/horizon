@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "../src/ilqr.h"
+#include "ilqr/ilqr.h"
 
 
 class testIlqr : public ::testing::Test

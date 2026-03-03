@@ -11,7 +11,7 @@
 #include <mutex>
 #include <atomic>
 
-#include "profiling.h"
+#include "horizon/profiling.h"
 #include "iterate_filter.h"
 
 namespace horizon
@@ -105,7 +105,7 @@ public:
 
     void updateIndices();
 
-    void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value);
+    void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices = {});
 
     void setInitialState(const Eigen::VectorXd& x0);
 
@@ -120,6 +120,8 @@ public:
     const Eigen::MatrixXd& getStateTrajectory() const;
 
     const Eigen::MatrixXd& getInputTrajectory() const;
+
+    Eigen::MatrixXd getParameterValue(const std::string& pname, const std::vector<int>& indices = {}) const;
 
     const utils::ProfilingInfo& getProfilingInfo() const;
 

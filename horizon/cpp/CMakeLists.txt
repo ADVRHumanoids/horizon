@@ -1,5 +1,6 @@
-project(horizon)
 cmake_minimum_required(VERSION 3.0)
+project(horizon VERSION 1.0)
+
 
 # options
 option(HORIZON_PROFILING OFF "enable profiling features")
@@ -11,19 +12,29 @@ endif()
 find_package(Eigen3 REQUIRED)
 find_package(casadi REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(casadi_kin_dyn REQUIRED)
 
 #find_package(phase_manager REQUIRED)
 
-find_package(catkin REQUIRED COMPONENTS phase_manager)
+#find_package(catkin REQUIRED COMPONENTS phase_manager)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 set(CMAKE_CXX_STANDARD 20)
 
-# ilqr library
-add_library(horizon STATIC
-    src/horizon_parser.cpp)
+include_directories(
+    include
+    ${EIGEN3_INCLUDE_DIRS}
+    )
 
-target_link_libraries(horizon Eigen3::Eigen casadi::casadi)
+# horizon library
+add_library(horizon STATIC
+    src/variables.cpp
+    src/bounds.cpp
+    src/functions.cpp
+    src/profiling.cpp
+    )
+
+target_link_libraries(horizon PUBLIC Eigen3::Eigen casadi::casadi)
 
 add_library(ilqr STATIC
     src/ilqr.cpp
@@ -31,37 +42,45 @@ add_library(ilqr STATIC
     src/ilqr_forward_pass.cpp
     src/ilqr_backward_pass.cpp
     src/wrapped_function.cpp
-    src/profiling.cpp
     src/codegen_function.cpp
     src/iterate_filter.cpp
-    src/variables.cpp
-    src/bounds.cpp
-    src/functions.cpp
 )
 
 # sqp library
 add_library(sqp STATIC
     src/wrapped_function.cpp
-    src/profiling.cpp
     src/sqp.cpp
 )
 
+target_link_libraries(ilqr PUBLIC pthread horizon)
+target_link_libraries(sqp PUBLIC ilqr horizon)
 
-target_link_libraries(ilqr Eigen3::Eigen casadi::casadi pthread)
-target_link_libraries(sqp Eigen3::Eigen casadi::casadi ilqr)
+target_include_directories(horizon
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}> #
+    )
 
-install(TARGETS horizon ilqr sqp
-    DESTINATION lib)
+install(
+    TARGETS horizon ilqr
+    EXPORT ${PROJECT_NAME}Targets
+    DESTINATION lib
+)
 
+install(
+    DIRECTORY include/horizon include/ilqr include/sqp
+    DESTINATION include/${PROJECT_NAME}
+    ) #/${PROJECT_NAME}
 
 # python binding
 set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(pyilqr pyilqr.cpp)
+pybind11_add_module(pyilqr src/pyilqr.cpp)
 target_link_libraries(pyilqr PUBLIC ilqr)
 
-pybind11_add_module(pysqp pysqp.cpp)
+pybind11_add_module(pysqp src/pysqp.cpp)
 target_link_libraries(pysqp PUBLIC sqp Eigen3::Eigen casadi::casadi)
 
 add_custom_command(TARGET pyilqr POST_BUILD
@@ -112,13 +131,13 @@ target_link_libraries(sqp_test sqp)
 add_executable(sqp_test2 src/sqp_test2.cpp)
 target_link_libraries(sqp_test2 sqp)
 
-add_executable(parser_test src/parser_test.cpp)
-target_link_libraries(parser_test ilqr horizon yaml-cpp)
+#add_executable(classes_test src/classes_test.cpp)
+#target_link_libraries(classes_test ilqr horizon yaml-cpp)
 
-add_executable(classes_test src/classes_test.cpp)
-target_link_libraries(classes_test ilqr horizon yaml-cpp)
-
-add_executable(phase_manager_test src/phase_manager_test.cpp)
-target_link_libraries(phase_manager_test ilqr horizon yaml-cpp ${catkin_LIBRARIES})
+#add_executable(phase_manager_test src/phase_manager_test.cpp)
+#target_link_libraries(phase_manager_test ilqr horizon yaml-cpp ${catkin_LIBRARIES})
 
 add_subdirectory(tests)
+
+include(cmake/ExportProject.cmake)
+export_project()

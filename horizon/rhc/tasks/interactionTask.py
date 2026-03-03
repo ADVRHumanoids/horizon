@@ -173,6 +173,18 @@ class SurfaceContact(InteractionTask):
                               ub=np.full(self.wrench.getDim(), 0),
                               nodes=nodes)
 
+    def getInfo(self):
+
+        info = dict(
+            fn_barrier=self.fn_barrier.getName(),
+            fc_constr=self.fc_constr.getName(),
+            cop_constr=self.cop_constr.getName(),
+            weight_param=self.weight_param.getName(),
+            wrench=self.wrench.getName()
+        )
+
+        return info
+
 
 class VertexContact(InteractionTask):
 
@@ -282,3 +294,12 @@ class VertexContact(InteractionTask):
                         ub=np.full(f.getDim(), 0),
                         nodes=nodes)
 
+    def getInfo(self):
+
+        info = dict(
+            fn_barrier=self.fn_barrier.getName(),
+            fc_constr=self.fc_constr.getName(),
+            forces=[force.getName() for force in self.forces]
+        )
+
+        return info

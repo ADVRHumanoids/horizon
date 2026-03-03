@@ -1,4 +1,4 @@
-#include "ilqr_impl.h"
+#include "ilqr/ilqr_impl.h"
 
 struct HessianIndefinite : std::runtime_error
 {

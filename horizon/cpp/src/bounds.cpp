@@ -1,4 +1,4 @@
-#include "bounds.h"
+#include "horizon/bounds.h"
 using namespace horizon;
 
 Bounds::Bounds(int dim, int n_nodes):

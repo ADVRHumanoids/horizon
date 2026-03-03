@@ -1,5 +1,5 @@
-#include "ilqr.h"
-#include "ilqr_impl.h"
+#include "ilqr/ilqr.h"
+#include "ilqr/ilqr_impl.h"
 
 // #include <mkl/mkl.h>
 // #include <Eigen/src/PardisoSupport/PardisoSupport.h>

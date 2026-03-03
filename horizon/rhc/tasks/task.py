@@ -6,6 +6,7 @@ from horizon.problem import Problem
 import numpy as np
 from casadi_kin_dyn import pycasadi_kin_dyn
 from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 
 
 
@@ -15,7 +16,7 @@ def generate_id() -> str:
         random.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(id_len))
 
 @dataclass
-class Task:
+class Task(ABC):
     
     # todo this is context: transform to context
     prb: Problem
@@ -43,6 +44,10 @@ class Task:
             if isinstance(v, classname):
                 ret.append(v)
         return ret[0] if len(ret) == 1 else ret
+
+    @abstractmethod
+    def getInfo(self):
+        pass
 
     def __post_init__(self):
         # todo: this is for simplicity

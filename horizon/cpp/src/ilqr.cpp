@@ -1,5 +1,5 @@
-#include "ilqr_impl.h"
-#include "codegen_function.h"
+#include "ilqr/ilqr_impl.h"
+#include "horizon/codegen_function.h"
 #include <cxxabi.h>
 #include <cstdlib>
 
@@ -518,29 +518,78 @@ void IterativeLQR::updateIndices()
     }
 }
 
-void IterativeLQR::setParameterValue(const std::string& pname, const Eigen::MatrixXd& value)
+void IterativeLQR::setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices)  // default = empty -> update all columns
 {
     auto it = _param_map->find(pname);
-
-    if(it == _param_map->end())
-    {
+    if(it == _param_map->end()) {
         std::cout << "undefined parameter name '" << pname << "' \n";
         return;
     }
 
-    if(it->second.rows() != value.rows() ||
-            it->second.cols() != value.cols())
-    {
+    Eigen::MatrixXd& param = it->second;
+
+    if(indices.empty()) {
+        // update all columns
+        if(value.rows() != param.rows() || value.cols() != param.cols()) {
+            std::ostringstream oss;
+            oss << "parameter '" << pname << "' has wrong size: expected "
+                << param.rows() << "x" << param.cols()
+                << " != " << value.rows() << "x" << value.cols();
+            throw std::invalid_argument(oss.str());
+        }
+        param = value;
+    } else {
+        // update only selected columns
+        if(value.rows() != param.rows() || value.cols() != indices.size()) {
+            std::ostringstream oss;
+            oss << "parameter '" << pname << "' has wrong size: expected "
+                << param.rows() << "x" << indices.size()
+                << " != " << value.rows() << "x" << value.cols();
+            throw std::invalid_argument(oss.str());
+        }
+
+        for(size_t k = 0; k < indices.size(); ++k) {
+            int col = indices[k];
+            if(col < 0 || col >= param.cols()) {
+                std::ostringstream oss;
+                oss << "column index " << col << " out of bounds for parameter '"
+                    << pname << "' with " << param.cols() << " columns";
+                throw std::out_of_range(oss.str());
+            }
+            param.col(col) = value.col(k);
+        }
+    }
+}
+
+Eigen::MatrixXd IterativeLQR::getParameterValue(const std::string& pname, const std::vector<int>& indices) const
+{
+    auto it = _param_map->find(pname);
+    if(it == _param_map->end()) {
         std::ostringstream oss;
-
-        oss << "parameter '" << pname << "' has wrong size: expected "
-            << it->second.rows() << "x" << it->second.cols() << " != " 
-            << value.rows() << "x" << value.cols();
-
+        oss << "undefined parameter name '" << pname << "'";
         throw std::invalid_argument(oss.str());
     }
 
-    it->second = value;
+    const Eigen::MatrixXd& param = it->second;
+
+    if(indices.empty()) {
+        // return the full matrix
+        return param;
+    } else {
+        // return only selected columns
+        Eigen::MatrixXd result(param.rows(), indices.size());
+        for(size_t k = 0; k < indices.size(); ++k) {
+            int col = indices[k];
+            if(col < 0 || col >= param.cols()) {
+                std::ostringstream oss;
+                oss << "column index " << col << " out of bounds for parameter '"
+                    << pname << "' with " << param.cols() << " columns";
+                throw std::out_of_range(oss.str());
+            }
+            result.col(k) = param.col(col);
+        }
+        return result;
+    }
 }
 
 void IterativeLQR::setInitialState(const Eigen::VectorXd &x0)

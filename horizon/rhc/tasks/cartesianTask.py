@@ -388,4 +388,14 @@ class CartesianTask(Task):
 
     def getCartesianType(self):
         return self.cartesian_type
+
+    def getInfo(self):
+
+        info = dict(
+            function=self.constr.getName(),
+            weight_param=self.weight_param.getName(),
+            ref_param=self.ref.getName()
+        )
+
+        return info
     

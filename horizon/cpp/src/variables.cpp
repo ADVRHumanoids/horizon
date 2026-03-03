@@ -1,5 +1,5 @@
-#include "variables.h"
-#include "bounds.h"
+#include "horizon/variables.h"
+#include "horizon/bounds.h"
 
 using namespace horizon;
 

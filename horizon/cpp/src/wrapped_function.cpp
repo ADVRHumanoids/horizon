@@ -1,5 +1,5 @@
-#include "wrapped_function.h"
-#include "profiling.h"
+#include "horizon/wrapped_function.h"
+#include "horizon/profiling.h"
 
 using namespace casadi_utils;
 

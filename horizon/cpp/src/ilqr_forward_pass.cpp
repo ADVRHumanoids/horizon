@@ -1,4 +1,4 @@
-#include "ilqr_impl.h"
+#include "ilqr/ilqr_impl.h"
 
 
 bool IterativeLQR::forward_pass(double alpha)

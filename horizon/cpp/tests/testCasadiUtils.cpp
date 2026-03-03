@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../src/wrapped_function.h"
+#include "horizon/wrapped_function.h"
 
 namespace{
 

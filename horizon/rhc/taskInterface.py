@@ -397,3 +397,19 @@ class TaskInterface(ProblemInterface):
     # todo
     def setTaskOptions(self):
         pass
+
+    def save(self):
+
+        problem_data = self.prb.save()
+
+        task_data = {'tasks': {}}
+
+        for task in self.task_list:
+            task_subdata = {
+                'type': task.getType(),
+                'info': task.getInfo()  # <-- accept whatever structure it returns
+            }
+
+            task_data['tasks'][task.getName()] = task_subdata
+
+        return {**problem_data, **task_data}

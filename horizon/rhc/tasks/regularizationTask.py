@@ -91,3 +91,12 @@ class RegularizationTask(Task):
         self.reg_fun.setNodes(self.nodes[0:], erasing=erasing)  # <==== SET NODES
 
 
+    def getInfo(self):
+
+        info = dict(
+            function=self.reg_fun.getName(),
+            weight_param=self.weight_param.getName(),
+            ref_param=self.opt_reference.getName()
+        )
+
+        return info

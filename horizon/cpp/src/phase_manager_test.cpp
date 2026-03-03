@@ -1,11 +1,10 @@
-#include "horizon_parser.h"
-
-#include "ilqr.h"
+#include "ilqr/ilqr.h"
 #include <phase_manager/phase_manager.h>
 #include <phase_manager/timeline.h>
 #include <phase_manager/phase.h>
 #include <phase_manager/horizon_interface.h>
 #include "casadi/casadi.hpp"
+#include "horizon/functions.h"
 
 int main()
 {
