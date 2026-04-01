@@ -37,6 +37,6 @@ class ContactTask(Task):
         info_dym = self.dynamics_task.getInfo()
         info_kin = self.kinematics_task.getInfo()
 
-        info_merged = {**info_dym, **info_kin}
+        info_merged = dict(dynamic=info_dym, kinematic=info_kin)
 
         return info_merged
