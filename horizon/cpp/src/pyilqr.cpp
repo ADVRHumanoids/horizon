@@ -36,7 +36,8 @@ PYBIND11_MODULE(pyilqr, m) {
             .def("setFinalConstraint", set_final_constraint_wrapper)
             .def("setStateBounds", &IterativeLQR::setStateBounds)
             .def("setInputBounds", &IterativeLQR::setInputBounds)
-            .def("setParameterValue", &IterativeLQR::setParameterValue)
+            .def("setParameterValue", &IterativeLQR::setParameterValue,
+                 py::arg("pname"), py::arg("value"), py::arg("indices") = std::vector<int>{})
             .def("setIndices", &IterativeLQR::setIndices)
             .def("updateIndices", &IterativeLQR::updateIndices)
             .def("solve", &IterativeLQR::solve)

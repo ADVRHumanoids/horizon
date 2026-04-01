@@ -326,15 +326,15 @@ class SolverILQR(Solver):
             p_vals[:] = np.nan
             p_vals[:, p.getNodes()] = p_vals_temp
             np.set_printoptions(suppress=True, precision=4, linewidth=2000)
-            print('setting parameter value: ', p.getName(), '\n', p_vals)
+            # print('setting parameter value: ', p.getName(), '\n', p_vals)
             self.ilqr.setParameterValue(p.getName(), p_vals)
 
         if isinstance(self.prb.getDt(), Parameter):
             self.ilqr.setParameterValue('dt', self.prb.getDt().getValues())
-            print('setting dt:', self.prb.getDt().getValues())
+            # print('setting dt:', self.prb.getDt().getValues())
         else:
             self.ilqr.setParameterValue('dt', np.full((1, self.N + 1), self.prb.getDt()))
-            print('setting dt:', np.full((1, self.N + 1), self.prb.getDt()))
+            # print('setting dt:', np.full((1, self.N + 1), self.prb.getDt()))
 
     
     def _iter_callback(self, fpres):
