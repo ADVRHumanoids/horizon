@@ -394,7 +394,8 @@ class CartesianTask(Task):
         info = dict(
             function=self.constr.getName(),
             weight_param=self.weight_param.getName(),
-            ref_param=self.ref.getName()
+            ref_param=self.ref.getName(),
+            distal_link=self.distal_link
         )
 
         return info
