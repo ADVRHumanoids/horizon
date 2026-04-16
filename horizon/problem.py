@@ -1126,8 +1126,6 @@ class Problem:
             var_data['lb'] = sv.getLowerBounds().flatten('F').tolist()
             var_data['ub'] = sv.getUpperBounds().flatten('F').tolist()
             var_data['initial_guess'] = sv.getInitialGuess().flatten('F').tolist()
-            print(sv.getName())
-            print(var_data['initial_guess'])
             data['state'][sv.getName()] = var_data
 
         # save input variables
