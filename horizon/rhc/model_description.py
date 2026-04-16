@@ -361,6 +361,24 @@ class FullModelInverseDynamics:
     # def getState(self):
     #     return
 
+    def save(self):
+
+        data = dict()
+
+        contact_map = dict()
+
+        for contact_name, var_name_list in self.cmap.items():
+            contact_map[contact_name] = [var.getName() for var in var_name_list]
+
+        data['contacts'] = contact_map
+        data['is_floating_base'] = self.floating_base
+        data['q_init'] = self.__q_init
+        data['base_init'] = self.__base_init.flatten('F').tolist()
+        data['fixed_joint_map'] = self.fixed_joint_map
+
+        return data
+
+
 class SingleRigidBodyDynamicsModel:
         #  problem, kd, q_init, base_init, floating_base=True):
     def __init__(self, problem, kd, q_init, base_init, **kwargs):

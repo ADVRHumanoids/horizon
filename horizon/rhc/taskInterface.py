@@ -401,6 +401,7 @@ class TaskInterface(ProblemInterface):
     def save(self):
 
         problem_data = self.prb.save()
+        model_data = {'model': self.model.save()}
 
         task_data = {'tasks': {}}
 
@@ -412,4 +413,4 @@ class TaskInterface(ProblemInterface):
 
             task_data['tasks'][task.getName()] = task_subdata
 
-        return {**problem_data, **task_data}
+        return {**problem_data, **model_data, **task_data}
