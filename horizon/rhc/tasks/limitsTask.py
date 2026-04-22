@@ -97,6 +97,11 @@ class JointLimitsTask(Task):
         # print(f'param task {self.name} nodes: {self.pos_tgt.getValues()[:, self.pos_constr.getNodes()].tolist()}')
         # print('===================================')
 
+    def getInfo(self):
+
+        info = dict()
+
+        return info
 
 class VelocityLimitsTask(Task):
     def __init__(self, name, prb: Problem, kin_dyn, frame, nodes=None, indices=None, weight=None, kd_frame=None,
