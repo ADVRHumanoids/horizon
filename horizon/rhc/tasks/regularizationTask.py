@@ -12,7 +12,7 @@ class RegularizationTask(Task):
 
     def __init__(self, variable_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._createWeightParam()
+        # self._createWeightParam()
 
         self.opt_reference = None
         self.indices_dict = dict()
@@ -40,11 +40,16 @@ class RegularizationTask(Task):
 
     def _initialize(self):
 
+        name = f'{self.opt_variable.getName()}_ref'
+
         if self.indices is None:
             self.indices = np.array(range(self.opt_variable.getDim()))
+        else:
+            if self.indices.size != self.opt_variable.getDim():
+                name = name + f'_indices_' + '_'.join(map(str, self.indices))  # "1234"
 
 
-        self.opt_reference = self.prb.createParameter(f'{self.opt_variable.getName()}_ref', self.indices.size)
+        self.opt_reference = self.prb.createParameter(name, self.indices.size)
         # todo hack about nodes
 
         if self.last_node:
@@ -52,10 +57,17 @@ class RegularizationTask(Task):
         else:
             nodes = self.nodes
 
-        self.reg_fun = self.instantiator(f'reg_{self.opt_variable.getName()}',
+        self._createWeightParam(self.indices.size)
+
+        name_fun = f'reg_{self.opt_variable.getName()}'
+
+        if self.indices is not None and self.indices.size != self.opt_variable.getDim():
+            name_fun = name_fun + f'_indices_' + '_'.join(map(str, self.indices))   # "1234"
+
+        self.reg_fun = self.instantiator(name_fun,
                                          self.weight_param * (self.opt_variable[self.indices] - self.opt_reference), nodes)
 
-    # todo: temporary
+        # todo: temporary
     def setRef(self, ref, nodes=None):
         self.opt_reference.assign(ref, nodes)
 
@@ -89,3 +101,12 @@ class RegularizationTask(Task):
         self.reg_fun.setNodes(self.nodes[0:], erasing=erasing)  # <==== SET NODES
 
 
+    def getInfo(self):
+
+        info = dict(
+            function=self.reg_fun.getName(),
+            weight_param=self.weight_param.getName(),
+            ref_param=self.opt_reference.getName()
+        )
+
+        return info
