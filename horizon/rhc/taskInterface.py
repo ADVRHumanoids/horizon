@@ -43,7 +43,7 @@ class ProblemInterface:
 
     def bootstrap(self):
         t = time.time()
-        self.solver_bs.solve()
+        check = self.solver_bs.solve()
         elapsed = time.time() - t
         print(f'bootstrap solved in {elapsed} s')
         try:
@@ -51,6 +51,8 @@ class ProblemInterface:
         except:
             pass
         self.solution = self.solver_bs.getSolutionDict()
+
+        return check
 
     def rti(self):
 
