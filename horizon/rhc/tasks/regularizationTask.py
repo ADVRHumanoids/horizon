@@ -40,11 +40,16 @@ class RegularizationTask(Task):
 
     def _initialize(self):
 
+        name = f'{self.opt_variable.getName()}_ref'
+
         if self.indices is None:
             self.indices = np.array(range(self.opt_variable.getDim()))
+        else:
+            if self.indices.size != self.opt_variable.getDim():
+                name = name + f'_indices_' + '_'.join(map(str, self.indices))  # "1234"
 
 
-        self.opt_reference = self.prb.createParameter(f'{self.opt_variable.getName()}_ref', self.indices.size)
+        self.opt_reference = self.prb.createParameter(name, self.indices.size)
         # todo hack about nodes
 
         if self.last_node:
@@ -54,10 +59,15 @@ class RegularizationTask(Task):
 
         self._createWeightParam(self.indices.size)
 
-        self.reg_fun = self.instantiator(f'reg_{self.opt_variable.getName()}',
+        name_fun = f'reg_{self.opt_variable.getName()}'
+
+        if self.indices is not None and self.indices.size != self.opt_variable.getDim():
+            name_fun = name_fun + f'_indices_' + '_'.join(map(str, self.indices))   # "1234"
+
+        self.reg_fun = self.instantiator(name_fun,
                                          self.weight_param * (self.opt_variable[self.indices] - self.opt_reference), nodes)
 
-    # todo: temporary
+        # todo: temporary
     def setRef(self, ref, nodes=None):
         self.opt_reference.assign(ref, nodes)
 
