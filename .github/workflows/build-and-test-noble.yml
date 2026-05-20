@@ -22,6 +22,8 @@ jobs:
     - name: Compile the library
       run: ./build.bash horizon-ci-noble
       working-directory: ./ci/docker
+      env:
+        FOREST_JOBS: 4
     - name: Run tests
       run: ./test.bash horizon-ci-noble
       working-directory: ./ci/docker
