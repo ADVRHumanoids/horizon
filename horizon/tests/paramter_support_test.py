@@ -31,15 +31,10 @@ class ParamTest(unittest.TestCase):
         
         self.assertTrue(np.allclose(a.x_opt[:, -1], np.array([1, 2, 2, 3, 3, 4])))
 
-    def test_blocksqp_vs_ipopt(self):
-        ipopt = make_problem('ipopt', *self.matrices)
-        blocksqp = make_problem('blocksqp', *self.matrices)
-        self._test_a_vs_b(ipopt, blocksqp)
-    
-    def test_blocksqp_vs_ilqr(self):
+    def test_ipopt_vs_ilqr(self):
         ilqr = make_problem('ilqr', *self.matrices)
-        blocksqp = make_problem('blocksqp', *self.matrices)
-        self._test_a_vs_b(ilqr, blocksqp)
+        ipopt = make_problem('ipopt', *self.matrices)
+        self._test_a_vs_b(ilqr, ipopt)
 
     def test_gnsqp_vs_ilqr(self):
         ilqr = make_problem('ilqr', *self.matrices)

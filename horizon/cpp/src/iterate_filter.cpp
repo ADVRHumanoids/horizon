@@ -1,5 +1,5 @@
 #include "ilqr/iterate_filter.h"
-
+#include <limits>
 
 IterateFilter::Pair::Pair():
     f(std::numeric_limits<double>::max()),
