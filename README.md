@@ -1,4 +1,5 @@
-# horizon ![travis](https://app.travis-ci.com/ADVRHumanoids/horizon.svg?branch=devel&status=passed)
+[![Build and Test (Noble)](https://github.com/ADVRHumanoids/horizon/actions/workflows/build-and-test-noble.yml/badge.svg)](https://github.com/ADVRHumanoids/horizon/actions/workflows/build-and-test-noble.yml)
+# horizon 
 A framework for trajectory optimization and optimal control for robotics based on CasADi
 
 ## Dependencies
