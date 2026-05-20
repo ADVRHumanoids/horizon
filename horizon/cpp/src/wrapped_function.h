@@ -106,8 +106,8 @@ public:
     WrappedFunction(const WrappedFunction&);
     WrappedFunction& operator=(const WrappedFunction&);
 
-    void setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi);
-    void call(bool sparse = false);
+    void setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi, bool quiet_inf = false);
+    void call(bool sparse = false, bool quiet_inf = false);
     void call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>>& out);
     const Eigen::MatrixXd& getOutput(int i) const;
     const Eigen::SparseMatrix<double>& getSparseOutput(int i) const;

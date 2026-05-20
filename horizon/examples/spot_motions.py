@@ -100,13 +100,13 @@ def main(args):
 
     # define dynamics
     prb = problem.Problem(n_nodes, casadi_type=cs.MX, abstract_casadi_type=cs.SX)
-    q = prb.createStateVariable('q', n_q)
+    q = prb.createStateVariable('q', n_q, vsum=kindyn.integrate(), vdiff=kindyn.difference(), vneutral=kindyn.neutralQ())
     q_dot = prb.createStateVariable('q_dot', n_v)
     q_ddot = prb.createInputVariable('q_ddot', n_v)
     f_list = [prb.createInputVariable(f'force_{i}', n_f) for i in contacts_name]
-    x_dot = utils.double_integrator_with_floating_base(q, q_dot, q_ddot)
-    prb.setDynamics(x_dot)
+    x_next = utils.double_integrator_discrete_time(q, q_dot, q_ddot, dt, kindyn)
     prb.setDt(dt)
+    prb.setDynamics(x_next, discrete_time=True)
     # contact map
     contact_map = dict(zip(contacts_name, f_list))
 
@@ -126,8 +126,10 @@ def main(args):
                        0.0, 0.9, -1.5202315,
                        0.0, 0.9, -1.5300265,
                        0.0, 0.9, -1.5253125])
+    
+    q_init_from_qn = q.vdiff(q_init, q.vneutral)
 
-    q.setBounds(q_init, q_init, 0)
+    q.setBounds(q_init_from_qn, q_init_from_qn, 0)
     q_dot.setBounds(np.zeros(n_v), np.zeros(n_v), 0)
 
     q.setInitialGuess(q_init)
@@ -241,8 +243,7 @@ def main(args):
 
     if action != 'wheelie' and action != 'jump_on_wall':
         if solver_type == 'ilqr':
-            prb.createFinalConstraint(f"final_nominal_pos_base", q[:6] - q_final[:6])
-            prb.createFinalCost(f"final_nominal_pos_joints", 1e3 * cs.sumsqr(q[7:] - q_final[7:]))
+            prb.createFinalConstraint(f"final_nominal_pos_base", q.vdiff(q, q_final))
         else:
             prb.createFinalConstraint(f"final_nominal_pos", q - q_final)
 

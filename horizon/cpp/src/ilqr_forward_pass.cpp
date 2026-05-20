@@ -11,7 +11,7 @@ bool IterativeLQR::forward_pass(double alpha)
     _fp_res->hxx_reg = _hxx_reg;
 
     // compute step
-    _fp_res->xtrj.noalias() = _xtrj + _dx*alpha;
+    apply_state_step(_xtrj, _dx*alpha, _fp_res->xtrj);
     _fp_res->utrj.noalias() = _utrj + _du*alpha;
 
     // set cost value and constraint violation after the forward pass
@@ -155,6 +155,10 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
 double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
                                            const Eigen::MatrixXd &utrj)
 {
+    // state bounds
+    //  xlb [-] x <= 0
+    //  xub [-] x >= 0
+
     TIC(compute_bound_penalty);
 
     double res = 0.0;
@@ -162,8 +166,13 @@ double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
     auto xineq = _x_lb.array() < _x_ub.array();
     auto uineq = _u_lb.array() < _u_ub.array();
 
-    res += xineq.select(_x_lb - xtrj, 0).cwiseMax(0).lpNorm<1>();
-    res += xineq.select(_x_ub - xtrj, 0).cwiseMin(0).lpNorm<1>();
+    const auto& x_minus_x0 = state_diff(xtrj, _x_nominal);
+
+    // lb violation
+    //  x_lb - (x [-] x0)
+
+    res += xineq.select(_x_lb - x_minus_x0, 0).cwiseMax(0).lpNorm<1>();
+    res += xineq.select(_x_ub - x_minus_x0, 0).cwiseMin(0).lpNorm<1>();
     res += uineq.select(_u_lb - utrj, 0).cwiseMax(0).lpNorm<1>();
     res += uineq.select(_u_ub - utrj, 0).cwiseMin(0).lpNorm<1>();
 
@@ -202,9 +211,12 @@ double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::Ma
 
     }
 
+    // q s.t. lb <= q [-] q0 <= ub
+    const auto& xtrj_minus_x0 = state_diff(xtrj, _x_nominal);
+
     // state and input equality constraint violation
     auto xeq = _x_lb.array() == _x_ub.array();
-    constr += xeq.select(_x_lb - xtrj, 0).lpNorm<1>() / _N;
+    constr += xeq.select(_x_lb - xtrj_minus_x0, 0).lpNorm<1>() / _N;
 
     auto ueq = _u_lb.array() == _u_ub.array();
     constr += ueq.select(_u_lb - utrj, 0).lpNorm<1>() / _N;

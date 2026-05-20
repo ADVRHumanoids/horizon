@@ -330,6 +330,16 @@ def single_integrator(q, v, kd=None):
 
     return qdot_fn(q, v)
 
+def double_integrator_discrete_time(q, v, a, dt, kd):
+    
+    integrate_fn = kd.integrate()
+    vn = 1*v 
+    vn[3:6] = cs.if_else(cs.norm_2(v[3:6]) < 1e-6, np.array([1e-6, 1e-6, 1e-6]), v[3:6])
+    dq = vn*dt + .5*a*dt**2
+    return cs.vertcat(
+        integrate_fn(q, dq),
+        vn + a*dt
+    )
 
 def barrier(x):
     return cs.if_else(x > 0, 0, x)

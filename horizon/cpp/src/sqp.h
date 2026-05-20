@@ -78,7 +78,7 @@ public:
         _qp_opts(opts),
         _alpha(1.), _beta(1e-4), _solution_convergence(1e-6),_alpha_min(1e-3),
         _constraint_violation_tolerance(1e-6), _merit_derivative_tolerance(1e-6), _use_gr(false),
-        _fpr(0, 0, 0), ///TODO: this needs to be improved!
+        _fpr(0, 0, 0, 0), ///TODO: this needs to be improved!
         _merit_eps(1e-6)
     {
 
@@ -129,7 +129,7 @@ public:
         _qp_opts(opts),
         _alpha(1.), _beta(1e-4), _solution_convergence(1e-6), _alpha_min(1e-3),
         _constraint_violation_tolerance(1e-6), _merit_derivative_tolerance(1e-6), _use_gr(false),
-        _fpr(0, 0, 0), ///TODO: this needs to be improved!
+        _fpr(0, 0, 0, 0), ///TODO: this needs to be improved!
         _merit_eps(1e-6)
     {
         _f = casadi::Function("f", {x}, {f}, {"x"}, {"f"});

@@ -13,6 +13,7 @@
 
 #include "profiling.h"
 #include "iterate_filter.h"
+#include "wrapped_function.h"
 
 namespace horizon
 {
@@ -61,8 +62,14 @@ public:
      */
     IterativeLQR(casadi::Function fdyn,
                  int N,
-                 OptionDict opt = OptionDict());
+                 OptionDict opt = OptionDict(),
+                 casadi::Function xsum = casadi::Function(),
+                 casadi::Function xdiff = casadi::Function());
 
+
+    void setStateBounds(const Eigen::MatrixXd& lb,
+                        const Eigen::MatrixXd& ub,
+                        const Eigen::MatrixXd& x0);
 
     void setStateBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
 
@@ -162,7 +169,7 @@ public:
         Eigen::VectorXd constraint_values;
         Eigen::MatrixXd defect_values;
 
-        ForwardPassResult(int nx, int nu, int N);
+        ForwardPassResult(int nx, int ndx, int nu, int N);
 
         void print(int N = 1) const;
     };
@@ -276,7 +283,9 @@ private:
 
     bool fixed_initial_state();
 
+    void apply_state_step(const Eigen::MatrixXd& x, const Eigen::MatrixXd& dx, Eigen::MatrixXd& xupd);
 
+    Eigen::MatrixXd& state_diff(const Eigen::MatrixXd& x2, const Eigen::MatrixXd& x1);
 
     enum DecompositionType
     {
@@ -290,6 +299,7 @@ private:
     bool _rti;
 
     const int _nx;
+    const int _ndx;
     const int _nu;
     const int _N;
 
@@ -345,6 +355,9 @@ private:
     IterateFilter _it_filt;
     bool _use_it_filter;
 
+    casadi_utils::WrappedFunction _xsum, _xdiff;
+    Eigen::MatrixXd _x_nominal;
+
     Eigen::MatrixXd _xtrj;
     Eigen::MatrixXd _utrj;
     std::vector<Eigen::VectorXd> _lam_g;
@@ -356,6 +369,7 @@ private:
     Eigen::MatrixXd _dx, _du;
 
     std::vector<Temporaries> _tmp;
+    Eigen::MatrixXd _tmp_xdiff;
 
     std::vector<std::thread> _th_pool;
     std::condition_variable _th_work_avail_cond;

@@ -3,6 +3,7 @@
 #include <cxxabi.h>
 #include <cstdlib>
 
+#include "lie.h"
 
 utils::Timer::TocCallback on_timer_toc = [](const char*, double){};
 
@@ -57,9 +58,12 @@ void set_param_inputs(std::shared_ptr<std::map<std::string, Eigen::MatrixXd>> pa
 
 IterativeLQR::IterativeLQR(cs::Function fdyn,
                            int N,
-                           OptionDict opt):
+                           OptionDict opt,
+                           casadi::Function xsum,
+                           casadi::Function xdiff):
     _nx(fdyn.size1_in(0)),
     _nu(fdyn.size1_in(1)),
+    _ndx(xdiff.is_null() ? _nx : xdiff.size1_out(0)),
     _N(N),
     _step_length(1.0),
     _hxx_reg(0.0),
@@ -71,13 +75,14 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     _defect_norm_threshold(1e-6),
     _merit_der_threshold(1e-3),
     _step_length_threshold(1e-9),
-    _cost(N+1, IntermediateCost(_nx, _nu)),
-    _constraint(N+1, Constraint(_nx, _nu)),
-    _value(N+1, ValueFunction(_nx)),
-    _dyn(N, Dynamics(_nx, _nu)),
-    _bp_res(N, BackwardPassResult(_nx, _nu)),
-    _constraint_to_go(std::make_unique<ConstraintToGo>(_nx, _nu)),
-    _fp_res(std::make_unique<ForwardPassResult>(_nx, _nu, _N)),
+    _cost(N+1, IntermediateCost(_ndx, _nu)),
+    _constraint(N+1, Constraint(_ndx, _nu)),
+    _value(N+1, ValueFunction(_ndx)),
+    _param_map(std::make_shared<ParameterMapPtr::element_type>()),
+    _dyn(N, Dynamics(_param_map, xsum, xdiff)),
+    _bp_res(N, BackwardPassResult(_ndx, _nu)),
+    _constraint_to_go(std::make_unique<ConstraintToGo>(_ndx, _nu)),
+    _fp_res(std::make_unique<ForwardPassResult>(_nx, _ndx, _nu, _N)),
     _lam_g(_N+1),
     _tmp(_N),
     _fp_accepted(0)
@@ -132,11 +137,14 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
         _prof_info.timings[name].push_back(usec);
     };
 
-    // construct param map
-    _param_map = std::make_shared<ParameterMapPtr::element_type>();
+    // state space sum and diff
+    _xsum = xsum;
+    _xdiff = xdiff;
 
-    // set dynamics
-    auto fdyn_jac = Dynamics::Jacobian(fdyn);
+    // compute dynamics derivative
+    auto fdyn_jac = lie::jacobian(fdyn, xsum, xdiff,
+                                  {"jac:f:x", "jac:f:u"},
+                                  fdyn.name() + "_jac", true);
 
     // codegen if needed
     if(_codegen_enabled)
@@ -149,7 +157,6 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     {
         d.f = fdyn;
         d.df = fdyn_jac;
-        d.param = _param_map;
     }
 
     // create dynamics parameters
@@ -158,16 +165,21 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     // initialize trajectories
     _xtrj.setZero(_nx, _N+1);
     _utrj.setZero(_nu, _N);
-    _lam_x.setZero(_nx, _N+1);
-    _lam_bound_x.setZero(_nx, _N+1);
+    _lam_x.setZero(_ndx, _N+1);
+    _lam_bound_x.setZero(_ndx, _N+1);
     _lam_bound_u.setZero(_nu, _N);
-    _dx.setZero(_nx, _N+1);
+    _dx.setZero(_ndx, _N+1);
     _du.setZero(_nu, _N);
 
+    // initialize x nominal
+    // (it is the reference state for bounds ->
+    //    x_lb <= x [-] x_n <= x_ub)
+    // this is relevant mostly for non-euclidean state space
+    _x_nominal.setZero(_nx, _N+1);
 
     // initialize bounds
-    _x_lb.setConstant(_nx, _N+1, -inf);
-    _x_ub.setConstant(_nx, _N+1, inf);
+    _x_lb.setConstant(_ndx, _N+1, -inf);
+    _x_ub.setConstant(_ndx, _N+1, inf);
     _u_lb.setConstant(_nu, _N, -inf);
     _u_ub.setConstant(_nu, _N, inf);
 
@@ -179,7 +191,13 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     // add auglag cost
     for(int i = 0; i < _N+1; i++)
     {
+        if(!_enable_auglag)
+        {
+            break;
+        }
+
         int ui = std::min(i, _N-1);
+
         auto al = std::make_shared<BoundAuglagCostEntity>(
                     _N,
                     _x_lb.col(i), _x_ub.col(i),
@@ -198,6 +216,32 @@ IterativeLQR::IterativeLQR(cs::Function fdyn,
     {
         init_thread_pool(n_threads);
     }
+}
+
+void IterativeLQR::setStateBounds(const Eigen::MatrixXd &lb,
+                                  const Eigen::MatrixXd &ub,
+                                  const Eigen::MatrixXd &x0)
+{
+    if(x0.rows() != _nx)
+    {
+        throw std::invalid_argument("bad x0 row size (must be equal to nx)");
+    }
+
+    if(x0.cols() == 1)
+    {
+        _x_nominal = x0.replicate(1, _N+1);
+    }
+    else if(x0.cols() == _x_nominal.cols())
+    {
+        _x_nominal = x0;
+    }
+    else
+    {
+        // wrong columns
+        throw std::invalid_argument("bad x0 column size (must be equal to either 1 or N+1)");
+    }
+
+    setStateBounds(lb, ub);
 }
 
 void IterativeLQR::setStateBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub)
@@ -251,8 +295,12 @@ void IterativeLQR::setCost(std::vector<int> indices, const casadi::Function& int
 
     // set cost and derivatives
     auto cost = inter_cost;
-    auto grad = IntermediateCostEntity::Gradient(inter_cost);
-    auto hess = IntermediateCostEntity::Hessian(grad);
+    auto grad = lie::jacobian(cost, _xsum.function(), _xdiff.function(),
+                              {"grad:l:x", "grad:l:u"},
+                              cost.name() + "_grad");
+    auto hess = lie::jacobian(grad, _xsum.function(), _xdiff.function(),
+                              {"jac:grad_l_x:x", "jac:grad_l_u:u", "jac:grad_l_u:x"},
+                              cost.name() + "_hess");
 
     // codegen if required (we skip it for quadratic costs)
     if(_codegen_enabled)
@@ -306,7 +354,9 @@ void IterativeLQR::setResidual(std::vector<int> indices,
 
     // set cost and derivatives
     auto res = residual;
-    auto jac = IntermediateResidualEntity::Jacobian(res);
+    auto jac = lie::jacobian(res, _xsum.function(), _xdiff.function(),
+                             {"jac:res:x", "jac:res:u"},
+                             res.name() + "_jac");
 
     // codegen if required (we skip it for quadratic costs)
     if(_codegen_enabled)
@@ -408,7 +458,9 @@ void IterativeLQR::setConstraint(std::vector<int> indices,
     c->indices = indices;
 
     auto ic_fn = inter_constraint;
-    auto ic_jac = ConstraintEntity::Jacobian(inter_constraint);
+    auto ic_jac = lie::jacobian(ic_fn, _xsum.function(), _xdiff.function(),
+                                {"jac:h:x", "jac:h:u"},
+                                ic_fn.name() + "_jac");
 
     if(_codegen_enabled)
     {
@@ -498,9 +550,12 @@ void IterativeLQR::updateIndices()
     }
 
     // add auglag
-    for(int i = 0; i < _N + 1; i++)
+    if(_enable_auglag)
     {
-        _cost[i].addCost(_auglag_cost[i]);
+        for(int i = 0; i < _N + 1; i++)
+        {
+            _cost[i].addCost(_auglag_cost[i]);
+        }
     }
 
     // clear constraints;
@@ -826,6 +881,56 @@ bool IterativeLQR::fixed_initial_state()
             _x_lb.col(0).isApprox(_x_ub.col(0));
 }
 
+void IterativeLQR::apply_state_step(const Eigen::MatrixXd &x,
+                                    const Eigen::MatrixXd &dx,
+                                    Eigen::MatrixXd& xupd)
+{
+    if(_xsum.function().is_null())
+    {
+        xupd = x + dx;
+        return;
+    }
+
+    for(int k = 0; k < x.cols(); k++)
+    {
+        _xsum.setInput(0, x.col(k));
+        _xsum.setInput(1, dx.col(k));
+        _xsum.call();
+        xupd.col(k) = _xsum.getOutput(0);
+    }
+}
+
+Eigen::MatrixXd &IterativeLQR::state_diff(const Eigen::MatrixXd &x2, const Eigen::MatrixXd &x1)
+{
+    if(_xdiff.function().is_null())
+    {
+        _tmp_xdiff = x2 - x1;
+        return _tmp_xdiff;
+    }
+
+    _tmp_xdiff.resize(_ndx, x2.cols());
+
+    if(x2.cols() != x1.cols())
+    {
+        std::stringstream ss;
+        ss << "[state diff] x2 and x1 have different columns: "
+           << "x2.cols() = " << x2.cols() << ", "
+           << "x1.cols() = " << x1.cols();
+        throw std::invalid_argument(ss.str());
+    }
+
+    for(int k = 0; k < x1.cols(); k++)
+    {
+        _xdiff.setInput(0, x2.col(k), true);
+        _xdiff.setInput(1, x1.col(k), true);
+        _xdiff.call(false, true);
+        _tmp_xdiff.col(k) = _xdiff.getOutput(0);
+    }
+
+    return _tmp_xdiff;
+
+}
+
 IterativeLQR::DecompositionType IterativeLQR::str_to_decomp_type(const std::string &dt_str)
 {
     if(dt_str == "ldlt")
@@ -930,9 +1035,12 @@ const Eigen::MatrixXd &IterativeLQR::Dynamics::B() const
     return df.getOutput(1);
 }
 
-IterativeLQR::Dynamics::Dynamics(int nx, int)
+IterativeLQR::Dynamics::Dynamics(ParameterMapPtr param,
+                                 casadi::Function xsum, casadi::Function xdiff)
 {
-    d.setZero(nx);
+    _xsum = xsum;
+    _xdiff = xdiff;
+    _param_map = param;
 }
 
 Eigen::Ref<const Eigen::VectorXd> IterativeLQR::Dynamics::integrate(VecConstRef x,
@@ -943,7 +1051,7 @@ Eigen::Ref<const Eigen::VectorXd> IterativeLQR::Dynamics::integrate(VecConstRef 
 
     f.setInput(0, x);
     f.setInput(1, u);
-    set_param_inputs(param, k, f);
+    set_param_inputs(_param_map, k, f);
     f.call();
     return f.getOutput(0);
 }
@@ -956,7 +1064,7 @@ void IterativeLQR::Dynamics::linearize(VecConstRef x,
 
     df.setInput(0, x);
     df.setInput(1, u);
-    set_param_inputs(param, k, df);
+    set_param_inputs(_param_map, k, df);
     df.call();
 }
 
@@ -969,19 +1077,20 @@ void IterativeLQR::Dynamics::computeDefect(VecConstRef x,
     TIC(compute_defect_inner)
 
     auto xint = integrate(x, u, k);
-    _d = xint - xnext;
-}
 
-void IterativeLQR::Dynamics::setDynamics(casadi::Function _f)
-{
-    f = _f;
-    df = _f.factory("df", _f.name_in(), {"jac:f:x", "jac:f:u"});
-}
+    if(_xdiff.function().is_null())
+    {
+        d = xint - xnext;
+    }
+    else
+    {
+        _xdiff.setInput(0, xint);
+        _xdiff.setInput(1, xnext);
+        _xdiff.call();
+        d = _xdiff.getOutput(0);
+    }
 
-casadi::Function IterativeLQR::Dynamics::Jacobian(const casadi::Function &f)
-{
-    auto df = f.factory("df", f.name_in(), {"jac:f:x", "jac:f:u"});
-    return df;
+    _d = d;
 }
 
 IterativeLQR::BoundAuglagCostEntity::BoundAuglagCostEntity(int N,
@@ -1339,7 +1448,7 @@ IterativeLQR::BackwardPassResult::BackwardPassResult(int nx, int nu)
     lu.setZero(nu);
 }
 
-IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int nu, int N):
+IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int ndx, int nu, int N):
     hxx_reg(0),
     alpha(0),
     accepted(false)
@@ -1349,7 +1458,7 @@ IterativeLQR::ForwardPassResult::ForwardPassResult(int nx, int nu, int N):
     merit = 0.0;
     step_length = 0.0;
     constraint_values.setZero(N+1);
-    defect_values.setZero(nx, N);
+    defect_values.setZero(ndx, N);
 
     mu_b = 0;
 }

@@ -10,7 +10,7 @@ import logging
 import sys
 import pickle
 import horizon.misc_function as misc
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Callable
 # from horizon.type_doc import BoundsDict
 from collections.abc import Iterable
 import inspect
@@ -64,19 +64,43 @@ class Problem:
         self.state_der: Union[cs.SX, cs.MX] = None
         self.f_int: cs.Function = None
         self.dt = None
+        
+        self.xsum = None 
+        self.xdiff = None
+        self.xneutral = None
 
-    def createStateVariable(self, name: str, dim: int, casadi_type=None, abstract_casadi_type=None) -> sv.StateVariable:
+    def createStateVariable(self, 
+                            name: str, 
+                            dim: int, 
+                            casadi_type=None, 
+                            abstract_casadi_type=None,
+                            vsum: Callable = None,
+                            vdiff: Callable = None,
+                            vneutral: np.ndarray = None) -> sv.StateVariable:
         """
         Create a State Variable active on ALL the N+1 nodes of the optimization problem.
         Remember: the State of the problem contains, in order of creation, all the State Variables created.
+        
+        Note: by setting vsum, vdiff and vneutral, the state space will be configured as a non-Euclidean space.
+        This is not compatible with most solvers (such as ipopt).
+        
         Args:
             name: name of the variable
             dim: dimension of the variable
-
+            casadi_type: type of the implemented variable, default is self.default_casadi_type
+            abstract_casadi_type: type of the abstract variable, default is self.default_abstract_casadi_type
+            vsum: optional sum operator for the state space, if not specified, the default sum operator is used
+            vdiff: optional difference operator for the state space, if not specified, the default difference operator is used
+            vneutral: optional neutral element for the state space, if not specified, the zero vector is used
         Returns:
             instance of the State Variable
 
         """
+        
+        # vsum, vdiff, vneutral can either be all None or all specified
+        if (vsum is None) != (vdiff is None) or (vsum is None) != (vneutral is None):
+            raise ValueError('vsum, vdiff and vneutral must be either all specified or all None')
+        
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
@@ -85,8 +109,21 @@ class Problem:
 
         # binary array to select which nodes are "active" for the variable. In this case, all of them
         nodes_array = np.ones(self.nodes).astype(int)
+        
+        # convert vsum and vdiff to casadi functions if they are python functions
+        if inspect.isfunction(vsum):
+            nv = dim
+            v1 = cs.SX.sym('v1', nv)
+            v2 = cs.SX.sym('v2', nv)
+            ndv = vdiff(v1, v2).shape[0]
+            dv = cs.SX.sym('dv', ndv)
+            vsum = cs.Function('vsum', [v1, dv], [vsum(v1, dv)], 
+                               ['v', 'dv'], ['vsum'])
+            vdiff = cs.Function('vdiff', [v1, v2], [vdiff(v1, v2)],
+                                ['v1', 'v2'], ['vdiff'])
 
-        var = self.var_container.setStateVar(name, dim, nodes_array, casadi_type, abstract_casadi_type)
+        var = self.var_container.setStateVar(name, dim, nodes_array, casadi_type, abstract_casadi_type,
+                                             vsum=vsum, vdiff=vdiff, vneutral=vneutral)
         self.state_aggr.addVariable(var)
         return var
 
@@ -254,32 +291,102 @@ class Problem:
     def getIntegrator(self) -> cs.Function:
         return self.f_int
 
-    def setDynamics(self, xdot, integrator='RK4'):
+    def setDynamics(self, xdot, integrator='RK4', discrete_time=False):
         """
         Setter of the system Dynamics used in the optimization problem.
         Remember that the variables in "xdot" are to be ordered as the variable in the state "x"
+        If discrete_time is True, xdot is treated as the integrated state over time interval dt,
+        i.e. we directly set the integrator function, therefore bypassing the state derivative
 
         Args:
             xdot: derivative of the State describing the dynamics of the system
         """
         nx = self.getState().getVars().shape[0]
+        
         if xdot.shape[0] != nx:
             raise ValueError(f'state derivative dimension mismatch ({xdot.shape[0]} != {nx})')
+        
+        if discrete_time:
+            self.state_der = None 
+            x = self.getState().getVars()
+            u = self.getInput().getVars()
+            dt = type(x).sym('dt')
+                
+            xnext = xdot
+            f_int = cs.Function('f_int', [x, u, dt], [xnext], ['x', 'u', 'dt'], ['f'])
+            
+        else:
 
-        self.state_der = xdot
-
-        import horizon.transcriptions.integrators as integrators
-
-        dae = {
-            'x': self.getState().getVars(),
-            'p': self.getInput().getVars(),
-            'ode': self.state_der,
-            'quad': 0
-        }
-
-        f_int = integrators.__dict__[integrator](dae, {}, self.default_abstract_casadi_type)
+            self.state_der = xdot
+            import horizon.transcriptions.integrators as integrators
+            dae = {
+                'x': self.getState().getVars(),
+                'p': self.getInput().getVars(),
+                'ode': self.state_der,
+                'quad': 0
+            }
+            f_int = integrators.__dict__[integrator](dae, {}, self.default_abstract_casadi_type)
 
         self.setIntegrator(f_int)
+        
+        self._compute_statespace_manifold()
+        
+        
+    def _compute_statespace_manifold(self):
+        """
+        Configure the state space as a non-Euclidean space with given sum and 
+        difference operators, from the individual state variables.
+        """
+        
+        state_vars = self.getState().var_list
+        
+        # compute tangent space dimension
+        tdim = 0
+        euclidean = True
+        
+        for s in state_vars:
+            s : sv.StateVariable
+            tdim += s.getTangentDim()
+            if s.vsum is not None:
+                euclidean = False
+        
+        # nothing to do here
+        if euclidean:
+            return
+        
+        dx = cs.SX.sym('dx', tdim)
+        x1 = cs.SX.sym('x1', self.getState().getVars().shape[0])
+        x2 = cs.SX.sym('x2', self.getState().getVars().shape[0])
+        n = np.zeros((x1.shape[0],))
+        
+        ix = 0
+        id = 0
+        xsum = cs.SX.zeros(x1.shape[0])
+        xdiff = cs.SX.zeros(dx.shape[0])
+        xneutral = np.zeros(x1.shape[0])
+        
+        for s in state_vars:
+            s : sv.StateVariable
+            dim = s.getDim()
+            tdim = s.getTangentDim()
+            
+            if s.vsum is None:
+                xsum[ix:ix+dim] = x1[ix:ix+dim] + dx[id:id+tdim]
+                xdiff[id:id+tdim] = x1[ix:ix+dim] - x2[ix:ix+dim]
+                xneutral[ix:ix+dim] = 0
+            else:
+                xsum[ix:ix+dim] = s.vsum(x1[ix:ix+dim], dx[id:id+tdim])
+                xdiff[id:id+tdim] = s.vdiff(x1[ix:ix+dim], x2[ix:ix+dim])
+                xneutral[ix:ix+dim] = s.vneutral
+                
+            ix += dim
+            id += tdim
+            
+        # create the functions
+        self.xsum = cs.Function('xsum', [x1, dx], [xsum], ['x', 'dx'], ['xsum'])
+        self.xdiff = cs.Function('xdiff', [x1, x2], [xdiff], ['x1', 'x2'], ['xdiff'])
+        self.xneutral = xneutral
+            
 
     def getDynamics(self) -> cs.SX:
         """
@@ -330,7 +437,11 @@ class Problem:
         return self.dt
 
     def setInitialState(self, x0: Iterable):
-        self.getState().setBounds(lb=x0, ub=x0, nodes=0)
+        if self.xsum is not None:
+            dx0 = self.xdiff(x0, self.xneutral)
+        else:
+            dx0 = x0
+        self.getState().setBounds(lb=dx0, ub=dx0, nodes=0)
 
     def getInitialState(self) -> np.array:
         lb, ub = self.getState().getBounds(node=0)

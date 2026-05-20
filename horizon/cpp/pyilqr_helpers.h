@@ -27,9 +27,17 @@ casadi::Function to_cpp(py::object pyfn)
     return casadi::Function::deserialize(fstr);
 }
 
-auto construct(py::object fdyn, int N, IterativeLQR::OptionDict opt)
+auto construct(py::object fdyn, int N, IterativeLQR::OptionDict opt, py::object xsum, py::object xdiff)
 {
-    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt);
+    casadi::Function c_xsum, c_xdiff;
+
+    if(!xsum.is_none())
+    {
+        c_xsum = to_cpp(xsum);
+        c_xdiff = to_cpp(xdiff);
+    }
+
+    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt, c_xsum, c_xdiff);
 }
 
 auto set_inter_cost_wrapper_single(IterativeLQR& self, std::vector<int> k, py::object f)

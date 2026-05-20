@@ -149,7 +149,7 @@ void IterativeLQR::backward_pass_iter(int i)
     // print
     if(_log)
     {
-        Eigen::MatrixXd H(_nu+_nx, _nu+_nx);
+        Eigen::MatrixXd H(_nu+_ndx, _nu+_ndx);
         H << tmp.Hxx, tmp.Hux.transpose(),
             tmp.Hux, tmp.Huu;
         Eigen::VectorXd eigH = H.eigenvalues().real();
@@ -159,7 +159,7 @@ void IterativeLQR::backward_pass_iter(int i)
         std::cout << "H symmetry error = " <<
             (H - H.transpose()).lpNorm<Eigen::Infinity>() << "\n";
 
-        Eigen::MatrixXd V(_nu+_nx, _nu+_nx);
+        Eigen::MatrixXd V(_nu+_ndx, _nu+_ndx);
         V << Q, P.transpose(),
             P, R;
         Eigen::VectorXd eigV = V.eigenvalues().real();
@@ -188,10 +188,10 @@ void IterativeLQR::backward_pass_iter(int i)
     K.bottomLeftCorner(nc, _nu) = constr_feas.D;
     K.bottomRightCorner(nc, nc).diagonal().array() -= _kkt_reg;
 
-    kx0.resize(_nu + nc, _nx + 1);
-    kx0.leftCols(_nx) << -tmp.Hux,
+    kx0.resize(_nu + nc, _ndx + 1);
+    kx0.leftCols(_ndx) << -tmp.Hux,
         -constr_feas.C;
-    kx0.col(_nx) << -tmp.hu,
+    kx0.col(_ndx) << -tmp.hu,
         -constr_feas.h;
     TOC(form_kkt_inner);
 
@@ -270,11 +270,11 @@ void IterativeLQR::backward_pass_iter(int i)
     auto& Lu = res.Lu;
     auto& lu = res.lu;
     auto& lam = res.glam;
-    auto Lmu = u_lam.bottomLeftCorner(nc, _nx);
-    auto lmu = u_lam.col(_nx).tail(nc);
-    Lu = u_lam.topLeftCorner(_nu, _nx);
-    lu = u_lam.col(_nx).head(_nu);
-    lam = u_lam.col(_nx).tail(nc);
+    auto Lmu = u_lam.bottomLeftCorner(nc, _ndx);
+    auto lmu = u_lam.col(_ndx).tail(nc);
+    Lu = u_lam.topLeftCorner(_nu, _ndx);
+    lu = u_lam.col(_ndx).head(_nu);
+    lam = u_lam.col(_ndx).tail(nc);
 
     // save optimal value function
     TIC(upd_value_fn_inner);
@@ -341,8 +341,21 @@ void IterativeLQR::optimize_initial_state()
     // typical case: initial state is fixed
     if(fixed_initial_state())
     {
-        dx = _x_lb.col(0) - state(0);
-        return;
+        if(_xdiff.function().is_null())
+        {
+            // euclidean state
+            dx = _x_lb.col(0) - state(0);
+            return;
+        }
+        else
+        {
+            // non-euclidean state
+            // x_lb = x [-] x0 -> x = x0 [+] x_lb -> dx = (x0 [+] x_lb) [-] xtrj
+            Eigen::MatrixXd x0_plus_x_lb(_nx, 1);
+            apply_state_step(_x_nominal.col(0), _x_lb.col(0), x0_plus_x_lb);
+            dx = state_diff(x0_plus_x_lb, _xtrj.col(0));
+            return;
+        }
     }
 
     // cost
@@ -378,7 +391,7 @@ void IterativeLQR::optimize_initial_state()
     Eigen::VectorXd k = _tmp[0].x_k0;
     k.resize(s.size() + h.size());
     k << -s,
-        -h;
+         -h;
 
     THROW_NAN(K);
     THROW_NAN(k);
@@ -459,7 +472,18 @@ void IterativeLQR::add_bound_constraint(int k)
 
     // state bounds
     u_ei.setZero(_nu);
-    for(int i = 0; i < _nx; i++)
+
+    // general formulation:
+    // x [-] x0 = x_ub
+    // e = (x0 [+] x_ub) [-] xtrj
+
+    // compute x_lb - x_ub
+    Eigen::VectorXd x_bound_diff = _x_lb.col(k) - _x_ub.col(k);
+
+    // bound error will be computed lazily
+    Eigen::VectorXd bound_error;
+
+    for(int i = 0; i < _ndx; i++)
     {
         // if initial state is fixed, don't add
         // constraints for it
@@ -469,26 +493,34 @@ void IterativeLQR::add_bound_constraint(int k)
         }
 
         // equality
-        if(_x_lb(i, k) == _x_ub(i, k))
+        if(x_bound_diff(i) == 0.0)
         {
-            x_ei = x_ei.Unit(_nx, i);
+            x_ei = x_ei.Unit(_ndx, i);
+
+            // bound error computation
+            if(bound_error.size() == 0)
+            {
+                Eigen::MatrixXd x0_plus_x_ub(_nx, 1);
+                apply_state_step(_x_nominal.col(k), _x_lb.col(k), x0_plus_x_ub);
+                bound_error = state_diff(x0_plus_x_ub, _xtrj.col(k));
+            }
 
             Eigen::Matrix<double, 1, 1> hd;
-            hd(0) = _xtrj(i, k) - _x_lb(i, k);
+            hd(0) = -bound_error[i];
 
             _constraint_to_go->add(x_ei, u_ei, hd);
 
             if(_log)
             {
                 std::cout << k << ": detected state equality constraint (index " <<
-                    i << ", value = " << _x_lb(i, k) << ") \n";
+                    i << ", error = " << bound_error(i, k) << ") \n";
             }
 
         }
     }
 
     // input bounds
-    x_ei.setZero(_nx);
+    x_ei.setZero(_ndx);
     for(int i = 0; i < _nu; i++)
     {
         if(k == _N)
@@ -605,6 +637,11 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     const auto& B = dyn.B();
     const auto& d = dyn.d;  // note: has been computed during linearization phase
 
+    // std::cout << "A = \n" << A.format(3) << "\n";
+    // std::cout << "B = \n" << B.format(3) << "\n";
+    // std::cout << "d = \n" << d.transpose().format(3) << "\n";
+
+
     // ..workspace
     auto& tmp = _tmp[i];
     auto& Cf = tmp.Cf;
@@ -616,6 +653,10 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
 
     // ..backward pass result
     auto& res = _bp_res[i];
+
+    // std::cout << "Cpre = \n" << _constraint_to_go->C().format(3) << "\n";
+    // std::cout << "Dpre = \n" << _constraint_to_go->D().format(3) << "\n";
+    // std::cout << "hpre = \n" << _constraint_to_go->h().format(3) << "\n";
 
     TIC(constraint_prepare_inner);
     // back-propagate constraint to go from next step to current step
@@ -640,7 +681,7 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     // no constraint to handle, do nothing
     if(nc == 0)
     {
-        Cf.setZero(0, _nx);
+        Cf.setZero(0, _ndx);
         Df.setZero(0, _nu);
         hf.setZero(0);
         tmp.hinf.setZero(0);
@@ -656,9 +697,9 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     THROW_NAN(Dtmp);
     THROW_NAN(htmp);
 
-    //    std::cout << "C = \n" << Ctmp.format(3) << "\n";
-    //    std::cout << "D = \n" << Dtmp.format(3) << "\n";
-    //    std::cout << "h = \n" << htmp.format(3) << "\n";
+    // std::cout << "Cpost = \n" << Ctmp.format(3) << "\n";
+    // std::cout << "Dpost = \n" << Dtmp.format(3) << "\n";
+    // std::cout << "hpost = \n" << htmp.format(3) << "\n";
 
     // it is rather common for D to contain exact zero rows,
     // we can directly consider them as unsatisfied constr
@@ -697,7 +738,7 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     // no constraint to handle, do nothing
     if(nc == 0)
     {
-        Cf.setZero(0, _nx);
+        Cf.setZero(0, _ndx);
         Df.setZero(0, _nu);
         hf.setZero(0);
         tmp.hinf.setZero(0);

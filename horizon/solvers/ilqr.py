@@ -71,7 +71,7 @@ class SolverILQR(Solver):
         #                        )
 
         # create ilqr solver
-        self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
+        self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts, self.prb.xsum, self.prb.xdiff,)
 
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
@@ -262,8 +262,15 @@ class SolverILQR(Solver):
 
         xlb, xub = self.prb.getState().getBounds(node=None)
         ulb, uub = self.prb.getInput().getBounds(node=None)
-        self.ilqr.setStateBounds(xlb, xub)
-        self.ilqr.setInputBounds(ulb, uub)
+        xneutral = self.prb.xneutral
+        
+        if xneutral is None:
+            self.ilqr.setStateBounds(xlb, xub)
+            self.ilqr.setInputBounds(ulb, uub)
+        else:
+            self.ilqr.setStateBounds(xlb, xub, xneutral)
+            self.ilqr.setInputBounds(ulb, uub)
+            
 
     def _set_fun(self, container, set_to_ilqr, outname):
 

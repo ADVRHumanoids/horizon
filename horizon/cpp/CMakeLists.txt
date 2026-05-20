@@ -9,7 +9,7 @@ if(${HORIZON_PROFILING})
 endif()
 
 find_package(Eigen3 REQUIRED)
-find_package(casadi 3.5.5 REQUIRED)
+find_package(casadi REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
@@ -17,9 +17,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 # ilqr library
 add_library(horizon STATIC
-    src/horizon_parser.cpp)
-
-target_link_libraries(horizon Eigen3::Eigen casadi)
+    src/horizon_parser.cpp
+)
+target_link_libraries(horizon Eigen3::Eigen casadi::casadi)
 
 add_library(ilqr STATIC
     src/ilqr.cpp
@@ -30,6 +30,7 @@ add_library(ilqr STATIC
     src/profiling.cpp
     src/codegen_function.cpp
     src/iterate_filter.cpp
+    src/lie.cpp
 )
 
 # sqp library
@@ -40,8 +41,8 @@ add_library(sqp STATIC
 )
 
 
-target_link_libraries(ilqr Eigen3::Eigen casadi pthread)
-target_link_libraries(sqp Eigen3::Eigen casadi ilqr)
+target_link_libraries(ilqr Eigen3::Eigen casadi::casadi pthread)
+target_link_libraries(sqp Eigen3::Eigen casadi::casadi ilqr)
 
 install(TARGETS horizon ilqr sqp
     DESTINATION lib)
@@ -55,7 +56,7 @@ pybind11_add_module(pyilqr pyilqr.cpp)
 target_link_libraries(pyilqr PUBLIC ilqr)
 
 pybind11_add_module(pysqp pysqp.cpp)
-target_link_libraries(pysqp PUBLIC sqp Eigen3::Eigen casadi)
+target_link_libraries(pysqp PUBLIC sqp Eigen3::Eigen casadi::casadi)
 
 add_custom_command(TARGET pyilqr POST_BUILD
     COMMAND cp $<TARGET_FILE:pyilqr> ../solvers

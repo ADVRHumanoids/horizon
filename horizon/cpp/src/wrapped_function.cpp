@@ -64,14 +64,14 @@ WrappedFunction::WrappedFunction(const WrappedFunction & other)
     *this = other._f;
 }
 
-void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
+void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi, bool quiet_inf)
 {
     if(xi.size() != _f.size1_in(i))
     {
         throw std::invalid_argument(_f.name() + ": input size mismatch");
     }
 
-    if(xi.hasNaN() || !xi.allFinite())
+    if(xi.hasNaN() || !(quiet_inf || xi.allFinite()))
     {
         std::ostringstream oss;
         oss << _f.name() << " input " << i << " contains invalid values: \n" <<
@@ -82,7 +82,7 @@ void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
     _in_buf[i] = xi.data();
 }
 
-void WrappedFunction::call(bool sparse)
+void WrappedFunction::call(bool sparse, bool quiet_inf)
 {
     casadi_int mem = _f.checkout();
 
@@ -120,7 +120,7 @@ void WrappedFunction::call(bool sparse)
                           _out_data[i],
                           _out_matrix[i]);
 
-            if(_out_matrix[i].hasNaN() || !_out_matrix[i].allFinite())
+            if(_out_matrix[i].hasNaN() || !(quiet_inf || _out_matrix[i].allFinite()))
             {
                 std::ostringstream oss;
                 oss << _f.name() << " output " << i << " contains invalid values: \n";

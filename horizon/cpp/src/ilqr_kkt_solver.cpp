@@ -61,7 +61,7 @@ void IterativeLQR::kkt_solve()
     _kkt_triplets.clear();
 
     // compute size (_N+1 states, _N controls, _N dynamic constraints)
-    int kkt_size = _nx*(2*_N+1) + _nu*_N;
+    int kkt_size = _ndx*(2*_N+1) + _nu*_N;
 
     // add constraints
     for(auto& c : _constraint)
@@ -72,14 +72,24 @@ void IterativeLQR::kkt_solve()
     // add bounds if lb == ub
     for(int k = 0; k < _N+1; k++)
     {
-        for(int i = 0; i < _nx; i++)
+        Eigen::VectorXd bound_err;
+
+        for(int i = 0; i < _ndx; i++)
         {
             if(_x_lb(i, k) == _x_ub(i, k))
             {
+                if(bound_err.size() == 0)
+                {
+                    // compute bound error
+                    Eigen::MatrixXd x0_plus_x_lb(_nx, 1);
+                    apply_state_step(_x_nominal.col(k), _x_lb.col(k), x0_plus_x_lb);
+                    bound_err = state_diff(x0_plus_x_lb, _xtrj.col(k));
+                }
+
                 _kkt_rhs.conservativeResize(kkt_size + 1);
-                _kkt_triplets.emplace_back(kkt_size, k*_nx + i, 1);
-                _kkt_triplets.emplace_back(k*_nx + i, kkt_size, 1);
-                _kkt_rhs(kkt_size) = _x_lb(i, k) - _xtrj(i, k);
+                _kkt_triplets.emplace_back(kkt_size, k*_ndx + i, 1);
+                _kkt_triplets.emplace_back(k*_ndx + i, kkt_size, 1);
+                _kkt_rhs(kkt_size) = bound_err(i);
                 kkt_size += 1;
             }
         }
@@ -109,19 +119,19 @@ void IterativeLQR::kkt_solve()
     for(int i = 0; i < _N+1; i++)
     {
         ::fill_block(_cost[i].Q(),
-                     i*_nx,
-                     i*_nx,
+                     i*_ndx,
+                     i*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
-        ::fill_m_eye(_nx,
+        ::fill_m_eye(_ndx,
                      _hxx_reg,
-                     i*_nx,
-                     i*_nx,
+                     i*_ndx,
+                     i*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
-        _kkt_rhs.segment(i*_nx, _nx) = -_cost[i].q();
+        _kkt_rhs.segment(i*_ndx, _ndx) = -_cost[i].q();
 
     }
 
@@ -137,7 +147,7 @@ void IterativeLQR::kkt_solve()
 
         ::fill_block(_cost[i].P(),
                      row_offset + i*_nu,
-                     i*_nx,
+                     i*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
@@ -147,32 +157,32 @@ void IterativeLQR::kkt_solve()
     // fill dynamics
     for(int i = 0; i < _N; i++)
     {
-        int row_offset = _nx*(_N+1) + _nu*_N;
+        int row_offset = _ndx*(_N+1) + _nu*_N;
 
         ::fill_block(_dyn[i].A(),
-                     row_offset + i*_nx,
-                     i*_nx,
+                     row_offset + i*_ndx,
+                     i*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
-        ::fill_m_eye(_nx,
+        ::fill_m_eye(_ndx,
                      -1,
-                     row_offset + i*_nx,
-                     (i+1)*_nx,
+                     row_offset + i*_ndx,
+                     (i+1)*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
         ::fill_block(_dyn[i].B(),
-                     row_offset + i*_nx,
-                     _nx*(_N+1) + i*_nu,
+                     row_offset + i*_ndx,
+                     _ndx*(_N+1) + i*_nu,
                      _kkt_mat,
                      _kkt_triplets);
 
-        _kkt_rhs.segment(row_offset + i*_nx, _nx) = -_dyn[i].d;
+        _kkt_rhs.segment(row_offset + i*_ndx, _ndx) = -_dyn[i].d;
     }
 
     // fill constraints
-    int row_offset = (2*_N + 1)*_nx + _N*_nu;
+    int row_offset = (2*_N + 1)*_ndx + _N*_nu;
 
     for(int i = 0; i < _N+1; i++)
     {
@@ -185,7 +195,7 @@ void IterativeLQR::kkt_solve()
 
         ::fill_block(c.C(),
                      row_offset,
-                     i*_nx,
+                     i*_ndx,
                      _kkt_mat,
                      _kkt_triplets);
 
@@ -199,7 +209,7 @@ void IterativeLQR::kkt_solve()
 
         ::fill_block(c.D(),
                      row_offset,
-                     (_N+1)*_nx + i*_nu,
+                     (_N+1)*_ndx + i*_nu,
                      _kkt_mat,
                      _kkt_triplets);
 

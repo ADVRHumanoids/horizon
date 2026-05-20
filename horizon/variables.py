@@ -34,13 +34,14 @@ class AbstractVariable(ABC):
           Horizon allows the user to work only with abstract variables. Internally, these variables are projected over the horizon nodes.
     """
 
-    def __init__(self, tag: str, dim: int, abstract_casadi_type):
+    def __init__(self, tag: str, dim: int, abstract_casadi_type, tdim: int = None):
         """
         Initialize the Abstract Variable. Inherits from the symbolic CASADI variable SX or MX.
 
         Args:
             tag: name of the variable
             dim: dimension of the variable
+            tdim: dimension of the variable's tangent space (for non-euclidean variables)
         """
 
         # dynamically add casadi_type as base class 
@@ -60,6 +61,7 @@ class AbstractVariable(ABC):
 
         # size (same as self.size1())
         self._dim = dim
+        self._tdim = tdim if tdim is not None else dim
 
         # offset of a variable is used to point to the desired previous/next implemented
         # Example:
@@ -74,6 +76,15 @@ class AbstractVariable(ABC):
             dimension of the variable
         """
         return self._dim
+    
+    def getTangentDim(self) -> int:
+        """
+        Getter for the dimension of the tangent space of the abstract variable.
+
+        Returns:
+            dimension of the tangent space of the variable
+        """
+        return self._tdim
 
     @abstractmethod
     def getName(self):
@@ -653,10 +664,10 @@ class SingleVariable(AbstractVariable):
         self._casadi_type = casadi_type
         self._nodes_array = nodes_array
         self._impl = dict()
-        # todo do i create another var or do I use the SX var inside SingleVariable?
+        # todo do I create another var or do I use the SX var inside SingleVariable?
         self._impl['var'] = self._casadi_type.sym(self._tag + '_impl', self._dim)
-        self._impl['lb'] = np.full([self._dim, 1], -np.inf)
-        self._impl['ub'] = np.full([self._dim, 1], np.inf)
+        self._impl['lb'] = np.full([self._tdim, 1], -np.inf)
+        self._impl['ub'] = np.full([self._tdim, 1], np.inf)
         self._impl['w0'] = np.zeros([self._dim, 1])
 
     def _setVals(self, val_type, val, indices=None):
@@ -926,7 +937,7 @@ class Variable(AbstractVariable):
         Implemented variable "x" --> x_0, x_1, ... x_N-1, x_N
     """
 
-    def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
+    def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type, tdim=None):
         """
         Initialize the Variable.
         The bounds of the variable are initialized to -inf/inf.
@@ -936,7 +947,7 @@ class Variable(AbstractVariable):
             dim: dimension of the variable
             nodes_array: binary array specifying the variable is defined on
         """
-        super().__init__(tag, dim, abstract_casadi_type)
+        super().__init__(tag, dim, abstract_casadi_type, tdim=tdim)
 
         self._abstract_casadi_type = abstract_casadi_type
         self._casadi_type = casadi_type
@@ -966,10 +977,13 @@ class Variable(AbstractVariable):
             nodes = misc.checkNodes(nodes, self._nodes_array)
 
         pos_nodes = misc.convertNodestoPos(nodes, self._nodes_array)
+        
+        # val dimension
+        val_dim = self._tdim if val_type in ('lb', 'ub') else self._dim
 
         # indices
         if indices is None:
-            indices_vec = np.array(range(self._dim)).astype(int)
+            indices_vec = np.array(range(val_dim)).astype(int)
         else:
             indices_vec = np.array(indices).astype(int)
 
@@ -1118,10 +1132,11 @@ class Variable(AbstractVariable):
         # self._nodes contains the actual nodes on which the variable is defined
         num_nodes = np.sum(self._nodes_array).astype(int)
         proj_dim = [self._dim, num_nodes]
+        proj_tdim = [self._tdim, num_nodes]
         # the MX variable is created: dim x n_nodes
         var_impl = self._casadi_type.sym(self._tag, proj_dim[0], proj_dim[1])
-        var_lb = np.full((proj_dim[0], proj_dim[1]), -np.inf)
-        var_ub = np.full((proj_dim[0], proj_dim[1]), np.inf)
+        var_lb = np.full((proj_tdim[0], proj_tdim[1]), -np.inf)
+        var_ub = np.full((proj_tdim[0], proj_tdim[1]), np.inf)
         var_w0 = np.zeros([proj_dim[0], proj_dim[1]])
 
         new_var_impl['var'] = var_impl
@@ -1415,8 +1430,9 @@ class VariableView(AbstractVariableView):
 
 
 class RecedingVariable(Variable):
-    def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type):
-        super().__init__(tag, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+    def __init__(self, tag, dim, nodes_array, casadi_type, abstract_casadi_type, tdim=None):
+        super().__init__(tag, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type,
+                         tdim=tdim)
 
         self._nodes = misc.getNodesFromBinary(self._nodes_array)
         self._all_indices = np.array(range(self._dim)).astype(int)
@@ -1588,7 +1604,8 @@ class StateVariable(Variable):
         Implemented variable "x" --> x_0, x_1, ... x_N-1, x_N
     """
 
-    def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type):
+    def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type,
+                 vsum : cs.Function = None, vdiff : cs.Function = None, vneutral: np.ndarray = None):
         """
         Initialize the State Variable.
 
@@ -1597,8 +1614,13 @@ class StateVariable(Variable):
             dim: dimension of the variable
             nodes: should always be N, where N is the number of horizon nodes
         """
+        tdim = vdiff.size1_out(0) if vdiff is not None else None
         super(StateVariable, self).__init__(tag, dim, nodes, casadi_type=casadi_type,
-                                            abstract_casadi_type=abstract_casadi_type)
+                                            abstract_casadi_type=abstract_casadi_type,
+                                            tdim=tdim)
+        self.vsum : cs.Function = vsum 
+        self.vdiff : cs.Function = vdiff 
+        self.vneutral : np.ndarray = vneutral
 
 
 class RecedingInputVariable(RecedingVariable):
@@ -1615,7 +1637,8 @@ class RecedingInputVariable(RecedingVariable):
 
 
 class RecedingStateVariable(RecedingVariable):
-    def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type):
+    def __init__(self, tag, dim, nodes, casadi_type, abstract_casadi_type, 
+                 vsum: cs.Function = None, vdiff: cs.Function = None, vneutral: np.ndarray = None):
         """
         Initialize the Receding State Variable.
 
@@ -1624,7 +1647,13 @@ class RecedingStateVariable(RecedingVariable):
             dim: dimension of the variable
             nodes: should always be N-1, where N is the number of horizon nodes
         """
-        super().__init__(tag, dim, nodes, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        tdim = vdiff.size1_out(0) if vdiff is not None else None
+        super().__init__(tag, dim, nodes, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type,
+                         tdim=tdim)
+        
+        self.vsum : cs.Function = None 
+        self.vdiff : cs.Function = None 
+        self.vneutral : np.ndarray = None
 
 
 class AbstractAggregate(ABC):
@@ -1796,7 +1825,7 @@ class Aggregate(AbstractAggregate):
         """
         idx = 0
         for var in self:
-            nv = var.shape[0]
+            nv = var.getTangentDim()
             var.setLowerBounds(lb[idx:idx + nv], nodes)
             idx += nv
 
@@ -1810,7 +1839,7 @@ class Aggregate(AbstractAggregate):
         """
         idx = 0
         for var in self:
-            nv = var.shape[0]
+            nv = var.getTangentDim()
             var.setUpperBounds(ub[idx:idx + nv], nodes)
             idx += nv
 
@@ -1976,7 +2005,8 @@ class VariablesContainer:
         self._vars = OrderedDict()
         self._pars = OrderedDict()
 
-    def createVar(self, var_type, name, dim, nodes_array, casadi_type, abstract_casadi_type):
+    def createVar(self, var_type, name, dim, nodes_array, casadi_type, abstract_casadi_type,
+                  vsum: cs.Function = None, vdiff: cs.Function = None, vneutral: np.ndarray = None):
         """
         Create a variable and adds it to the Variable Container.
 
@@ -1989,7 +2019,13 @@ class VariablesContainer:
             casadi_type: type of implemented variable of horizon (casadi SX or MX)
 
         """
-        var = var_type(name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        
+        if var_type in [StateVariable, RecedingStateVariable]:
+            var = var_type(name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type,
+                        vsum=vsum, vdiff=vdiff, vneutral=vneutral)
+        else:
+            var = var_type(name, dim, nodes_array, casadi_type=casadi_type, abstract_casadi_type=abstract_casadi_type)
+        
         self._vars[name] = var
 
         if self._logger:
@@ -2022,7 +2058,8 @@ class VariablesContainer:
                              abstract_casadi_type=abstract_casadi_type)
         return var
 
-    def setStateVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):
+    def setStateVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type,
+                    vsum: cs.Function = None, vdiff: cs.Function = None, vneutral: np.ndarray = None):
         """
         Creates a State variable.
 
@@ -2040,7 +2077,8 @@ class VariablesContainer:
             var_type = StateVariable
 
         var = self.createVar(var_type, name, dim, nodes_array, casadi_type=casadi_type,
-                             abstract_casadi_type=abstract_casadi_type)
+                             abstract_casadi_type=abstract_casadi_type,
+                             vsum=vsum, vdiff=vdiff, vneutral=vneutral)
         return var
 
     def setInputVar(self, name, dim, nodes_array, casadi_type, abstract_casadi_type):

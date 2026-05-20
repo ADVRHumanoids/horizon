@@ -34,7 +34,13 @@ PYBIND11_MODULE(pyilqr, m) {
                  py::arg("indices"), py::arg("h"), py::arg("target") = py::list())
             .def("setFinalCost", set_final_cost_wrapper)
             .def("setFinalConstraint", set_final_constraint_wrapper)
-            .def("setStateBounds", &IterativeLQR::setStateBounds)
+            .def("setStateBounds",
+                 py::overload_cast<const Eigen::MatrixXd&,
+                               const Eigen::MatrixXd&,
+                               const Eigen::MatrixXd&>(&IterativeLQR::setStateBounds))
+            .def("setStateBounds",
+                 py::overload_cast<const Eigen::MatrixXd&,
+                               const Eigen::MatrixXd&>(&IterativeLQR::setStateBounds))
             .def("setInputBounds", &IterativeLQR::setInputBounds)
             .def("setParameterValue", &IterativeLQR::setParameterValue)
             .def("setIndices", &IterativeLQR::setIndices)

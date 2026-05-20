@@ -22,9 +22,6 @@ public:
     // dynamics jacobian
     casadi_utils::WrappedFunction df;
 
-    // parameters
-    ParameterMapPtr param;
-
     // df/dx
     const Eigen::MatrixXd& A() const;
 
@@ -34,7 +31,8 @@ public:
     // defect (or gap)
     Eigen::VectorXd d;
 
-    Dynamics(int nx, int nu);
+    Dynamics(ParameterMapPtr param_map,
+             casadi::Function xsum, casadi::Function xdiff);
 
     VecConstRef integrate(VecConstRef x,
                           VecConstRef u,
@@ -50,9 +48,13 @@ public:
                        int k,
                        Eigen::VectorXd& d);
 
-    void setDynamics(casadi::Function f);
+private:
 
-    static casadi::Function Jacobian(const casadi::Function& f);
+    // parameters
+    ParameterMapPtr _param_map;
+
+    // state space sum and diff
+    casadi_utils::WrappedFunction _xsum, _xdiff;
 
 };
 
@@ -388,7 +390,7 @@ struct IterativeLQR::Temporaries
 
 struct IterativeLQR::ConstraintToGo
 {
-    ConstraintToGo(int nx, int nu);
+    ConstraintToGo(int ndx, int nu);
 
     void set(MatConstRef C, VecConstRef h);
 
@@ -454,7 +456,7 @@ struct IterativeLQR::BackwardPassResult
     Eigen::VectorXd dx;
     Eigen::VectorXd dx_lam;
 
-    BackwardPassResult(int nx, int nu);
+    BackwardPassResult(int ndx, int nu);
 };
 
 struct IterativeLQR::FeasibleConstraint
@@ -466,6 +468,7 @@ struct IterativeLQR::FeasibleConstraint
 
 static void set_param_inputs(std::shared_ptr<std::map<std::string, Eigen::MatrixXd>> params, int k,
                              casadi_utils::WrappedFunction& f);
+
 
 #define THROW_NAN(mat) \
     if((mat).hasNaN()) \
