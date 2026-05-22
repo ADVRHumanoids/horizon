@@ -19,6 +19,8 @@ public:
     bool setNodes(std::vector<int> nodes, bool erasing);
     bool setLowerBounds(Eigen::MatrixXd lb, std::vector<int> nodes = {});
     bool setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes = {});
+    bool setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub, std::vector<int> nodes = {});
+
     bool setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> nodes = {});
 
     Eigen::MatrixXd getValues();
@@ -28,6 +30,7 @@ public:
     int getDim();
     Eigen::MatrixXd getLowerBounds();
     Eigen::MatrixXd getUpperBounds();
+    std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> getBounds();
 
     Eigen::MatrixXd getInitialGuess();
 
@@ -57,7 +60,7 @@ public:
 
     Parameter(std::string name, int dim, int n_nodes);
     bool setNodes(std::vector<int> nodes, bool erasing);
-    bool setValues(const Eigen::MatrixXd& values, const std::vector<int>& nodes = {});
+    bool assign(const Eigen::MatrixXd& values, const std::vector<int>& nodes = {});
 
     Eigen::MatrixXd getValues();
 

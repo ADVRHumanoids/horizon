@@ -518,6 +518,62 @@ void IterativeLQR::updateIndices()
     }
 }
 
+void IterativeLQR::printState() const
+{
+    std::cout << "\n========== iLQR STATE (N=" << _N << ") ==========\n";
+
+    std::cout << "--- COSTS ---\n";
+    for (const auto& [name, entity] : _cost_map)
+    {
+        std::cout << "  [cost] " << name << " | indices: [";
+        for (size_t i = 0; i < entity->indices.size(); ++i)
+        {
+            std::cout << entity->indices[i];
+            if (i + 1 < entity->indices.size()) std::cout << ", ";
+        }
+        std::cout << "]\n";
+    }
+
+    std::cout << "--- CONSTRAINTS ---\n";
+    for (const auto& [name, entity] : _constr_map)
+    {
+        std::cout << "  [constr] " << name << " | indices: [";
+        for (size_t i = 0; i < entity->indices.size(); ++i)
+        {
+            std::cout << entity->indices[i];
+            if (i + 1 < entity->indices.size()) std::cout << ", ";
+        }
+        std::cout << "]\n";
+    }
+
+    std::cout << "--- INPUT BOUNDS (ulb/uub non-inf columns) ---\n";
+    for (int col = 0; col < _u_lb.cols(); ++col)
+    {
+        bool any_bounded = false;
+        for (int row = 0; row < _u_lb.rows(); ++row)
+        {
+            if (_u_lb(row, col) != -std::numeric_limits<double>::infinity() ||
+                _u_ub(row, col) !=  std::numeric_limits<double>::infinity())
+            {
+                any_bounded = true;
+                break;
+            }
+        }
+        if (any_bounded)
+            std::cout << "  col " << col << ": lb=[" << _u_lb.col(col).transpose()
+                      << "] ub=[" << _u_ub.col(col).transpose() << "]\n";
+    }
+
+    // std::cout << "--- PARAMETERS ---\n";
+    // for (const auto& [name, mat] : *_param_map)
+    // {
+    //     std::cout << "  [param] " << name
+    //               << " | size: " << mat.rows() << "x" << mat.cols() << "\n";
+    // }
+
+    std::cout << "==========================================\n\n";
+}
+
 void IterativeLQR::setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices)  // default = empty -> update all columns
 {
     auto it = _param_map->find(pname);

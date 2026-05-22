@@ -315,6 +315,52 @@ class PhaseGaitWrapper:
         self.__add_cycle([1, 1, 1, 1], duration=double_stance)
 
 
+    def save(self):
+        """
+        Return a dict describing the elements registered in each stance/flight phase,
+        including actual stored values for item_references, item_weights, parameters,
+        and variable_bounds — so C++ can reconstruct the phase configuration exactly.
+        """
+        import numpy as np
+
+        def _ref_entry(item):
+            """name + current values as nested list for YAML serialisation."""
+            vals = item.getValues()
+            return {'name': item.getName(), 'values': vals.tolist()}
+
+        def _weight_entry(item):
+            w = item.getWeight()
+            return {'name': item.getName(), 'weight': w.tolist()}
+
+        def _bounds_entry(item):
+            lb, ub = item.getBounds()
+            return {'name': item.getName(), 'lower': lb.tolist(), 'upper': ub.tolist()}
+
+        def _phase_dict(phase):
+            return {
+                'items':        [i.getName() for i in phase.getItems()],
+                'costs':        [i.getName() for i in phase.getCosts()],
+                'constraints':  [i.getName() for i in phase.getConstraints()],
+                'item_references': [_ref_entry(i) for i in phase.getItemReferences()],
+                'item_weights':    [_weight_entry(i) for i in phase.getItemWeights()],
+                'parameters':      [_ref_entry(i) for i in phase.getParameters()],
+                'variables':       [_bounds_entry(i) for i in phase.getVariables()],
+            }
+
+        saved = {}
+        for contact_name in self.__contact_list:
+            saved[contact_name] = {
+                'stance': _phase_dict(self.__stance_phases[contact_name]),
+                'flight': _phase_dict(self.__flight_phases[contact_name]),
+            }
+
+        task_interface_data = self.__task_interface.save()
+
+        return {
+            **task_interface_data,
+            'gait_manager': saved,
+        }
+
 class GaitManager:
     def __init__(self, task_interface: TaskInterface, phase_manager: pymanager.PhaseManager, contact_map):
 

@@ -54,10 +54,7 @@ class ProblemInterface:
 
     def rti(self):
 
-        t = time.time()
         check = self.solver_rti.solve()
-        elapsed = time.time() - t
-        print(f'rti solved in {elapsed} s')
 
         self.solution = self.solver_rti.getSolutionDict()
 

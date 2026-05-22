@@ -32,6 +32,11 @@ bool Variable::setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes)
     return _bounds->setUpperBounds(ub, nodes);
 }
 
+bool Variable::setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub, std::vector<int> nodes)
+{
+    return _bounds->setBounds(lb, ub, nodes);
+}
+
 bool Variable::setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> nodes)
 {
     if (nodes.empty())
@@ -91,6 +96,11 @@ Eigen::MatrixXd Variable::getInitialGuess()
     return _initial_guess;
 }
 
+std::tuple<Eigen::MatrixXd, Eigen::MatrixXd> Variable::getBounds()
+{
+    return _bounds->getBounds();
+}
+
 casadi::SX Variable::getSym()
 {
     return _sym;
@@ -112,7 +122,7 @@ bool Parameter::setNodes(std::vector<int> nodes, bool erasing)
     return true;
 }
 
-bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>& nodes)
+bool Parameter::assign(const Eigen::MatrixXd& values, const std::vector<int>& nodes)
 {
     // Case 1: Replace entire matrix
     if (nodes.empty())
@@ -123,7 +133,7 @@ bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>&
             if (_values.rows() != values.rows() ||
                 _values.cols() != values.cols())
             {
-                std::cerr << "setValues error: dimension mismatch when replacing full matrix.\n"
+                std::cerr << "assign error: dimension mismatch when replacing full matrix.\n"
                           << "Expected (" << _values.rows() << ", " << _values.cols()
                           << ") but got (" << values.rows() << ", " << values.cols() << ").\n";
                 return false;
@@ -139,14 +149,14 @@ bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>&
     // Guard 1: column count must match number of nodes
     if (values.cols() != static_cast<int>(nodes.size()))
     {
-        std::cerr << "setValues error: values.cols() must equal nodes.size().\n";
+        std::cerr << "assign error: values.cols() must equal nodes.size().\n";
         return false;
     }
 
     // Guard 2: row count must match parameter dimension
     if (values.rows() != _values.rows())
     {
-        std::cerr << "setValues error: row mismatch.\n";
+        std::cerr << "assign error: row mismatch.\n";
         return false;
     }
 
@@ -155,7 +165,7 @@ bool Parameter::setValues(const Eigen::MatrixXd& values, const std::vector<int>&
     {
         if (node < 0 || node >= _values.cols())
         {
-            std::cerr << "setValues error: node index out of bounds: "
+            std::cerr << "assign error: node index out of bounds: "
                       << node << "\n";
             return false;
         }

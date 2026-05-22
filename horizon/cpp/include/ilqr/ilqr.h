@@ -105,6 +105,8 @@ public:
 
     void updateIndices();
 
+    void printState() const;
+
     void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices = {});
 
     void setInitialState(const Eigen::VectorXd& x0);
