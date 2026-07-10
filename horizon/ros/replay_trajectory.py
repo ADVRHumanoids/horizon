@@ -1,7 +1,6 @@
 import numpy
 import numpy as np
 import casadi as cs
-import rospy
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker
@@ -11,12 +10,8 @@ from casadi_kin_dyn import pycasadi_kin_dyn as cas_kin_dyn
 from copy import deepcopy
 from horizon.ros.trajectory_viewer import TrajectoryViewer
 from threading import Thread, Lock
-
-try:
-    import tf as ros_tf
-except ImportError:
-    from . import tf_broadcaster_simple as ros_tf
-    print('will not use tf publisher')
+from horizon.ros import ros2
+from horizon.ros import tf_broadcaster_simple as ros_tf
 
 lock = Lock()
 
@@ -125,16 +120,13 @@ class replay_trajectory:
                 #         A[0:3, 0:3] = A[3:6, 3:6] = w_R_f.T
                 #         self.frame_force_mapping[frame][:, k] = np.dot(A,  w).T
 
-        try:
-            rospy.init_node('joint_state_publisher')
-        except rospy.exceptions.ROSException as e:
-            pass
-        self.pub = rospy.Publisher('joint_states', JointState, queue_size=10)
+        ros2.init_node('joint_state_publisher')
+        self.pub = ros2.create_publisher(JointState, 'joint_states', 10)
         self.br = ros_tf.TransformBroadcaster()
 
         if self.frame_force_mapping:
             for key in self.frame_force_mapping:
-                self.force_pub.append(rospy.Publisher(key+'_forces', geometry_msgs.msg.WrenchStamped, queue_size=10))
+                self.force_pub.append(ros2.create_publisher(geometry_msgs.msg.WrenchStamped, key+'_forces', 10))
 
     def publish_past_trajectory_marker(self, trajectory_marker_action=None):
 
@@ -203,7 +195,7 @@ class replay_trajectory:
         joint_state_pub = JointState()
         joint_state_pub.header = Header()
         joint_state_pub.name = self.joints_1dof + list(self.fixed_joint_map.keys())
-        t = rospy.Time.now()
+        t = ros2.now()
         br = self.br
         nq = len(qk)
 
@@ -245,7 +237,7 @@ class replay_trajectory:
 
     def replay(self, prefix=''):
 
-        rate = rospy.Rate(self.slow_down_rate / self.dt)
+        rate = ros2.Rate(self.slow_down_rate / self.dt)
         nq = np.shape(self.q_replay)[0]
         ns = np.shape(self.q_replay)[1]
 
@@ -256,12 +248,12 @@ class replay_trajectory:
         #     p = Thread(target=self.publish_frame_trajectories, args=(self.tv['ball_1'], 1/dt_markers, n_markers_max))
         #     p.start()
 
-        while not rospy.is_shutdown():
+        while not ros2.is_shutdown():
 
             k = 0
             for qk in self.q_replay.T:
 
-                t = rospy.Time.now()
+                t = ros2.now()
 
                 # publish trajectory of frames with markers
 
@@ -287,7 +279,7 @@ class replay_trajectory:
     # def publish_frame_trajectories(self, pub, rate, markers_max=500):
     #
     #     k = 0
-    #     rospy_rate = rospy.Rate(rate)
+    #     rospy_rate = ros2.Rate(rate)
     #     while True:
     #         if k == markers_max:
     #             action = Marker.DELETEALL
@@ -300,4 +292,3 @@ class replay_trajectory:
     #         pub.publish_once(action=action, markers_max=markers_max)
     #
     #         rospy_rate.sleep()
-

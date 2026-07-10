@@ -1,12 +1,11 @@
 import subprocess
 
-def roslaunch(package, launch):
+def roslaunch(package, launch, *args):
     """
-    Run a roslaunch in a separate thread
+    Run a ROS 2 launch file in a separate process.
     Args:
-        package: where the roslaunch is located
+        package: where the launch file is located
         launch: file
     """
-    cmd = f'roslaunch {package} {launch}'.split()
+    cmd = ['ros2', 'launch', package, launch, *args]
     subprocess.Popen(cmd)
-

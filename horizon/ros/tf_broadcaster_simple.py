@@ -1,13 +1,12 @@
-import rospy
-from tf2_msgs.msg import TFMessage
 from geometry_msgs.msg import TransformStamped
+from tf2_ros import TransformBroadcaster as Tf2TransformBroadcaster
 
 class TransformBroadcaster:
     def __init__(self) -> None:
-        self.pub = rospy.Publisher(name='/tf', data_class=TFMessage, queue_size=10)
+        from horizon.ros import ros2
+        self._br = Tf2TransformBroadcaster(ros2.get_node())
 
     def sendTransform(self, pos, rot, time, child_frame_id, frame_id):
-        tfmsg = TFMessage()
         transf = TransformStamped()
         transf.header.stamp = time
         transf.header.frame_id = frame_id
@@ -19,5 +18,4 @@ class TransformBroadcaster:
         transf.transform.rotation.y = rot[1]
         transf.transform.rotation.z = rot[2]
         transf.transform.rotation.w = rot[3]
-        tfmsg.transforms.append(transf)
-        self.pub.publish(tfmsg)
+        self._br.sendTransform(transf)

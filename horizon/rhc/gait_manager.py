@@ -229,7 +229,7 @@ class PhaseGaitWrapper:
 
             self.__stance_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'stance_phase_{contact}')
             self.__flight_phases[contact] = self.__contact_timelines[contact].createPhase(experimental_duration, f'flight_phase_{contact}')
-
+            
     def getContactTimelines(self):
         return self.__contact_timelines
 
