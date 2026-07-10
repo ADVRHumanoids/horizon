@@ -1,7 +1,5 @@
-import rospy
-from Cython.Compiler.TreePath import operations
 from geometry_msgs.msg import Twist
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool
 from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
 import numpy as np
 from enum import Enum
@@ -9,9 +7,11 @@ from horizon.utils.logger import Logger
 from typing import Callable, Union
 from functools import partial
 
+from horizon.ros import ros2
+
 # marker = Marker()
 # marker.header.frame_id = 'world'
-# marker.header.stamp = rospy.Time.now()
+# marker.header.stamp = ros2.now()
 # marker.id = 1
 # marker.action = Marker.ADD
 # marker.scale.x = 0.05
@@ -58,7 +58,7 @@ class GaitManagerROS:
 
         # this version receives commands as base velocity
         # open ros topic
-        self.__base_vel_sub = rospy.Subscriber('/horizon/base_velocity/reference', Twist, self.__base_vel_cb)
+        self.__base_vel_sub = ros2.create_subscription(Twist, '/horizon/base_velocity/reference', self.__base_vel_cb, 10)
 
         # init tasks connection
         self.__init_options()
@@ -69,11 +69,11 @@ class GaitManagerROS:
         self.__base_vel_ref = np.zeros(6)
 
         # open ros services
-        self.__switch_crawl_srv = rospy.Service('/horizon/crawl/switch', SetBool, self.__switch_crawl_cb)
-        self.__switch_trot_srv = rospy.Service('/horizon/trot/switch', SetBool, self.__switch_trot_cb)
-        self.__switch_step_srv = rospy.Service('/horizon/step/switch', SetBool, self.__switch_step_cb)
-        self.__switch_drag_srv = rospy.Service('/horizon/drag/switch', SetBool, self.__switch_drag_cb)
-        self.__switch_walk_srv = rospy.Service('/horizon/walk/switch', SetBool, self.__switch_walk_cb)
+        self.__switch_crawl_srv = ros2.create_service(SetBool, '/horizon/crawl/switch', self.__switch_crawl_cb)
+        self.__switch_trot_srv = ros2.create_service(SetBool, '/horizon/trot/switch', self.__switch_trot_cb)
+        self.__switch_step_srv = ros2.create_service(SetBool, '/horizon/step/switch', self.__switch_step_cb)
+        self.__switch_drag_srv = ros2.create_service(SetBool, '/horizon/drag/switch', self.__switch_drag_cb)
+        self.__switch_walk_srv = ros2.create_service(SetBool, '/horizon/walk/switch', self.__switch_walk_cb)
 
         # param
 
@@ -88,7 +88,7 @@ class GaitManagerROS:
         for action_name, param_actions in self.__param_action.items():
             self.__walk_params_ros[action_name] = dict()
             for param_name, param_value in param_actions.items():
-                self.__walk_params_ros[action_name][param_name] = rospy.set_param(f'/horizon/{action_name}/{param_name}', param_value)
+                self.__walk_params_ros[action_name][param_name] = ros2.set_param(f'/horizon/{action_name}/{param_name}', param_value)
 
         # self.__contact_params_srv = dict()
         # self.__contact_params = dict()
@@ -102,7 +102,7 @@ class GaitManagerROS:
 
             # for param_name, param_value in contact_param_dict.items():
             #     self.__contact_params[contact_name][param_name] = param_value
-            #     self.__contact_params_srv[contact_name][param_name] = rospy.set_param(f'~{contact_name}/{param_name}', self.__contact_params[contact_name][param_name])
+            #     self.__contact_params_srv[contact_name][param_name] = ros2.set_param(f'~{contact_name}/{param_name}', self.__contact_params[contact_name][param_name])
         #
         self.__current_solution = None
 
@@ -129,7 +129,7 @@ class GaitManagerROS:
     def __get_params(self, action_name) -> dict :
 
         for param_name, ros_param in self.__walk_params_ros[action_name].items():
-            self.__param_action[action_name][param_name] = rospy.get_param(f'/horizon/{action_name}/{param_name}')
+            self.__param_action[action_name][param_name] = ros2.get_param(f'/horizon/{action_name}/{param_name}')
 
         # self.__logger.log(f'{self.__param_action}')
         return self.__param_action[action_name]
@@ -182,7 +182,7 @@ class GaitManagerROS:
         self.__base_vel_ref[4] = msg.angular.y
         self.__base_vel_ref[5] = msg.angular.z
 
-    def __switch_crawl_cb(self, req: SetBoolRequest):
+    def __switch_crawl_cb(self, req: SetBool.Request):
 
         if req.data:
             # self.__operation_mode = OperationMode.CRAWL
@@ -193,7 +193,7 @@ class GaitManagerROS:
 
         return {'success': False, 'message': "'crawl' action not available"}
 
-    def __switch_trot_cb(self, req: SetBoolRequest):
+    def __switch_trot_cb(self, req: SetBool.Request):
 
         if req.data:
             self.__operation_mode = OperationMode.TROT
@@ -203,7 +203,7 @@ class GaitManagerROS:
 
         return {'success': True}
 
-    def __switch_step_cb(self, req: SetBoolRequest):
+    def __switch_step_cb(self, req: SetBool.Request):
 
         if req.data:
             # self.__operation_mode = OperationMode.STEP
@@ -214,7 +214,7 @@ class GaitManagerROS:
 
         return {'success': False, 'message': "'step' action not available"}
 
-    def __switch_drag_cb(self, req: SetBoolRequest):
+    def __switch_drag_cb(self, req: SetBool.Request):
 
         if req.data:
             # self.__operation_mode = OperationMode.DRAG
@@ -225,7 +225,7 @@ class GaitManagerROS:
 
         return {'success': False, 'message': "'drag' action not available"}
 
-    def __switch_walk_cb(self, req: SetBoolRequest):
+    def __switch_walk_cb(self, req: SetBool.Request):
 
         if req.data:
             # self.__operation_mode = OperationMode.WALK
@@ -328,6 +328,7 @@ class GaitManagerROS:
 
     def run(self):
 
+        ros2.spin_once()
         self.__update_solution()
 
         # set phases

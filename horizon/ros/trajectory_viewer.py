@@ -1,13 +1,11 @@
 #! /usr/bin/env python
-import copy
 import random
-import rospy
+import numpy as np
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import TwistStamped, Pose, Point, Vector3, Quaternion
-from std_msgs.msg import Header, ColorRGBA, String
-from sensor_msgs.msg import JointState
-import subprocess
-import time
+from geometry_msgs.msg import Pose, Point, Vector3, Quaternion
+from std_msgs.msg import Header, ColorRGBA
+
+from horizon.ros import ros2
 
 
 class TrajectoryViewer:
@@ -18,14 +16,30 @@ class TrajectoryViewer:
 
         self.frame = frame
         self.count = 0
-        self.sphere_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
-        self.line_publisher = rospy.Publisher(self.prefix + self.frame, MarkerArray, queue_size=100)
+        self.sphere_publisher = ros2.create_publisher(MarkerArray, self.prefix + self.frame, 100)
+        self.line_publisher = ros2.create_publisher(MarkerArray, self.prefix + self.frame, 100)
 
-        # rospy.Subscriber("/joint_states", JointState, self.event_in_cb)
         self.a = [1, 1, 1]
         self.sphere_array = MarkerArray()
         self.line_array = MarkerArray()
-        rospy.sleep(0.5)
+        ros2.sleep(0.5)
+
+    @staticmethod
+    def _to_vector3(value):
+        if isinstance(value, Vector3):
+            return value
+
+        if isinstance(value, np.ndarray):
+            value = value.tolist()
+
+        if isinstance(value, (list, tuple)) and len(value) == 3:
+            msg = Vector3()
+            msg.x = float(value[0])
+            msg.y = float(value[1])
+            msg.z = float(value[2])
+            return msg
+
+        raise ValueError("scale must be a Vector3 or a sequence of 3 numeric values")
 
     def to_point_message(self, arr):
 
@@ -42,6 +56,9 @@ class TrajectoryViewer:
     #
     #     self.publish_once()
     def __init_opts(self, opts):
+        if opts is None:
+            opts = {}
+
         if 'prefix' in opts:
             self.prefix = opts['prefix']
         else:
@@ -61,9 +78,9 @@ class TrajectoryViewer:
                           1.]
 
         if 'scale' in opts:
-            self.scale = opts['scale']
+            self.scale = self._to_vector3(opts['scale'])
         else:
-            self.scale = Vector3(0.01, 0.01, 0.01)
+            self.scale = self._to_vector3((0.01, 0.01, 0.01))
 
     def publish_sphere(self, action=None, markers_max=1000, marker_lifetime=10):
 
@@ -76,18 +93,30 @@ class TrajectoryViewer:
 
         self.markers_max = markers_max
 
+        pose = Pose()
+        pose.position.x = self.a[0] / 10 ** 5
+        pose.position.y = self.a[1] / 10 ** 5
+        pose.position.z = self.a[2] / 10 ** 5
+        pose.orientation.w = 1.0
+
+        color = ColorRGBA()
+        color.r = self.color[0]
+        color.g = self.color[1]
+        color.b = self.color[2]
+        color.a = self.color[3]
+
         marker = Marker(
                         type=Marker.SPHERE,
                         action=action,
-                        lifetime=rospy.Duration(marker_lifetime),
-                        pose=Pose(Point(self.a[0] / 10 ** 5, self.a[1] / 10 ** 5, self.a[2] / 10 ** 5), Quaternion(0, 0, 0, 1)),
+                        lifetime=ros2.duration(marker_lifetime),
+                pose=pose,
                         scale=self.scale,
                         header=Header(frame_id=self.parent),
-                        color=ColorRGBA(*self.color)
+                color=color
                         )
 
         # self.marker.id = self.count
-        marker.header.stamp = rospy.Time.now()
+        marker.header.stamp = ros2.now()
 
         if (self.count > self.markers_max):
             if self.sphere_array.markers:
@@ -107,11 +136,17 @@ class TrajectoryViewer:
 
         self.line_array.markers.clear()
 
+        color = ColorRGBA()
+        color.r = self.color[0]
+        color.g = self.color[1]
+        color.b = self.color[2]
+        color.a = self.color[3]
+
         marker = Marker(type=Marker.LINE_STRIP,
                         action=Marker.ADD,
                         scale=self.scale,
                         header=Header(frame_id=self.parent),
-                        color=ColorRGBA(*self.color))
+                        color=color)
 
         marker.pose.orientation.w = 1
 
@@ -125,28 +160,25 @@ class TrajectoryViewer:
 
 
 if __name__ == '__main__':
-    # rospy.init_node("trajectory_interactive_markers_node", anonymous=True)
+    # ros2.init_node("trajectory_interactive_markers_node")
     # tv = TrajectoryViewer()
     #
-    # rate = rospy.Rate(1 / 0.01)
-    # while not rospy.is_shutdown():
+    # rate = ros2.Rate(1 / 0.01)
+    # while not ros2.is_shutdown():
     #     tv.publish_once('ball_1')
     #     rate.sleep()
     # #
-    # # rospy.sleep(0.5)
-    # # rospy.spin()
-    import numpy as np
-    rospy.init_node("something", anonymous=True)
+    # # ros2.sleep(0.5)
+    ros2.init_node("something")
     tv = TrajectoryViewer("com")
 
     vec = np.array([[1, 1, 1, 0, 0, 0, 1],
                     [2, 2, 1, 0, 0, 0, 1],
                     [3, 1, 3, 0, 0, 0, 1]])
 
-    rate = rospy.Rate(1 / 0.01)
-    while not rospy.is_shutdown():
+    rate = ros2.Rate(1 / 0.01)
+    while not ros2.is_shutdown():
         tv.publish_once_pose(vec)
         rate.sleep()
     #
-    # rospy.sleep(0.5)
-    # rospy.spin()
+    # ros2.sleep(0.5)

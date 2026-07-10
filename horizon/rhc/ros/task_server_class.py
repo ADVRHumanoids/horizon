@@ -1,7 +1,7 @@
 from horizon.rhc import taskInterface
 from rosbot_param_server import rosbot_param_server_py
 from horizon import variables as sv
-import rospy
+from horizon.ros import ros2
 
 class TaskServerClass:
     def __init__(self, ti : taskInterface.TaskInterface):
@@ -54,10 +54,10 @@ if __name__ == '__main__':
     import casadi as cs
     import numpy as np
     import time
-    import rospkg
     import subprocess
+    from ament_index_python.packages import get_package_share_directory
 
-    rospy.init_node('test_task_server_class')
+    ros2.init_node('test_task_server_class')
 
     rosbot_param_server_py.init('test_task_server_class', [])
     param_manager = rosbot_param_server_py.ParameterManager()
@@ -65,7 +65,7 @@ if __name__ == '__main__':
     '''
     Load urdf 
     '''
-    kyon_urdf_folder = rospkg.RosPack().get_path('kyon_urdf')
+    kyon_urdf_folder = get_package_share_directory('kyon_urdf')
     urdf = subprocess.check_output(["xacro", kyon_urdf_folder + "/urdf/kyon.urdf.xacro",
                                     "sensors:=false",
                                     f"upper_body:=false",
@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
 
     ti = TaskInterface(prb=prb, model=model)
-    ti.setTaskFromYaml(rospkg.RosPack().get_path('kyon_controller') + '/config/kyon_config.yaml')
+    ti.setTaskFromYaml(get_package_share_directory('kyon_controller') + '/config/kyon_config.yaml')
 
     # finalize taskInterface and solve bootstrap problem
     ti.finalize()
@@ -129,8 +129,8 @@ if __name__ == '__main__':
     ti.load_initial_guess()
     solution = ti.solution
 
-    rate = rospy.Rate(1 / dt)
-    while not rospy.is_shutdown():
+    rate = ros2.Rate(1 / dt)
+    while not ros2.is_shutdown():
         # set initial state and initial guess
         shift_num = -1
 
@@ -153,4 +153,3 @@ if __name__ == '__main__':
         rosbot_param_server_py.ros_update()
 
     rosbot_param_server_py.shutdown()
-
