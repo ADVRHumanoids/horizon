@@ -62,10 +62,10 @@ class SwingTrajectory:
 
         for contact_link in self.__z_task_dict.keys():
             contact_initial_pose = self.__model.kd.fk(contact_link)(q=self.__model.q0)['ee_pos'].elements()
-
             self.__contact_z_position_initial[contact_link] = contact_initial_pose[2]
             self.__contact_z_position_final[contact_link] = contact_initial_pose[2]
             self.__contact_z_height[contact_link] = self.__default_height
+            
 
     def __update_swing_trajectory(self, solution, contact=None):
         z_task_dict = dict()

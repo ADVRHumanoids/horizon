@@ -1,4 +1,5 @@
 #include "iterate_filter.h"
+#include <limits>
 
 
 IterateFilter::Pair::Pair():
