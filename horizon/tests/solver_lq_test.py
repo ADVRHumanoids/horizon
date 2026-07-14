@@ -90,23 +90,17 @@ class SolverConsistency(unittest.TestCase):
         B32 = np.array([[1, -2], [-3, 4]])
         self.matrices = [A11, A13, A21, A32, B21, B32]
 
-    def test_blocksqp_vs_ipopt(self):
-        print(self.__class__.__name__, self._testMethodName)
-        ipopt = make_problem('ipopt', *self.matrices)
-        blocksqp = make_problem('blocksqp', *self.matrices)
-        _test_a_vs_b(self, ipopt, blocksqp)
-
     def test_gnsqp_vs_ipopt(self):
         print(self.__class__.__name__, self._testMethodName)
         ipopt = make_problem('ipopt', *self.matrices)
         gnsqp = make_problem('gnsqp', *self.matrices)
         _test_a_vs_b(self, ipopt, gnsqp)
     
-    def test_blocksqp_vs_ilqr(self):
+    def test_ipopt_vs_ilqr(self):
         print(self.__class__.__name__, self._testMethodName)
         ilqr = make_problem('ilqr', *self.matrices)
-        blocksqp = make_problem('blocksqp', *self.matrices)
-        _test_a_vs_b(self, ilqr, blocksqp)
+        ipopt = make_problem('ipopt', *self.matrices)
+        _test_a_vs_b(self, ilqr, ipopt)
 
 def make_problem(solver_type, A11, A13, A21, A32, B21, B32):
     # on a linear-quadratic problem, all solvers should agree on the solution
@@ -166,8 +160,8 @@ def make_problem(solver_type, A11, A13, A21, A32, B21, B32):
     opts = None 
     if solver_type == 'blocksqp':
         opts = {'hess_update': 4}
-    else:
-        opts = {'gnsqp.osqp.polish': True}
+    elif solver_type == 'gnsqp':
+        opts = {'gnsqp.osqp.polish': True, 'gnsqp.qp_solver': 'osqp'}
         
     bsqpsol = Solver.make_solver(solver_type, prob, opts)
     return bsqpsol

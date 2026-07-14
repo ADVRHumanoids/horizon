@@ -1,0 +1,29 @@
+name: Build and Test (Noble)
+
+on:
+  push:
+    branches: [ "ros2" ]
+  pull_request:
+    branches: [ "ros2" ]
+  schedule:
+    - cron: '0 0 * * *' # every day at midnight
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build the Docker image and start the container
+      run: docker compose up -d
+      working-directory: ./ci/docker/horizon-ci-noble
+    - name: Compile the library
+      run: ./build.bash horizon-ci-noble
+      working-directory: ./ci/docker
+      env:
+        FOREST_JOBS: 4
+    - name: Run tests
+      run: ./test.bash horizon-ci-noble
+      working-directory: ./ci/docker
