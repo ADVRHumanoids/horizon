@@ -64,7 +64,7 @@ target_include_directories(horizon
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
-    $<INSTALL_INTERFACE:include/${PROJECT_NAME}> #
+    $<INSTALL_INTERFACE:include>
     )
 
 install(
@@ -75,8 +75,8 @@ install(
 
 install(
     DIRECTORY include/horizon include/ilqr include/sqp
-    DESTINATION include/${PROJECT_NAME}
-    ) #/${PROJECT_NAME}
+    DESTINATION include
+    )
 
 # python binding
 set(PYBIND11_PYTHON_VERSION 3)
