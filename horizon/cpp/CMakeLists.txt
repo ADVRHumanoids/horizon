@@ -1,5 +1,10 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 project(horizon VERSION 1.0)
+
+# pybind11 2.9 still uses CMake's legacy Python discovery modules.
+if(POLICY CMP0148)
+    cmake_policy(SET CMP0148 OLD)
+endif()
 
 
 # options
@@ -63,7 +68,7 @@ target_include_directories(horizon
     )
 
 install(
-    TARGETS horizon ilqr
+    TARGETS horizon ilqr sqp
     EXPORT ${PROJECT_NAME}Targets
     DESTINATION lib
 )

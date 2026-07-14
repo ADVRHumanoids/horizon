@@ -6,3 +6,4 @@ recursive-include horizon/examples *.xml
 recursive-include horizon/external_libs *
 recursive-include horizon/cpp *
 include copy_external_dependencies.py
+global-exclude __pycache__/*
