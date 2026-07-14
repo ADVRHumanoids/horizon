@@ -29,6 +29,17 @@ def get_node():
     return init_node(_node_name)
 
 
+def set_node(node, name=None):
+    global _node, _node_name
+
+    _node = node
+    if name is not None:
+        _node_name = name
+    elif node is not None and hasattr(node, "get_name"):
+        _node_name = node.get_name()
+    return _node
+
+
 def create_publisher(msg_type, topic, queue_size=10):
     return get_node().create_publisher(msg_type, topic, queue_size)
 
