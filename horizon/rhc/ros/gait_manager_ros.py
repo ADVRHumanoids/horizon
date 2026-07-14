@@ -1,5 +1,5 @@
 from geometry_msgs.msg import Twist
-from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerResponse
+from std_srvs.srv import SetBool, Trigger
 from std_msgs.msg import String
 from horizon_msgs.msg import OperationMode as OperationModeMsg
 from horizon.rhc.gait_manager import GaitManager, PhaseGaitWrapper
@@ -64,6 +64,7 @@ class GaitManagerROS:
         # this version receives commands as base velocity
         # open ros topic
         self.__base_vel_sub = ros2.create_subscription(Twist, '/horizon/base_velocity/reference', self.__base_vel_cb, 10)
+        self.__operation_mode_pub = ros2.create_publisher(OperationModeMsg, '/horizon/operation_mode', 10)
 
         # init tasks connection
         self.__init_options()
@@ -149,21 +150,25 @@ class GaitManagerROS:
 
                 if callable(action_callable):
                     service_name = f'/horizon/gait_manager/{plugin_name}/{action_name}/start'
-                    rospy.Service(service_name, Trigger, self.__create_service_wrapper(plugin_name, action_name))
+                    self.__plugin_dict[f'{plugin_name}:{action_name}'] = ros2.create_service(
+                        Trigger,
+                        service_name,
+                        self.__create_service_wrapper(plugin_name, action_name),
+                    )
                     self.__logger.log(f"Registered '{plugin_name}:{action_name}' as ROS service: {service_name}")
 
     def __create_service_wrapper(self, plugin_name, action_name):
-        """Wrap the method to return a TriggerResponse for ROS service."""
+        """Wrap the method to return a Trigger.Response for ROS service."""
         def wrapper(req):
 
             if self.__operation_mode != OperationMode.IDLE:
-                return TriggerResponse(success=False, message=f"{action_name} cannot start.")
+                return Trigger.Response(success=False, message=f"{action_name} cannot start.")
 
                 # Call the actual method
             self.__gait_manager.getPluginDict()[plugin_name].setStatus(action_name, 'Started')
 
-            # Return a generic TriggerResponse for ROS service
-            return TriggerResponse(success=True, message=f"{action_name} started.")
+            # Return a generic Trigger.Response for ROS service
+            return Trigger.Response(success=True, message=f"{action_name} started.")
 
         return wrapper
 
@@ -223,9 +228,9 @@ class GaitManagerROS:
             self.__base_vel_ref[4] = msg.angular.y
             self.__base_vel_ref[5] = msg.angular.z
 
-    # def __switch_action_cb(self, req: SetBoolRequest, action_name):
+    # def __switch_action_cb(self, req: SetBool.Request, action_name):
 
-    def __switch_idle_cb(self, req: SetBoolRequest):
+    def __switch_idle_cb(self, req: SetBool.Request):
 
         if req.data:
 
@@ -239,7 +244,7 @@ class GaitManagerROS:
 
         return {'success': True}
 
-    def __switch_stand_cb(self, req: SetBoolRequest):
+    def __switch_stand_cb(self, req: SetBool.Request):
 
         if req.data:
 
@@ -400,12 +405,17 @@ class GaitManagerROS:
 
             d_angle = np.pi / 2 * self.__base_rot_weight * self.__base_vel_ref[5]
             axis = [0, 0, 1]
-            angular_velocity_vector = self.__incremental_rotate(np.atleast_2d(self.__base_yaw_ori_task.getValues()[[6, 3, 4, 5], 0]).T, d_angle, axis)
+            angular_velocity_vector = self.__incremental_rotate(
+                np.atleast_2d(self.__base_yaw_ori_task.getValues()[[6, 3, 4, 5], 0]).T,
+                d_angle,
+                axis,
+            )
 
-            base_reference[3] += angular_velocity_vector.x
-            base_reference[4] += angular_velocity_vector.y
-            base_reference[5] += angular_velocity_vector.z
-            base_reference[6] += angular_velocity_vector.w
+            # Quaternion layout is [w, x, y, z].
+            base_reference[3] += angular_velocity_vector[1]
+            base_reference[4] += angular_velocity_vector[2]
+            base_reference[5] += angular_velocity_vector[3]
+            base_reference[6] += angular_velocity_vector[0]
 
             self.__base_yaw_ori_task.setRef(base_reference)
 
@@ -433,8 +443,8 @@ class GaitManagerROS:
 
         self.__logger.log(f'operation mode: {self.__operation_mode}')
         self.publish_operation_mode()
-	
-	ros2.spin_once()
+	    
+        ros2.spin_once()
 
         self.__update_solution()
 
@@ -469,8 +479,8 @@ class GaitManagerROS:
                     plugin.get_actions()[action_name]()
 
 
-    def __incremental_rotate(self, q_initial: np.quaternion, d_angle, axis) -> np.quaternion:
-        # np.quaternion is [w,x,y,z]
+    def __incremental_rotate(self, q_initial, d_angle, axis) -> np.ndarray:
+        # Quaternion layout is [w, x, y, z].
         q_incremental = np.array([np.cos(d_angle / 2),
                                   axis[0] * np.sin(d_angle / 2),
                                   axis[1] * np.sin(d_angle / 2),
@@ -480,10 +490,9 @@ class GaitManagerROS:
         # normalize the quaternion
         q_incremental /= np.linalg.norm(q_incremental)
 
-        # initial orientation of the base
-
-        # final orientation of the base
-        q_result = np.quaternion(*q_incremental) * np.quaternion(*q_initial)
+        q_initial = np.asarray(q_initial).reshape(-1)
+        q_result = self.__quaternion_multiply(q_incremental, q_initial)
+        q_result /= np.linalg.norm(q_result)
 
         return q_result
 
