@@ -156,7 +156,7 @@ class CartesianTask(Task):
             ee_p_base_t = ee_p_base['ee_pos']
             ee_p_base_r = ee_p_base['ee_rot']
 
-            ee_p_rel = ee_p_distal_t - ee_p_base_t
+            ee_p_rel = ee_p_base_r.T @ (ee_p_distal_t - ee_p_base_t)
             ee_r_rel = cs.inv(ee_p_base_r) * ee_p_distal_r
 
         # TODO: right now this is slightly unintuitive:
@@ -389,4 +389,3 @@ class CartesianTask(Task):
 
     def getCartesianType(self):
         return self.cartesian_type
-    
