@@ -3,8 +3,18 @@
 
 using namespace casadi_utils;
 
-extern horizon::utils::Timer::TocCallback on_timer_toc;
+extern thread_local horizon::utils::Timer::TocCallback on_timer_toc;
 
+namespace
+{
+struct FunctionMemory
+{
+    const casadi::Function& function;
+    int index;
+    explicit FunctionMemory(const casadi::Function& f): function(f), index(f.checkout()) {}
+    ~FunctionMemory() { function.release(index); }
+};
+}
 
 WrappedFunction::WrappedFunction(casadi::Function f)
 {
@@ -13,12 +23,18 @@ WrappedFunction::WrappedFunction(casadi::Function f)
 
 WrappedFunction &WrappedFunction::operator=(casadi::Function f)
 {
-    if(f.is_null())
-    {
-        return *this;
-    }
-
     _f = f;
+
+    _out_data.clear();
+    _out_buf.clear();
+    _out_matrix.clear();
+    _out_matrix_sparse.clear();
+    _rows.clear();
+    _cols.clear();
+    _in_buf.clear();
+    _iw.clear();
+    _dw.clear();
+    if(f.is_null()) return *this;
 
     // resize work vectors
     _iw.assign(_f.sz_iw(), 0);
@@ -64,6 +80,12 @@ WrappedFunction::WrappedFunction(const WrappedFunction & other)
     *this = other._f;
 }
 
+WrappedFunction& WrappedFunction::operator=(const WrappedFunction& other)
+{
+    if(this != &other) *this = other._f;
+    return *this;
+}
+
 void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
 {
     if(xi.size() != _f.size1_in(i))
@@ -82,9 +104,9 @@ void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
     _in_buf[i] = xi.data();
 }
 
-void WrappedFunction::call(bool sparse)
+void WrappedFunction::callRaw()
 {
-    casadi_int mem = _f.checkout();
+    FunctionMemory mem(_f);
 
     {
 #ifdef HORIZON_PROFILING
@@ -94,8 +116,15 @@ void WrappedFunction::call(bool sparse)
 
         // call function (allocation-free)
 
-        _f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem);
+        if(_f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem.index))
+            throw std::runtime_error(_f.name() + ": evaluation failed");
     }
+
+}
+
+void WrappedFunction::call(bool sparse)
+{
+    callRaw();
 
 #ifdef HORIZON_PROFILING
     horizon::utils::Timer tm("csc_to_matrix_" + _f.name() + "_inner",
@@ -138,14 +167,12 @@ void WrappedFunction::call(bool sparse)
 
     }
 
-    // release mem (?)
-    _f.release(mem);
 }
 
 void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &out)
 {
     // call function (allocation-free)
-    casadi_int mem = _f.checkout();
+    FunctionMemory mem(_f);
 
     {
 
@@ -154,7 +181,8 @@ void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &
                                  on_timer_toc);
 #endif
 
-        _f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem);
+        if(_f(_in_buf.data(), _out_buf.data(), _iw.data(), _dw.data(), mem.index))
+            throw std::runtime_error(_f.name() + ": evaluation failed");
     }
 
 #ifdef HORIZON_PROFILING
@@ -171,8 +199,6 @@ void WrappedFunction::call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>> &
                            out[i]);
     }
 
-    // release mem (?)
-    _f.release(mem);
 }
 
 const Eigen::MatrixXd& WrappedFunction::getOutput(int i) const

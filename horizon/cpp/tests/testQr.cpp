@@ -60,7 +60,6 @@ TEST(testDecomp, compare)
         K.topLeftCorner(nu, nu) = Huu;
         K.bottomLeftCorner(nc, nu) = D;
         K.topRightCorner(nu, nc) = D.transpose();
-        K = D;
 
 
         tic = hrc::now();

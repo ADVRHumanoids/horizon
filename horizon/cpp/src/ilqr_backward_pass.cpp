@@ -7,6 +7,7 @@ struct HessianIndefinite : std::runtime_error
 
 void IterativeLQR::backward_pass()
 {
+    _bound_multiplier_max = 0;
     TIC(backward_pass);
 
     // initialize backward recursion from final cost..
@@ -283,9 +284,7 @@ void IterativeLQR::backward_pass_iter(int i)
     auto& s = value.s;
 
     S.noalias() = tmp.Hxx + tmp.Hux.transpose()*Lu + constr_feas.C.transpose()*Lmu;
-
-    S = 0.5*(S + S.transpose());  // note: symmetrize
-
+    S = (0.5*(S + S.transpose())).eval();
     s.noalias() = tmp.hx + tmp.Hux.transpose()*lu + constr_feas.C.transpose()*lmu;
 
     THROW_NAN(S);
@@ -341,7 +340,10 @@ void IterativeLQR::optimize_initial_state()
     // typical case: initial state is fixed
     if(fixed_initial_state())
     {
-        dx = _x_lb.col(0) - state(0);
+        dx.resize(_nx);
+        _space->difference(state(0), _x_lb.col(0), dx);
+        lam = -(_value[0].s + _value[0].S*dx);
+        _bound_multiplier_max = lam.cwiseAbs().maxCoeff();
         return;
     }
 
@@ -459,7 +461,10 @@ void IterativeLQR::add_bound_constraint(int k)
 
     // state bounds
     u_ei.setZero(_nu);
-    for(int i = 0; i < _nx; i++)
+    Eigen::MatrixXd state_C;
+    Eigen::VectorXd state_h;
+    stateEquality(k, state_C, state_h);
+    for(int i = 0; i < state_h.size(); i++)
     {
         // if initial state is fixed, don't add
         // constraints for it
@@ -468,23 +473,12 @@ void IterativeLQR::add_bound_constraint(int k)
             continue;
         }
 
-        // equality
-        if(_x_lb(i, k) == _x_ub(i, k))
-        {
-            x_ei = x_ei.Unit(_nx, i);
-
-            Eigen::Matrix<double, 1, 1> hd;
-            hd(0) = _xtrj(i, k) - _x_lb(i, k);
-
-            _constraint_to_go->add(x_ei, u_ei, hd);
-
-            if(_log)
-            {
-                std::cout << k << ": detected state equality constraint (index " <<
-                    i << ", value = " << _x_lb(i, k) << ") \n";
-            }
-
-        }
+        x_ei = state_C.row(i);
+        Eigen::Matrix<double, 1, 1> hd;
+        hd(0) = state_h(i);
+        _constraint_to_go->add(x_ei, u_ei, hd);
+        if(_log)
+            std::cout << k << ": detected state equality constraint (index " << i << ") \n";
     }
 
     // input bounds
@@ -551,14 +545,14 @@ bool IterativeLQR::auglag_update()
     {
         _auglag_cost[i]->update_lam(
             _xtrj.col(i),
-            _utrj.col(i),
+            _utrj.col(std::min(i, _N-1)),
             i);
 
         _auglag_cost[i]->setRho(_rho);
 
         _lam_bound_x.col(i) = _auglag_cost[i]->getStateMultiplier();
 
-        _lam_bound_u.col(i) = _auglag_cost[i]->getInputMultiplier();
+        if(i < _N) _lam_bound_u.col(i) = _auglag_cost[i]->getInputMultiplier();
     }
 
     _fp_res->mu_b = _lam_bound_u.lpNorm<1>() + _lam_bound_x.lpNorm<1>();

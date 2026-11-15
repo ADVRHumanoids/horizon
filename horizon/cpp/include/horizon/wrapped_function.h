@@ -108,6 +108,9 @@ public:
 
     void setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi);
     void call(bool sparse = false);
+    /** Evaluate into persistent CSC buffers without expanding outputs. */
+    void callRaw();
+    const std::vector<double>& getOutputNonzeros(int i) const { return _out_data.at(i); }
     void call_accumulate(std::vector<Eigen::Ref<Eigen::MatrixXd>>& out);
     const Eigen::MatrixXd& getOutput(int i) const;
     const Eigen::SparseMatrix<double>& getSparseOutput(int i) const;

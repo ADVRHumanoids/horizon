@@ -1,8 +1,13 @@
-project(horizon)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
+project(horizon LANGUAGES CXX)
+include(CTest)
 
 # options
-option(HORIZON_PROFILING OFF "enable profiling features")
+option(HORIZON_PROFILING "enable profiling features" OFF)
+option(HORIZON_BUILD_PYTHON "Build Python bindings" ON)
+option(HORIZON_BUILD_EXAMPLES "Build standalone solver examples" ON)
+option(HORIZON_TEST_PINOCCHIO "Build optional native Pinocchio integration tests" OFF)
+option(HORIZON_TEST_SPOT "Build native Spot contact tests and profiling benchmark" OFF)
 
 if(${HORIZON_PROFILING})
     add_definitions(-DHORIZON_PROFILING)
@@ -17,9 +22,13 @@ set(CMAKE_CXX_STANDARD 20)
 
 # ilqr library
 add_library(horizon STATIC
-    src/horizon_parser.cpp)
+    src/functions.cpp
+    src/variables.cpp
+    src/bounds.cpp)
 
 target_link_libraries(horizon Eigen3::Eigen casadi::casadi)
+target_include_directories(horizon PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                                         $<INSTALL_INTERFACE:include>)
 
 add_library(ilqr STATIC
     src/ilqr.cpp
@@ -30,6 +39,11 @@ add_library(ilqr STATIC
     src/profiling.cpp
     src/codegen_function.cpp
     src/iterate_filter.cpp
+    src/ilqr_function.cpp
+    src/ilqr_casadi_function.cpp
+    src/ilqr_state_space.cpp
+    src/ilqr_managed.cpp
+    src/ilqr_symbolic.cpp
 )
 
 # sqp library
@@ -41,20 +55,24 @@ add_library(sqp STATIC
 
 
 target_link_libraries(ilqr Eigen3::Eigen casadi::casadi pthread)
+target_include_directories(ilqr PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                                      $<INSTALL_INTERFACE:include>)
 target_link_libraries(sqp Eigen3::Eigen casadi::casadi ilqr)
 
 install(TARGETS horizon ilqr sqp
     DESTINATION lib)
+install(DIRECTORY include/ DESTINATION include)
 
 
 # python binding
+if(HORIZON_BUILD_PYTHON)
 set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(pyilqr pyilqr.cpp)
+pybind11_add_module(pyilqr src/pyilqr.cpp)
 target_link_libraries(pyilqr PUBLIC ilqr)
 
-pybind11_add_module(pysqp pysqp.cpp)
+pybind11_add_module(pysqp src/pysqp.cpp)
 target_link_libraries(pysqp PUBLIC sqp Eigen3::Eigen casadi::casadi)
 
 add_custom_command(TARGET pyilqr POST_BUILD
@@ -96,6 +114,13 @@ add_custom_target(upload_python_package
     )
 
 # test executable
+endif()
+if(HORIZON_BUILD_EXAMPLES)
+add_executable(ilqr_mixed_example src/ilqr_mixed_example.cpp)
+target_link_libraries(ilqr_mixed_example ilqr)
+if(BUILD_TESTING)
+    add_test(NAME ilqr_mixed_example COMMAND ilqr_mixed_example)
+endif()
 add_executable(ilqr_test src/ilqr_test.cpp)
 target_link_libraries(ilqr_test ilqr)
 
@@ -104,6 +129,9 @@ target_link_libraries(sqp_test sqp)
 
 add_executable(sqp_test2 src/sqp_test2.cpp)
 target_link_libraries(sqp_test2 sqp)
+endif()
 
 
-add_subdirectory(tests)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

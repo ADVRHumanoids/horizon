@@ -1,42 +1,35 @@
-find_package(Eigen3 REQUIRED)
-find_package(casadi 3.5.5 REQUIRED)
+find_package(GTest REQUIRED)
 
-# compite GTest
-find_package(GTest QUIET)
-if (NOT GTEST_FOUND)
-    set(gTestSource "/usr/src/gtest")
-    ExternalProject_Add(GTest-ext SOURCE_DIR ${gTestSource}
-                                  PREFIX "${CMAKE_CURRENT_BINARY_DIR}/external"
-                                  INSTALL_COMMAND "")
-    set(GTEST_LIB_DIRS "${CMAKE_CURRENT_BINARY_DIR}/external/src/GTest-ext-build/")
-    set(GTEST_INCLUDE_DIRS ${gTestSource})
-    set(GTEST_BOTH_LIBRARIES gtest gtest_main)
+foreach(test_name testCasadiUtils testQr testIlqr testIlqrFunctions testStateSpace testManagedIlqr)
+    add_executable(${test_name} ${test_name}.cpp)
+    target_link_libraries(${test_name} PRIVATE ilqr GTest::gtest_main)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+endforeach()
+
+if(HORIZON_TEST_PINOCCHIO OR HORIZON_TEST_SPOT)
+    find_package(pinocchio REQUIRED)
+endif()
+if(HORIZON_TEST_PINOCCHIO)
+    add_executable(testPinocchioIlqr testPinocchioIlqr.cpp)
+    target_link_libraries(testPinocchioIlqr PRIVATE ilqr GTest::gtest_main pinocchio::pinocchio)
+    add_test(NAME testPinocchioIlqr COMMAND testPinocchioIlqr)
 endif()
 
-include_directories(${GTEST_INCLUDE_DIRS})
-link_directories(${GTEST_LIB_DIRS})
-
-# add local include
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} )
-enable_testing()
-
-SET(TestLibs ilqr ${GTEST_BOTH_LIBRARIES} pthread Eigen3::Eigen casadi::casadi)
-
-
-set(HORIZON_CPP_TESTS
-                        testCasadiUtils
-
-   )
-
-ADD_EXECUTABLE(testCasadiUtils testCasadiUtils.cpp)
-TARGET_LINK_LIBRARIES(testCasadiUtils ${TestLibs})
-add_dependencies(testCasadiUtils ilqr)
-add_test(NAME testCasadiUtils COMMAND testCasadiUtils)
-
-ADD_EXECUTABLE(testQr testQr.cpp)
-TARGET_LINK_LIBRARIES(testQr ${TestLibs})
-add_test(NAME testQr COMMAND testQr)
-
-ADD_EXECUTABLE(testIlqr testIlqr.cpp)
-TARGET_LINK_LIBRARIES(testIlqr ${TestLibs})
-add_test(NAME testIlqr COMMAND testIlqr)
+if(HORIZON_TEST_SPOT)
+    add_library(spot_test_support STATIC spot_model.cpp spot_native.cpp spot_problem.cpp spot_contact_projection.cpp)
+    target_link_libraries(spot_test_support PUBLIC ilqr pinocchio::pinocchio)
+    target_compile_definitions(spot_test_support PRIVATE
+        HORIZON_SPOT_URDF="${CMAKE_CURRENT_SOURCE_DIR}/../../examples/urdf/spot.urdf")
+    add_executable(testSpotIlqr testSpotIlqr.cpp)
+    target_link_libraries(testSpotIlqr PRIVATE spot_test_support GTest::gtest_main)
+    add_test(NAME testSpotIlqr COMMAND testSpotIlqr)
+    set_tests_properties(testSpotIlqr PROPERTIES LABELS "robot;spot" TIMEOUT 180)
+    add_executable(profileSpotIlqr profileSpotIlqr.cpp)
+    add_executable(diagnoseSpotIlqr diagnoseSpotIlqr.cpp)
+    target_link_libraries(diagnoseSpotIlqr PRIVATE spot_test_support)
+    target_link_libraries(profileSpotIlqr PRIVATE spot_test_support yaml-cpp)
+    target_compile_definitions(profileSpotIlqr PRIVATE HORIZON_SPOT_BUILD_TYPE="${CMAKE_BUILD_TYPE}")
+    add_test(NAME spotProfilingSmoke COMMAND profileSpotIlqr --samples 1 --warmup 0
+        --function-samples 12 --nodes 12 --threads 0 --output ${CMAKE_CURRENT_BINARY_DIR}/spot_profile_smoke.json)
+    set_tests_properties(spotProfilingSmoke PROPERTIES LABELS "performance;spot" TIMEOUT 180)
+endif()

@@ -10,9 +10,12 @@
 #include <condition_variable>
 #include <mutex>
 #include <atomic>
+#include <exception>
 
 #include "horizon/profiling.h"
 #include "iterate_filter.h"
+#include "function.h"
+#include "state_space.h"
 
 namespace horizon
 {
@@ -61,7 +64,20 @@ public:
      */
     IterativeLQR(casadi::Function fdyn,
                  int N,
-                 OptionDict opt = OptionDict());
+                 OptionDict opt = OptionDict(),
+                 std::shared_ptr<const ilqr::StateSpace> space = nullptr);
+
+    IterativeLQR(const ilqr::FunctionManager& manager, const std::string& dynamics,
+                 int N, OptionDict opt = OptionDict(),
+                 std::shared_ptr<const ilqr::StateSpace> space = nullptr);
+
+    void setCost(std::vector<int> indices, const ilqr::FunctionManager& manager,
+                 const std::string& name);
+    void setResidual(std::vector<int> indices, const ilqr::FunctionManager& manager,
+                     const std::string& name);
+    void setConstraint(std::vector<int> indices, const ilqr::FunctionManager& manager,
+                       const std::string& name,
+                       std::vector<Eigen::VectorXd> targets = {});
 
 
     void setStateBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
@@ -177,6 +193,7 @@ public:
 protected:
 
 private:
+    friend struct IterativeLQRTestAccess;
 
     static constexpr double inf = std::numeric_limits<double>::infinity();
 
@@ -191,6 +208,8 @@ private:
     struct BoundAuglagCostEntity;
     struct IntermediateCostEntity;
     struct IntermediateResidualEntity;
+    struct ManagedCostEntity;
+    struct FunctionWorkspace;
     struct Temporaries;
     struct ConstraintToGo;
     struct BackwardPassResult;
@@ -211,6 +230,11 @@ private:
     void init_thread_pool(int pool_size);
 
     void add_param_to_map(const casadi::Function& f);
+    void add_param_to_map(const ilqr::FunctionSpec& f);
+    void setManagedCost(std::vector<int> indices, const ilqr::FunctionSpec& spec,
+                        const std::string& name, bool residual);
+    void validateIndices(const std::vector<int>& indices) const;
+    void stateEquality(int k, Eigen::MatrixXd& C, Eigen::VectorXd& h) const;
 
     void linearize_quadratize();
 
@@ -293,11 +317,14 @@ private:
     bool _log;
     bool _rti;
 
-    const int _nx;
+    const std::shared_ptr<const ilqr::StateSpace> _space;
+    const int _ns; // state storage dimension
+    const int _nx; // tangent dimension
     const int _nu;
     const int _N;
 
     double _step_length;
+    double _bound_multiplier_max = 0;
     double _rho_base;
     double _rho;
     double _rho_growth_factor;
@@ -334,6 +361,7 @@ private:
     Eigen::MatrixXd _u_lb, _u_ub;
     std::vector<ValueFunction> _value;
     std::vector<Dynamics> _dyn;
+    std::vector<std::shared_ptr<ilqr::EvaluationContext>> _evaluation_contexts;
 
     std::vector<BackwardPassResult> _bp_res;
     std::unique_ptr<ConstraintToGo> _constraint_to_go;
@@ -369,6 +397,8 @@ private:
     int _th_done_flag;
     int _th_work_available_flag;
     std::atomic<bool> _th_exit;
+    std::exception_ptr _th_exception;
+    std::mutex _prof_mutex;
 
     CallbackType _iter_cb;
     utils::ProfilingInfo _prof_info;

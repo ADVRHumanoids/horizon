@@ -72,16 +72,19 @@ void IterativeLQR::kkt_solve()
     // add bounds if lb == ub
     for(int k = 0; k < _N+1; k++)
     {
-        for(int i = 0; i < _nx; i++)
+        Eigen::MatrixXd C;
+        Eigen::VectorXd h;
+        stateEquality(k, C, h);
+        for(int i = 0; i < h.size(); i++)
         {
-            if(_x_lb(i, k) == _x_ub(i, k))
+            _kkt_rhs.conservativeResize(kkt_size + 1);
+            for(int j = 0; j < _nx; ++j)
             {
-                _kkt_rhs.conservativeResize(kkt_size + 1);
-                _kkt_triplets.emplace_back(kkt_size, k*_nx + i, 1);
-                _kkt_triplets.emplace_back(k*_nx + i, kkt_size, 1);
-                _kkt_rhs(kkt_size) = _x_lb(i, k) - _xtrj(i, k);
-                kkt_size += 1;
+                _kkt_triplets.emplace_back(kkt_size, k*_nx + j, C(i, j));
+                _kkt_triplets.emplace_back(k*_nx + j, kkt_size, C(i, j));
             }
+            _kkt_rhs(kkt_size) = -h(i);
+            kkt_size += 1;
         }
 
         if(k == _N)
@@ -280,4 +283,6 @@ void IterativeLQR::kkt_solve()
         _lam_g[i] = sol.segment(row_offset, c.size());
         row_offset += c.size();
     }
+    _bound_multiplier_max = row_offset < sol.size() ?
+        sol.tail(sol.size()-row_offset).cwiseAbs().maxCoeff() : 0;
 }
