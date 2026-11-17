@@ -41,3 +41,13 @@ You will obtain hands-on details about the framework: a comprehensive documentat
 
 ## Try it!
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/FrancescoRuscelli/horizon-live/main?urlpath=lab/tree/index.ipynb)
+
+### Kyon collision and profiling example
+
+See the [documented Kyon iLQR example](horizon/examples/README_kyon_collision.md)
+for configurable shooting horizons, collision on/off comparisons, complete
+profiling reports, and optional Viser or ROS2/RViz replay.
+
+The [native Pinocchio Python example](horizon/examples/README_ilqr_native_pinocchio.md)
+uses the new function manager from Horizon Python while keeping FK and derivatives
+in C++.
