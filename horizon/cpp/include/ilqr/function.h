@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
+#include <utility>
+#include <typeindex>
 
 namespace horizon::ilqr
 {
@@ -42,6 +44,9 @@ public:
     int outputSize() const { return _output_size; }
     virtual std::unique_ptr<Function> clone() const = 0;
     virtual bool hasHessian() const { return false; }
+    /** Prefer the implementation's directional kernel over caching a dense
+     * Jacobian. Useful when that Jacobian is large and structurally sparse. */
+    virtual bool hasJacobianProduct() const { return false; }
     virtual void setEvaluationContext(const std::shared_ptr<EvaluationContext>&) {}
 
     void evaluate(Input x, VectorOutput value);
@@ -72,6 +77,22 @@ class EvaluationContext
 {
 public:
     std::shared_ptr<Function> share(const std::shared_ptr<const Function>& function);
+    /** Share an arbitrary node-local backend workspace between native
+     * functions. The key must be the common immutable prototype identity.
+     */
+    template<class T, class Factory>
+    std::shared_ptr<T> shareObject(const void* key, Factory&& factory)
+    {
+        if(!key) throw std::invalid_argument("evaluation-context object key is null");
+        const auto typed_key = std::make_pair(key, std::type_index(typeid(T)));
+        auto it = _objects.find(typed_key);
+        if(it != _objects.end()) return std::static_pointer_cast<T>(it->second);
+        auto value = std::forward<Factory>(factory)();
+        if(!value) throw std::invalid_argument("evaluation-context factory returned null");
+        auto typed = std::static_pointer_cast<T>(value);
+        _objects.emplace(typed_key, std::move(value));
+        return typed;
+    }
     void invalidate();
 private:
     struct IdentityLess
@@ -80,6 +101,39 @@ private:
         {return std::less<const Function*>{}(a.get(),b.get());}
     };
     std::map<std::shared_ptr<const Function>,std::shared_ptr<Function>,IdentityLess> _functions;
+    std::map<std::pair<const void*, std::type_index>, std::shared_ptr<void>> _objects;
+};
+
+/** Prepare shared numerical work for all shooting nodes before independent
+ * node evaluation. Called on the solver thread, including every trial cost
+ * pass. Implementations must own their buffers and publish results through
+ * the supplied node contexts; clones keep independent mutable state. */
+class EvaluationBatch
+{
+public:
+    virtual ~EvaluationBatch() = default;
+    virtual std::unique_ptr<EvaluationBatch> clone() const = 0;
+    virtual void prepare(MatrixInput states, MatrixInput controls,
+                         const std::vector<std::shared_ptr<EvaluationContext>>& contexts,
+                         bool derivatives) = 0;
+};
+
+/** State-only horizon cost, already differentiated in tangent coordinates.
+ * Results are unscaled: iLQR applies its running/terminal normalization.
+ * Hessians are Gauss-Newton approximations, packed by rows of the upper
+ * triangle: (0,0),(0,1),...,(1,1),... . Failed prepares invalidate all results.
+ */
+class BatchedCost
+{
+public:
+    virtual ~BatchedCost() = default;
+    virtual std::unique_ptr<BatchedCost> clone() const = 0;
+    virtual int stateSize() const = 0;
+    virtual int tangentSize() const = 0;
+    virtual void prepare(MatrixInput states, bool derivatives) = 0;
+    virtual double value(int node) const = 0;
+    virtual Input gradient(int node) const = 0;
+    virtual Input packedHessian(int node) const = 0;
 };
 
 /** Convenience adapter for stateless/reentrant C++ callbacks. For mutable

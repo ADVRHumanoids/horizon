@@ -104,6 +104,14 @@ protected:
     {prepare(x);_source->weightedHessian(x,weights,hess);}
     void valueAndJacobianProductImpl(Input x,MatrixInput directions,VectorOutput value,MatrixOutput product) override
     {
+        if(_source->hasJacobianProduct())
+        {
+            prepare(x);
+            _hasValue=false;
+            _source->valueAndJacobianProduct(x,directions,_value,product);
+            _hasValue=true; value=_value;
+            return;
+        }
         linearize(x);value=_value;
         if(_tangent)
         {

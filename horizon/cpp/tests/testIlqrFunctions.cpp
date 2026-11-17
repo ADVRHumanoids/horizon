@@ -6,6 +6,37 @@
 
 using namespace horizon::ilqr;
 
+namespace
+{
+class ProductOnly final : public Function
+{
+public:
+    ProductOnly():Function(2,1) {}
+    bool hasJacobianProduct() const override { return true; }
+    std::unique_ptr<Function> clone() const override { return std::make_unique<ProductOnly>(); }
+private:
+    void evaluateImpl(Input x,VectorOutput y) override { y[0]=x.squaredNorm(); }
+    void jacobianImpl(Input,MatrixOutput) override { throw std::logic_error("dense Jacobian must not be requested"); }
+    void valueAndJacobianProductImpl(Input x,MatrixInput d,VectorOutput y,MatrixOutput p) override
+    { evaluateImpl(x,y);p.noalias()=2*x.transpose()*d; }
+};
+}
+
+TEST(IlqrFunctions, SharedCachePreservesNativeDirectionalKernel)
+{
+    auto context=std::make_shared<EvaluationContext>();
+    auto f=context->share(std::make_shared<ProductOnly>());
+    Vector x(2),v(1);x<<.3,-.2;
+    Matrix directions(2,3),p(1,3);directions<<1,2,3,4,5,6;
+    f->valueAndJacobianProduct(x,directions,v,p);
+    EXPECT_NEAR(v[0],x.squaredNorm(),1e-14);
+    EXPECT_LT((p-2*x.transpose()*directions).norm(),1e-14);
+    x[0]=.6;context->invalidate();
+    f->valueAndJacobianProduct(x,directions,v,p);
+    EXPECT_LT((p-2*x.transpose()*directions).norm(),1e-14);
+    f->evaluate(x,v);EXPECT_NEAR(v[0],x.squaredNorm(),1e-14);
+}
+
 TEST(IlqrFunctions, NativeSymbolicCompositionDerivatives)
 {
     CallbackFunction inner(2, 2,

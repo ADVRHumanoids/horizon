@@ -1,6 +1,85 @@
 #include "ilqr/ilqr_impl.h"
 #include <set>
 
+void IterativeLQR::addEvaluationBatch(const ilqr::EvaluationBatch& batch)
+{ _evaluation_batches.push_back(batch.clone()); }
+
+void IterativeLQR::setBatchedCost(std::vector<int> indices, const std::string& name,
+                                 const ilqr::BatchedCost& prototype, int offset)
+{
+    validateIndices(indices);
+    if(indices.empty() || name.empty() || _cost_map.count(name) ||
+       prototype.stateSize()!=_ns || offset<0 || prototype.tangentSize()<1 ||
+       offset>_nx-prototype.tangentSize())
+        throw std::invalid_argument("invalid batched cost dimensions, name, or indices");
+    struct Entity final : CostEntityBase
+    {
+        std::shared_ptr<ilqr::BatchedCost> batch;
+        std::string name;
+        int offset;
+        std::vector<int> node_to_batch;
+        Ptr clone() const override { return std::make_shared<Entity>(*this); }
+        std::string getName() override { return name; }
+        bool gaussNewton() const override { return true; }
+        double evaluate(VecConstRef,VecConstRef,int k) override
+        { return _cost_eval=batch->value(node_to_batch.at(k)); }
+        void quadratize(VecConstRef,VecConstRef,int,Eigen::MatrixXd&,Eigen::MatrixXd&,Eigen::MatrixXd&) override
+        { throw std::logic_error("batched cost requires tangent quadratization"); }
+        bool quadratizeLocal(VecConstRef,VecConstRef,int k,MatConstRef,
+            Eigen::MatrixXd& Q,Eigen::MatrixXd&,Eigen::MatrixXd&,Eigen::VectorXd& q,Eigen::VectorXd&) override
+        {
+            k=node_to_batch.at(k);
+            _cost_eval=batch->value(k);
+            const int n=batch->tangentSize();
+            q.segment(offset,n)+=batch->gradient(k);
+            const auto h=batch->packedHessian(k);
+            int entry=0;
+            for(int i=0;i<n;++i)for(int j=i;j<n;++j)
+            {
+                const double v=h[entry++];Q(offset+i,offset+j)+=v;
+                if(i!=j)Q(offset+j,offset+i)+=v;
+            }
+            return true;
+        }
+    };
+    auto entity=std::make_shared<Entity>();
+    entity->batch=std::shared_ptr<ilqr::BatchedCost>(prototype.clone());
+    entity->name=name;entity->offset=offset;entity->indices=std::move(indices);
+    entity->node_to_batch.assign(_N+1,-1);
+    bool full=entity->indices.size()==std::size_t(_N+1);
+    for(std::size_t i=0;i<entity->indices.size();++i)
+    {
+        entity->node_to_batch[entity->indices[i]]=i;
+        full=full && entity->indices[i]==int(i);
+    }
+    _batched_costs.push_back({entity->batch,entity->indices,{},full});
+    _cost_map[name]=entity;
+    _cost_values[name].setConstant(_N+1,std::numeric_limits<double>::quiet_NaN());
+    updateIndices();
+}
+
+void IterativeLQR::prepareEvaluationBatches(const Eigen::MatrixXd& states,
+                                           const Eigen::MatrixXd& controls,bool derivatives)
+{
+    TIC(prepare_evaluation_batches);
+    // Invalidate once before preparation, so node evaluation can reuse native
+    // values/Jacobians computed while gathering the horizon batch.
+    for(auto& context:_evaluation_contexts)context->invalidate();
+    for(auto& batch:_evaluation_batches)
+        batch->prepare(states,controls,_evaluation_contexts,derivatives);
+    for(auto& registration:_batched_costs)
+    {
+        if(registration.full_horizon)registration.batch->prepare(states,derivatives);
+        else
+        {
+            auto& selected=registration.selected_states;
+            selected.resize(states.rows(),registration.indices.size());
+            for(std::size_t i=0;i<registration.indices.size();++i)selected.col(i)=states.col(registration.indices[i]);
+            registration.batch->prepare(selected,derivatives);
+        }
+    }
+}
+
 namespace
 {
 // Only the signature is used to share legacy solver initialization. Numerical
@@ -223,8 +302,16 @@ bool IterativeLQR::ManagedCostEntity::quadratizeLocal(VecConstRef x,VecConstRef 
     Eigen::MatrixXd& Q,Eigen::MatrixXd& R,Eigen::MatrixXd& P,Eigen::VectorXd& q,Eigen::VectorXd& r)
 {
     if(!residual) return false;
+#ifdef HORIZON_PROFILING
+    utils::Timer cost_timer("quadratize_cost_"+name,on_timer_toc);
+#endif
     auto& w=*workspace;w.setInput(x,u,k,param);w.setDirections(retraction,u.size());
-    w.function->valueAndJacobianProduct(w.z,w.directions,w.value,w.localJac);
+    {
+#ifdef HORIZON_PROFILING
+        utils::Timer derivative_timer("quadratize_derivatives_"+name,on_timer_toc);
+#endif
+        w.function->valueAndJacobianProduct(w.z,w.directions,w.value,w.localJac);
+    }
     const auto Jx=w.localJac.leftCols(retraction.cols());
     const auto Ju=w.localJac.rightCols(u.size());
     Q.noalias()+=Jx.transpose()*Jx;R.noalias()+=Ju.transpose()*Ju;P.noalias()+=Ju.transpose()*Jx;

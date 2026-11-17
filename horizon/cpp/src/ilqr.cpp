@@ -824,6 +824,7 @@ bool IterativeLQR::solve(int max_iter)
 void IterativeLQR::linearize_quadratize()
 {
     TIC(linearize_quadratize);
+    prepareEvaluationBatches(_xtrj,_utrj,true);
 
     if(_th_pool.size() > 0)
     {
@@ -839,7 +840,6 @@ void IterativeLQR::linearize_quadratize()
 
     // handle final cost and constraint
     // note: these are only function of the state!
-    _evaluation_contexts[_N]->invalidate();
     _cost.back().quadratize(state(_N), input(_N-1), _N); // note: input not used here!
     _constraint.back().linearize(state(_N), input(_N-1), _N); // note: input not used here!
 }
@@ -847,7 +847,6 @@ void IterativeLQR::linearize_quadratize()
 void IterativeLQR::linearize_quadratize_inner(int i)
 {
 
-    _evaluation_contexts[i]->invalidate();
     auto xi = state(i);
     auto ui = input(i);
     auto xnext = state(i+1);
@@ -887,7 +886,6 @@ void IterativeLQR::linearize_quadratize_mt()
     try
     {
         for(int i = istart; i < _N; i++) linearize_quadratize_inner(i);
-        _evaluation_contexts[_N]->invalidate();
         _cost.back().quadratize(state(_N), input(_N-1), _N);
         _constraint.back().linearize(state(_N), input(_N-1), _N);
     }

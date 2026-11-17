@@ -123,6 +123,7 @@ std::pair<double, double> IterativeLQR::compute_merit_weights(
 double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
 {
     TIC(compute_cost);
+    prepareEvaluationBatches(xtrj,utrj,false);
 
     double cost = 0.0;
 
@@ -135,7 +136,6 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // intermediate cost
     for(int i = 0; i < _N; i++)
     {
-        _evaluation_contexts[i]->invalidate();
         cost += _cost[i].evaluate(xtrj.col(i), utrj.col(i), i) / _N;
 
         // optionally (TBD) save values of single costs acting on this node
@@ -154,7 +154,6 @@ double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::Matr
     // add final cost
     // note: u not used
     // todo: enforce this!
-    _evaluation_contexts[_N]->invalidate();
     cost += _cost[_N].evaluate(xtrj.col(_N), utrj.col(_N-1), _N);
     for(auto& item : _cost[_N].items)
     {

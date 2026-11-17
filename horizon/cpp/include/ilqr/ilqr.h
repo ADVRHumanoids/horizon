@@ -133,6 +133,14 @@ public:
 
     void setIterationCallback(const CallbackType& cb);
 
+    /** Register a cloned horizon-wide evaluator. Setup operation; the batch
+     * must cover the nodes on which its associated functions are installed. */
+    void addEvaluationBatch(const ilqr::EvaluationBatch& batch);
+    /** State-only Gauss-Newton contribution in a contiguous tangent block.
+     * The prototype is cloned; node cost objects share that solver-owned clone. */
+    void setBatchedCost(std::vector<int> indices, const std::string& name,
+                        const ilqr::BatchedCost& batch, int tangent_offset = 0);
+
     bool solve(int max_iter);
 
     const Eigen::MatrixXd& getStateTrajectory() const;
@@ -237,6 +245,17 @@ private:
     void stateEquality(int k, Eigen::MatrixXd& C, Eigen::VectorXd& h) const;
 
     void linearize_quadratize();
+    void prepareEvaluationBatches(const Eigen::MatrixXd& states,
+                                  const Eigen::MatrixXd& controls, bool derivatives);
+    std::vector<std::unique_ptr<ilqr::EvaluationBatch>> _evaluation_batches;
+    struct BatchedCostRegistration
+    {
+        std::shared_ptr<ilqr::BatchedCost> batch;
+        std::vector<int> indices;
+        Eigen::MatrixXd selected_states;
+        bool full_horizon=false;
+    };
+    std::vector<BatchedCostRegistration> _batched_costs;
 
     void linearize_quadratize_inner(int i);
 
