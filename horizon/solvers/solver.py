@@ -23,7 +23,7 @@ class Solver(ABC):
     def make_solver(cls, 
                     type: str,
                     prb: Problem,
-                    opts: Dict = None) -> 'Solver':
+                    opts: Dict = None, **kwargs) -> 'Solver':
         """
         Construct a solver from its type name
 
@@ -32,17 +32,20 @@ class Solver(ABC):
             prb (Problem): the horizon's problem instance to be solved
             dt (float): the discretization step, None if not needed
             opts (Dict, optional): A solver-dependent Dict of options. Defaults to None.
+            **kwargs: iLQR function_manager/dynamics/state_space; IPOPT gauss_newton/function_manager/dynamics.
         """
+        if kwargs and type not in ('ilqr', 'ipopt'):
+            raise TypeError('Additional solver arguments are supported only for ilqr and ipopt')
 
         if type == 'blocksqp':
             from . import blocksqp
             ret = blocksqp.BlockSqpSolver(prb, opts)
         elif type == 'ipopt':
             from . import ipopt
-            ret = ipopt.IpoptSolver(prb, opts)
+            ret = ipopt.IpoptSolver(prb, opts, **kwargs)
         elif type == 'ilqr':
             from . import ilqr
-            ret = ilqr.SolverILQR(prb, opts)
+            ret = ilqr.SolverILQR(prb, opts, **kwargs)
         elif type == 'gnsqp':
             from . import sqp
             qp_solver = 'osqp'

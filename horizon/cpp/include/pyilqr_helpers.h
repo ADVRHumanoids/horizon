@@ -14,7 +14,7 @@ using namespace horizon;
 casadi::Function to_cpp(py::object pyfn)
 {
     // convert python's casadi.Function to cpp's casadi::Function
-    #if PYBIND11_VERSION_MINOR > 6
+    #if PYBIND11_VERSION_MAJOR > 2 || PYBIND11_VERSION_MINOR > 6
         auto cs = py::module_::import("casadi");
     #else
         auto cs = py::module::import("casadi");
@@ -27,9 +27,10 @@ casadi::Function to_cpp(py::object pyfn)
     return casadi::Function::deserialize(fstr);
 }
 
-auto construct(py::object fdyn, int N, IterativeLQR::OptionDict opt)
+auto construct(py::object fdyn, int N, IterativeLQR::OptionDict opt,
+               std::shared_ptr<const horizon::ilqr::StateSpace> space)
 {
-    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt);
+    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt, std::move(space));
 }
 
 auto set_inter_cost_wrapper_single(IterativeLQR& self, std::vector<int> k, py::object f)

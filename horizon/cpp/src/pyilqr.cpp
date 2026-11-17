@@ -1,6 +1,15 @@
 #include "pyilqr_helpers.h"
 
+void bindIlqrFunctions(py::module_& m);
+#ifdef HORIZON_WITH_PINOCCHIO
+void bindIlqrPinocchio(py::module_& m);
+#endif
+
 PYBIND11_MODULE(pyilqr, m) {
+    bindIlqrFunctions(m);
+#ifdef HORIZON_WITH_PINOCCHIO
+    bindIlqrPinocchio(m);
+#endif
 
     py::class_<IterativeLQR::ForwardPassResult>(m, "ForwardPassResult")
             .def("print", &IterativeLQR::ForwardPassResult::print, py::arg("N") = 1)
@@ -26,7 +35,14 @@ PYBIND11_MODULE(pyilqr, m) {
             .def_readonly("timings", &utils::ProfilingInfo::timings);
 
     py::class_<IterativeLQR>(m, "IterativeLQR")
-            .def(py::init(&construct))
+            .def(py::init(&construct),py::arg("fdyn"),py::arg("N"),py::arg("opt")=IterativeLQR::OptionDict{},py::arg("space")=nullptr)
+            .def(py::init<const horizon::ilqr::FunctionManager&,const std::string&,int,IterativeLQR::OptionDict,
+                          std::shared_ptr<const horizon::ilqr::StateSpace>>(),
+                 py::arg("manager"),py::arg("dynamics"),py::arg("N"),py::arg("opt")=IterativeLQR::OptionDict{},py::arg("space")=nullptr)
+            .def("setCost",py::overload_cast<std::vector<int>,const horizon::ilqr::FunctionManager&,const std::string&>(&IterativeLQR::setCost))
+            .def("setResidual",py::overload_cast<std::vector<int>,const horizon::ilqr::FunctionManager&,const std::string&>(&IterativeLQR::setResidual))
+            .def("setConstraint",py::overload_cast<std::vector<int>,const horizon::ilqr::FunctionManager&,const std::string&,std::vector<Eigen::VectorXd>>(&IterativeLQR::setConstraint),
+                 py::arg("indices"),py::arg("manager"),py::arg("name"),py::arg("targets")=std::vector<Eigen::VectorXd>{})
             .def("setIntermediateCost", set_inter_cost_wrapper_single)
             .def("setIntermediateResidual", set_residual_wrapper_single)
             .def("setIntermediateConstraint",

@@ -30,17 +30,20 @@ class Problem:
 
     # todo probably better to set logger, not logging_level
     def __init__(self, N: int, casadi_type=cs.MX, abstract_casadi_type=cs.SX, receding=False,
-                 logging_level=logging.INFO):
+                 logging_level=logging.INFO, thread_map_num=10):
         """
         Initialize the optimization problem.
 
         Args:
             N: number of INTERMEDIATE nodes (transitions) in the optimization horizon. IMPORTANT: the final node is automatically generated. The problem will have N+1 nodes.
+            thread_map_num: maximum threads for CasADi node maps; use 1 for serial evaluation.
             logging_level: accepts the level of logging from package logging (INFO, DEBUG, ...)
         """
         self.opts = None
         self.is_receding = receding
-        self.thread_map_num = 10
+        if not isinstance(thread_map_num, int) or thread_map_num < 1:
+            raise ValueError("thread_map_num must be a positive integer")
+        self.thread_map_num = thread_map_num
         self.default_casadi_type = casadi_type
         self.default_abstract_casadi_type = abstract_casadi_type
 

@@ -9,7 +9,7 @@ import pprint
 
 class NlpsolSolver(Solver):
 
-    def __init__(self, prb: Problem, opts: Dict, solver_plugin: str) -> None:
+    def __init__(self, prb: Problem, opts: Dict, solver_plugin: str, gauss_newton=False) -> None:
 
         super().__init__(prb, opts=opts)
 
@@ -40,6 +40,33 @@ class NlpsolSolver(Solver):
         # p = self.var_container.getParameterList()
 
         self.prob_dict = {'f': j, 'x': w, 'g': g, 'p': p}
+
+        if gauss_newton:
+            if 'hess_lag' in self.opts:
+                raise ValueError('gauss_newton and a custom hess_lag are mutually exclusive')
+            if self.opts.get('ipopt.hessian_approximation', 'exact') != 'exact':
+                raise ValueError('gauss_newton requires ipopt.hessian_approximation=exact')
+            # For sumsqr(r), GN curvature is 2 J_r.T J_r. Scalar costs
+            # retain exact curvature; constraint multiplier curvature is omitted.
+            residuals = []
+            scalar_costs = []
+            for fun in self.fun_container.getCost().values():
+                value = fun.getImpl()
+                if value is None:
+                    continue
+                if isinstance(fun, (Residual, RecedingResidual)):
+                    residuals.append(cs.vec(value))
+                else:
+                    scalar_costs.append(cs.sum1(cs.vec(value)))
+            residual = cs.vertcat(*residuals)
+            jac = cs.jacobian(residual, w)
+            hess = 2 * cs.mtimes(jac.T, jac)
+            if scalar_costs:
+                hess += cs.hessian(sum(scalar_costs), w)[0]
+            sigma = cs.MX.sym('sigma') if isinstance(w, cs.MX) else cs.SX.sym('sigma')
+            lam = type(sigma).sym('lam', g.numel())
+            self.opts['hess_lag'] = cs.Function('gn_hess_lag', [w, p, sigma, lam],
+                                               [cs.triu(sigma*hess)])
 
         # create solver from prob
         self.solver = cs.nlpsol('solver', solver_plugin, self.prob_dict, self.opts)

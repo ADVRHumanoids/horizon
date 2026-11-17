@@ -110,8 +110,28 @@ if(HORIZON_BUILD_PYTHON)
 set(PYBIND11_PYTHON_VERSION 3)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(pyilqr src/pyilqr.cpp)
+pybind11_add_module(pyilqr src/pyilqr.cpp src/pyilqr_functions.cpp)
+if(HORIZON_WITH_PINOCCHIO)
+    target_sources(pyilqr PRIVATE src/pyilqr_pinocchio.cpp)
+endif()
 target_link_libraries(pyilqr PUBLIC ilqr)
+
+if(BUILD_TESTING)
+    if(PYTHON_EXECUTABLE)
+        set(horizon_test_python "${PYTHON_EXECUTABLE}")
+    elseif(Python_EXECUTABLE)
+        set(horizon_test_python "${Python_EXECUTABLE}")
+    else()
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        set(horizon_test_python "${Python3_EXECUTABLE}")
+    endif()
+    add_test(NAME pythonIlqrInterop COMMAND ${CMAKE_COMMAND} -E env
+        "HORIZON_PYILQR_EXTENSION=$<TARGET_FILE:pyilqr>" "KYON_URDF=${HORIZON_KYON_URDF}"
+        "OMP_NUM_THREADS=1" "OPENBLAS_NUM_THREADS=1" "MPLBACKEND=Agg"
+        "${horizon_test_python}" -m unittest horizon.tests.test_ilqr_python_interop -v)
+    set_tests_properties(pythonIlqrInterop PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../.." LABELS "python;ilqr" TIMEOUT 120)
+endif()
 
 pybind11_add_module(pysqp src/pysqp.cpp)
 target_link_libraries(pysqp PUBLIC sqp Eigen3::Eigen casadi::casadi)

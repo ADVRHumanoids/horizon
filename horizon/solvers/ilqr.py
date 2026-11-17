@@ -18,7 +18,8 @@ class SolverILQR(Solver):
     
     def __init__(self, 
                  prb: Problem,
-                 opts: Dict = None) -> None:
+                 opts: Dict = None, *, function_manager=None,
+                 dynamics=None, state_space=None) -> None:
 
         filtered_opts = None 
         if opts is not None:
@@ -71,7 +72,17 @@ class SolverILQR(Solver):
         #                        )
 
         # create ilqr solver
-        self.ilqr = IterativeLQR(self.prb.getIntegrator(), self.N, self.opts)
+        self.function_manager = function_manager
+        self.dyn = self.prb.getIntegrator()
+        if function_manager is None:
+            if dynamics is not None:
+                raise ValueError('A named dynamics function requires function_manager')
+            self.ilqr = IterativeLQR(self.dyn, self.N, self.opts, state_space)
+        else:
+            if not dynamics:
+                raise ValueError('Specify the registered dynamics function name')
+            self.ilqr = IterativeLQR(function_manager, dynamics, self.N,
+                                     self.opts, state_space)
 
 
         # should we use GN approx for residuals?
@@ -96,6 +107,8 @@ class SolverILQR(Solver):
         self.set_iteration_callback()
 
     def save(self):
+        if self.function_manager is not None:
+            raise NotImplementedError('Native function graphs cannot be saved as a CasADi-only problem')
         data = self.prb.save()
         data['solver'] = dict()
         if isinstance(self.dt, float):
@@ -196,10 +209,10 @@ class SolverILQR(Solver):
 
         # max string length
         keys = prof_info.timings.keys()
-        max_len = max([len(k) for k in keys])
 
         if len(prof_info.timings) == 0:
             return
+        max_len = max(len(k) for k in keys)
         
         print('\ntimings (inner):')
         for k, v in prof_info.timings.items():
