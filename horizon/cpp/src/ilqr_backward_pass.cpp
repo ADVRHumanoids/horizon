@@ -564,17 +564,12 @@ bool IterativeLQR::auglag_update()
 
 void IterativeLQR::increase_regularization()
 {
-    if(_hxx_reg < 1e-6)
-    {
-        _hxx_reg = 1.0;
-    }
-
-    _hxx_reg *= _hxx_reg_growth_factor;
-
-    if(_hxx_reg < _hxx_reg_base)
-    {
-        _hxx_reg = _hxx_reg_base;
-    }
+    // Starting from zero used to jump directly to 1000 with the default
+    // growth factor, overwhelming small running costs on long horizons.
+    const double next=std::max({_hxx_reg_base,1e-9,_hxx_reg*_hxx_reg_growth_factor});
+    if(!std::isfinite(next) || next>1e12)
+        throw std::runtime_error("iLQR regularization limit exceeded");
+    _hxx_reg=next;
 }
 
 void IterativeLQR::reduce_regularization()

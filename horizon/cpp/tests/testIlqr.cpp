@@ -2,6 +2,27 @@
 
 #include "ilqr/ilqr.h"
 
+namespace horizon
+{
+struct IterativeLQRTestAccess
+{
+    static double increase(IterativeLQR& solver)
+    { solver.increase_regularization(); return solver._hxx_reg; }
+    static void setRegularization(IterativeLQR& solver,double value)
+    { solver._hxx_reg=value; }
+};
+}
+
+TEST(IlqrRegularization, StartsSmallAndStopsAtFiniteLimit)
+{
+    auto x=casadi::SX::sym("x"),u=casadi::SX::sym("u");
+    horizon::IterativeLQR solver(casadi::Function("dyn",{x,u},{x+u},{"x","u"},{"f"}),2);
+    EXPECT_DOUBLE_EQ(horizon::IterativeLQRTestAccess::increase(solver),1e-9);
+    EXPECT_NEAR(horizon::IterativeLQRTestAccess::increase(solver),1e-6,1e-20);
+    horizon::IterativeLQRTestAccess::setRegularization(solver,1e12);
+    EXPECT_THROW(horizon::IterativeLQRTestAccess::increase(solver),std::runtime_error);
+}
+
 
 class testIlqr : public ::testing::Test
 {
