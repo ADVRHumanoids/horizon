@@ -1,0 +1,4 @@
+Checks: '-*,readability-braces-around-statements'
+WarningsAsErrors: 'readability-braces-around-statements'
+CheckOptions:
+  readability-braces-around-statements.ShortStatementLines: '0'

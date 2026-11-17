@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+
+# Keep a single space around operators without aligning adjacent statements.
+SpaceBeforeAssignmentOperators: true
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: DontAlign
+
+# Requires clang-format 15 or newer.
+InsertBraces: true
+BreakBeforeBraces: Allman
+AllowShortBlocksOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: None
