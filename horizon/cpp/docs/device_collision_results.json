@@ -1,0 +1,503 @@
+{
+  "cases": [
+    {
+      "nodes": 30,
+      "backend": "scalar",
+      "samples": 20,
+      "median_ms": 124.93586099999999,
+      "p95_ms": 126.566894,
+      "objective": 0.000169830505038,
+      "iterations": [
+        16
+      ]
+    },
+    {
+      "nodes": 30,
+      "backend": "kokkos",
+      "samples": 20,
+      "median_ms": 160.5026055,
+      "p95_ms": 173.25563,
+      "objective": 0.000169830505038,
+      "iterations": [
+        16
+      ]
+    },
+    {
+      "nodes": 30,
+      "backend": "device",
+      "samples": 20,
+      "median_ms": 91.1959595,
+      "p95_ms": 95.056723,
+      "objective": 0.000169830505038,
+      "iterations": [
+        16
+      ]
+    },
+    {
+      "nodes": 30,
+      "backend": "cpu_reference",
+      "samples": 20,
+      "median_ms": 139.146036,
+      "p95_ms": 146.735067,
+      "objective": 0.000169830505038,
+      "iterations": [
+        16
+      ]
+    },
+    {
+      "nodes": 256,
+      "backend": "scalar",
+      "samples": 20,
+      "median_ms": 1173.3690219999999,
+      "p95_ms": 1229.799529,
+      "objective": 0.000169331366307,
+      "iterations": [
+        20
+      ]
+    },
+    {
+      "nodes": 256,
+      "backend": "kokkos",
+      "samples": 20,
+      "median_ms": 1513.3122385,
+      "p95_ms": 1550.931802,
+      "objective": 0.000169331366307,
+      "iterations": [
+        20
+      ]
+    },
+    {
+      "nodes": 256,
+      "backend": "device",
+      "samples": 20,
+      "median_ms": 887.017902,
+      "p95_ms": 915.578393,
+      "objective": 0.000169331366307,
+      "iterations": [
+        20
+      ]
+    },
+    {
+      "nodes": 256,
+      "backend": "cpu_reference",
+      "samples": 20,
+      "median_ms": 1295.5512055,
+      "p95_ms": 1401.835318,
+      "objective": 0.000169331366307,
+      "iterations": [
+        20
+      ]
+    },
+    {
+      "nodes": 1024,
+      "backend": "scalar",
+      "samples": 20,
+      "median_ms": 2705.467433,
+      "p95_ms": 2867.219566,
+      "objective": 0.000169292236366,
+      "iterations": [
+        12
+      ]
+    },
+    {
+      "nodes": 1024,
+      "backend": "kokkos",
+      "samples": 20,
+      "median_ms": 3536.7146155,
+      "p95_ms": 3772.675036,
+      "objective": 0.000169292236366,
+      "iterations": [
+        12
+      ]
+    },
+    {
+      "nodes": 1024,
+      "backend": "device",
+      "samples": 20,
+      "median_ms": 1865.5162420000001,
+      "p95_ms": 1924.917317,
+      "objective": 0.000169292236366,
+      "iterations": [
+        12
+      ]
+    },
+    {
+      "nodes": 1024,
+      "backend": "cpu_reference",
+      "samples": 20,
+      "median_ms": 2765.967722,
+      "p95_ms": 2928.360326,
+      "objective": 0.000169292236366,
+      "iterations": [
+        12
+      ]
+    }
+  ],
+  "parity": [
+    {
+      "nodes": 30,
+      "backend": "kokkos",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 30,
+      "backend": "device",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 30,
+      "backend": "cpu_reference",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 256,
+      "backend": "kokkos",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 256,
+      "backend": "device",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 256,
+      "backend": "cpu_reference",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 1024,
+      "backend": "kokkos",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 1024,
+      "backend": "device",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    },
+    {
+      "nodes": 1024,
+      "backend": "cpu_reference",
+      "trajectory_max_abs": 1.000000082740371e-11,
+      "objective_max_abs": 0.0
+    }
+  ],
+  "gpu_before": "name, driver_version, utilization.gpu [%], memory.used [MiB]\nNVIDIA GeForce RTX 3060, 580.178.04, 22 %, 3037 MiB",
+  "gpu_after": "name, driver_version, utilization.gpu [%], memory.used [MiB]\nNVIDIA GeForce RTX 3060, 580.178.04, 68 %, 3039 MiB",
+  "date": "2026-11-16",
+  "configuration": {
+    "cpu": "Intel Core i7-12700",
+    "gpu": "RTX 3060 12 GB",
+    "cuda_toolkit": "12.0.140",
+    "driver": "580.178.04",
+    "kokkos": "4.7.1",
+    "cpu_build_compiler": "GCC 13.3",
+    "cuda_build_reported_host_compiler": "GCC 11.5",
+    "profiling": true,
+    "threads": 8,
+    "spheres": 94,
+    "self_pairs": 100,
+    "sdf_dimensions": [
+      151,
+      151,
+      151
+    ],
+    "precision": "FP64 arithmetic, existing float SDF samples",
+    "warmup_solves": 1,
+    "samples_per_case": 20
+  },
+  "stage_medians": {
+    "30": {
+      "device_prepare_ms": 12.0921775,
+      "device_upload_ms": 1.07404799387,
+      "device_kinematics_ms": 5.33883202821,
+      "device_queries_ms": 2.0806079739700003,
+      "device_accumulation_ms": 0.720959998667,
+      "device_download_ms": 0.9357599969954999,
+      "device_upload_bytes": 307520.0,
+      "device_download_bytes": 1974240.0,
+      "device_peak_bytes": 15549384.0,
+      "device_kernel_launches": 96.0,
+      "device_value_batches": 24.0,
+      "device_derivative_batches": 16.0,
+      "solver_phases_ms": {
+        "linearize_quadratize": 32.073108000000005,
+        "backward_pass": 46.369003,
+        "line_search": 12.3325535
+      },
+      "min_sdf_clearance": 0.0406637235063,
+      "min_self_clearance": 0.215401371786
+    },
+    "256": {
+      "device_prepare_ms": 55.328298000000004,
+      "device_upload_ms": 3.04419201985,
+      "device_kinematics_ms": 14.871327906849999,
+      "device_queries_ms": 15.82724787295,
+      "device_accumulation_ms": 5.87051200867,
+      "device_download_ms": 4.60182399582,
+      "device_upload_bytes": 3696688.0,
+      "device_download_bytes": 20473880.0,
+      "device_peak_bytes": 28449464.0,
+      "device_kernel_launches": 136.0,
+      "device_value_batches": 38.0,
+      "device_derivative_batches": 20.0,
+      "solver_phases_ms": {
+        "linearize_quadratize": 242.999759,
+        "backward_pass": 512.4454055,
+        "line_search": 124.17899349999999
+      },
+      "min_sdf_clearance": 0.0406637235063,
+      "min_self_clearance": 0.215342614004
+    },
+    "1024": {
+      "device_prepare_ms": 75.75753850000001,
+      "device_upload_ms": 2.09959999472,
+      "device_kinematics_ms": 7.368559986355,
+      "device_queries_ms": 28.9795519412,
+      "device_accumulation_ms": 13.3016318083,
+      "device_download_ms": 6.522464013655,
+      "device_upload_bytes": 7117600.0,
+      "device_download_bytes": 48937712.0,
+      "device_peak_bytes": 72286904.0,
+      "device_kernel_launches": 68.0,
+      "device_value_batches": 16.0,
+      "device_derivative_batches": 12.0,
+      "solver_phases_ms": {
+        "linearize_quadratize": 469.3279005,
+        "backward_pass": 1196.9158155,
+        "line_search": 189.97209550000002
+      },
+      "min_sdf_clearance": 0.0406637235063,
+      "min_self_clearance": 0.215463073308
+    }
+  },
+  "libraries": {
+    "kokkos_kernels": {
+      "version": "4.7.00",
+      "commit": "f030e6cb97cece46e14f7471108d891adc425935",
+      "accumulation_comparison": [
+        {
+          "rows": "94",
+          "method": "custom",
+          "median_ms": "0.14201435",
+          "p95_ms": "0.1737385",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team32_unblocked",
+          "median_ms": "0.63962425",
+          "p95_ms": "0.853106",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team32_blocked",
+          "median_ms": "0.60050025",
+          "p95_ms": "0.7423108",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team64_unblocked",
+          "median_ms": "0.34381405",
+          "p95_ms": "0.4728226",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team64_blocked",
+          "median_ms": "0.4683182",
+          "p95_ms": "0.57949",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team128_unblocked",
+          "median_ms": "0.2814449",
+          "p95_ms": "0.3976199",
+          "max_error": "0"
+        },
+        {
+          "rows": "94",
+          "method": "team128_blocked",
+          "median_ms": "0.45968285",
+          "p95_ms": "0.613111",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "custom",
+          "median_ms": "0.2827256",
+          "p95_ms": "0.3818151",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team32_unblocked",
+          "median_ms": "1.3703774",
+          "p95_ms": "1.4828828",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team32_blocked",
+          "median_ms": "1.2092455",
+          "p95_ms": "1.3265088",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team64_unblocked",
+          "median_ms": "0.71912015",
+          "p95_ms": "0.9080706",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team64_blocked",
+          "median_ms": "0.9498557",
+          "p95_ms": "1.099954",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team128_unblocked",
+          "median_ms": "0.5923213",
+          "p95_ms": "0.7575748",
+          "max_error": "0"
+        },
+        {
+          "rows": "194",
+          "method": "team128_blocked",
+          "median_ms": "0.9769191",
+          "p95_ms": "1.1042634",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "custom",
+          "median_ms": "1.4906489",
+          "p95_ms": "1.6057261",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team32_unblocked",
+          "median_ms": "6.7568683",
+          "p95_ms": "6.8358441",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team32_blocked",
+          "median_ms": "6.122902",
+          "p95_ms": "6.240927",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team64_unblocked",
+          "median_ms": "3.5045624",
+          "p95_ms": "3.5948369",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team64_blocked",
+          "median_ms": "5.1821651",
+          "p95_ms": "5.2552006",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team128_unblocked",
+          "median_ms": "3.3238256",
+          "p95_ms": "3.5749211",
+          "max_error": "0"
+        },
+        {
+          "rows": "1024",
+          "method": "team128_blocked",
+          "median_ms": "5.1252011",
+          "p95_ms": "5.3633473",
+          "max_error": "0"
+        }
+      ],
+      "decision": "Keep direct packed reduction; tested TeamGemm variants are slower."
+    },
+    "curobo_v2": {
+      "commit": "71ce1726925adfdcc7d0d39dabec5f2d6bb71acd",
+      "cuda_minimum": "12.3",
+      "native_numeric_abi": "float32",
+      "joint_schema_has_free_flyer": false,
+      "kyon_floating_joint": "reference",
+      "configure_result": "Failed: installed CUDA 12.0.140 does not satisfy 12.3",
+      "runtime_timing_available": false,
+      "decision": "No production integration: model/precision adapters and newer isolated toolkit required."
+    }
+  },
+  "validation": {
+    "cpu_ctest_passed": 12,
+    "cuda_ctest_passed": 12,
+    "device_test_cases_per_backend": 8,
+    "valgrind_cases": 7,
+    "valgrind_errors": 0,
+    "valgrind_definitely_lost_bytes": 0,
+    "valgrind_possibly_lost_openmp_tls_bytes": 368,
+    "compute_sanitizer": "Failed before first instrumented API call, including --target-processes all retry."
+  },
+  "copy_trace": [
+    {
+      "count": 2,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,3536,robot joints <- robot joints_mirror"
+    },
+    {
+      "count": 2,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,3760,local spheres <- local spheres_mirror"
+    },
+    {
+      "count": 2,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,800,self pairs <- self pairs_mirror"
+    },
+    {
+      "count": 2,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,13771804,sdf <- sdf_mirror"
+    },
+    {
+      "count": 116,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,63736,configurations <- configurations_mirror"
+    },
+    {
+      "count": 116,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,4,collision status <- Scalar"
+    },
+    {
+      "count": 76,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,2056,cost contributions <- Scalar"
+    },
+    {
+      "count": 76,
+      "event": "KOKKOS_TRACE,copy,Host,Cuda,2056,cost contributions_mirror <- cost contributions"
+    },
+    {
+      "count": 116,
+      "event": "KOKKOS_TRACE,copy,Host,Cuda,4,Scalar <- collision status"
+    },
+    {
+      "count": 40,
+      "event": "KOKKOS_TRACE,copy,Cuda,Host,1019776,cost contributions <- Scalar"
+    },
+    {
+      "count": 40,
+      "event": "KOKKOS_TRACE,copy,Host,Cuda,1019776,cost contributions_mirror <- cost contributions"
+    }
+  ]
+}
