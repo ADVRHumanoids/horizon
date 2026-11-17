@@ -1,9 +1,17 @@
 # C++ iLQR functions and state spaces
 
+For a complete Kyon motion example with collision on/off comparisons, profiling,
+and optional Viser or ROS2/RViz replay, see the
+[Kyon example guide](../examples/README_kyon_collision.md).
+
 The solver accepts pure CasADi models, native C++ models with supplied
 derivatives, and expressions mixing both. Existing `IterativeLQR(casadi::Function,
 N, options)` and CasADi cost/constraint setters remain available. The new C++
 interfaces live in `horizon::ilqr`; Python bindings retain their existing API.
+
+Python can also configure native function graphs and call C++ Pinocchio directly.
+See the [Python manager guide](../examples/README_ilqr_native_pinocchio.md) and
+its fixed-feet Kyon example, including integration with Horizon's `Problem`.
 
 ## Symbolic expressions around native functions
 
@@ -182,9 +190,10 @@ mismatch between cost evaluation and quadratization and can change trajectories
 that previously relied on that mismatch. Merit weights also account for
 normalized feasibility measures and fixed-state multipliers.
 
-The interface is independent of a robotics library or device backend. GPU
-batch evaluation across nodes remains future work, as in PLAN.md; this change
-does not implement a GPU scheduler or a collision-distance backend.
+The interface is independent of a robotics library or device backend. The
+optional Kokkos collision backend prepares horizon-wide batches before node
+evaluation; symbolic graphs, Pinocchio kinematics and backward recursion remain
+on the CPU. See the Kokkos section below for supported fields and validation.
 
 Build and test against your installed CasADi prefix:
 
@@ -210,6 +219,415 @@ nv-column Jacobian, and native integrated dynamics using `dIntegrate`. It checks
 the mixed symbolic residual derivatives and solves a free-flyer robot shooting
 problem with nq different from nv. Pinocchio is an optional test dependency;
 the core library does not depend on it.
+
+## Sphere collision residuals
+
+`horizon/collision.h` contains link-local sphere models, dense SDF grid queries,
+analytic sphere/plane fields, and `SphereDistanceFunction`. The distance
+function accepts SoA world-space centers `[x0,x1,...,y0,y1,...,z0,z1,...]`, subtracts
+robot radii, and returns a smooth softplus residual below the requested
+clearance. It supplies analytical Jacobians, so it can be registered with
+`FunctionManager` and used with `IterativeLQR::setResidual`. Self-collision
+pairs are explicit; adjacent or otherwise exempt pairs should be omitted by
+the caller. Grid values are x-fastest signed distances in world units, and
+queries outside a finite dense grid throw `EvaluationError`. OpenVDB narrow-band
+grids use their positive background distance for samples outside the active
+band.
+
+When Pinocchio support is enabled with `-DHORIZON_WITH_PINOCCHIO=ON`,
+`horizon/pinocchio_collision.h` provides `PinocchioSphereCenters`, which
+computes all Kyon sphere world centers and tangent Jacobians using one
+joint-kinematics/Jacobian pass per evaluation. `PinocchioModelWorkspace`
+provides node-local `Data` shared through the solver's `EvaluationContext`;
+functions given the same workspace prototype can reuse cached q/v/a forward
+kinematics, frame placements, and joint Jacobians. Each shooting node and
+solver still receives independent mutable `Data`. Custom native dynamics that
+share the same prototype can bind their per-node workspace with
+`prototype->forContext(context)` and call `ensureVelocity` or
+`ensureAcceleration` before their Pinocchio algorithms. Register the aggregate center function through
+`SymbolicFunctionManager::addNative` and feed its output to a
+`SphereDistanceFunction` in the same expression graph; shared native results
+are evaluated once per node and pass.
+
+```cpp
+auto model_spheres = std::make_shared<collision::SphereModel>(collision::kyon::spheres());
+auto robot_workspace = std::make_shared<collision::PinocchioModelWorkspace>(pin_model);
+auto centers = functions.addNative("kyon_centers",
+    std::make_shared<collision::PinocchioSphereCenters>(pin_model, robot_space,
+                                                        *model_spheres, robot_workspace));
+std::vector<double> radii;
+for(const auto& sphere : model_spheres->spheres()) radii.push_back(sphere.radius);
+auto distances = functions.addNative("collision_distances",
+    std::make_shared<collision::SphereDistanceFunction>(radii, environment_fields));
+auto residual = distances(centers(q));
+functions.addResidual("collision", {q, u}, residual);
+solver.setResidual(all_nodes, functions, "collision");
+```
+
+The sphere model pipeline converts a sphere-collision URDF into JSON and an
+inline C++ header. With the Kyon URDF package present in the workspace, run:
+
+```bash
+python3 tools/generate_sphere_model.py \
+  /path/to/iit-kyon-ros-pkg/kyon_urdf/urdf/kyon_spheres.urdf \
+  horizon/cpp/tests/data/kyon.spheres.json \
+  --cpp-header horizon/cpp/include/horizon/kyon_spheres.h
+```
+
+The checked-in Kyon artifact was generated from `kyon_spheres.urdf` and
+contains the 94 spheres across 21 links present in the canonical `kyon.urdf`.
+The two lidar attachment links present only in the sphere variant are omitted
+and recorded in the JSON report. Unsupported non-sphere collision shapes are
+reported and listed rather than silently approximated.
+
+OpenVDB support is optional (`-DHORIZON_WITH_OPENVDB=ON`). It enables
+`OpenVdbDistanceField` for grids named `sdf` and the STL mesh converter:
+
+```bash
+horizon_mesh_to_sdf environment.stl environment.vdb 0.02 5
+```
+
+The converter accepts binary or ASCII STL, writes a signed level-set grid, and
+takes voxel size in world units and the narrow-band width in voxels. Its mesh
+input must describe a closed surface. Pinocchio collision kinematics are independently optional via
+`-DHORIZON_WITH_PINOCCHIO=ON`.
+
+The Kyon integration test also needs the canonical URDF path:
+
+```bash
+cmake -S horizon/cpp -B /tmp/horizon-kyon-build \
+  -DHORIZON_BUILD_PYTHON=OFF -DHORIZON_WITH_PINOCCHIO=ON \
+  -DHORIZON_TEST_KYON_COLLISION=ON \
+  -DHORIZON_KYON_URDF=/path/to/kyon_urdf/urdf/kyon.urdf
+cmake --build /tmp/horizon-kyon-build -j2
+ctest --test-dir /tmp/horizon-kyon-build -R testKyonCollision --output-on-failure
+```
+
+`profileKyonCollision` (built with the Kyon test option) accepts an iteration
+count, e.g. `profileKyonCollision 10000`. Use a Release build for timings.
+Collision Jacobian products contract the three nonzero center derivatives per
+sphere directly with directions. Sphere kinematics computes one frame Jacobian
+per occupied link and applies each sphere offset without allocating a matrix
+per sphere. The integration tests cover Kyon self-distance derivatives and
+configuration descent, plus an iLQR solve separating overlapping spheres.
+
+The imported sphere URDF is an approximation supplied by the Kyon package;
+the converter does not fit spheres to meshes or certify whole-robot coverage.
+Self-collision exclusions remain explicit. Exactly coincident sphere centers
+have zero separation gradient and require a noncoincident initial guess.
+OpenVDB level sets saturate outside their narrow band: choose a band wider than
+the largest robot radius plus clearance margin, and initialize away from deep
+penetrations with saturated gradients. OpenVDB support still needs a build and
+integration run on a machine with that dependency installed.
+
+## Complete device collision costs
+
+`DeviceCollisionCost` in `horizon/device_collision.h` runs robot forward
+kinematics, sphere placement, dense-SDF/self queries, tangent derivatives, and
+Gauss–Newton accumulation in `Kokkos::DefaultExecutionSpace`. Enable
+`HORIZON_WITH_KOKKOS`; the setup-only Pinocchio exporter additionally needs
+`HORIZON_WITH_PINOCCHIO`. The same implementation runs with CPU or CUDA Kokkos
+builds. Other Kokkos GPU backends have not been validated here.
+
+```cpp
+Kokkos::ScopeGuard runtime; // outlives every cost and solver
+auto robot = collision::exportDeviceRobot(*pin_model, sphere_model);
+collision::DeviceCollisionCost cost(std::move(robot), sdf_grid, self_pairs,
+                                     10000.); // squared residual weight
+solver.setBatchedCost(all_nodes, "collision", cost);
+```
+
+This replaces the collision residual registration; do not register both paths
+for the same objective. The direct `ilqr::BatchedCost` interface is state-only,
+with unscaled cost, gradient, and a row-wise packed upper triangle of the
+Gauss–Newton Hessian. The solver applies its existing running `1/N` and terminal
+normalization once and exposes the contribution through ordinary named cost
+reporting. It clones the prototype into a solver-owned workspace. Cost objects
+at different nodes read that workspace after preparation completes. Selected
+nodes are gathered in registration order, so inactive nodes are not queried.
+
+For a state containing additional components, pass its stored dimension and
+configuration offset to the cost constructor, and the matching tangent block
+offset to `setBatchedCost`. The caller must use a state space whose configuration
+block has Pinocchio's tangent convention; matching dimensions alone cannot
+establish that convention. Control and mixed derivatives are zero.
+
+The model exporter supports scalar revolute/prismatic joints (including
+arbitrary axes), continuous revolute joints, and quaternion free-flyers. Fixed
+frame placements are folded into link-local sphere coordinates. Unsupported
+joints, including mimic joints, are rejected. Floating-base configurations use
+`xyz, qx, qy, qz, qw` with body-local linear/angular tangent velocities; unit
+quaternions and continuous-joint coordinates must be normalized.
+
+Geometry, grids, masks, and working buffers remain resident. A derivative pass
+uploads configurations and returns only scalar cost, tangent gradient, and
+packed symmetric Hessian plus status. A value-only pass returns costs and
+status, reusing existing allocations without downloading derivative buffers.
+The residual/Jacobian workspace is tiled at 64 MiB; this limit excludes resident
+geometry, transforms, configurations, and compact outputs. Exactly coincident
+spheres retain the scalar backend's zero separation gradient. Failed prepares
+invalidate results, and out-of-grid trial costs use normal line-search retries.
+`DeviceCollisionStatistics` reports successful batch counts, logical transfer
+bytes (excluding setup geometry), peak live device-buffer bytes, custom kernel
+launches, total host preparation time, and per-stage timings. CUDA stage timings
+use CUDA events; CPU stage timings use fenced wall time. Kokkos copy/fill
+implementation kernels are not included in the custom launch count.
+Statistics aggregate a prototype and its solver clones; reset them only while
+those solvers are idle. Mutable evaluation buffers remain private to each clone.
+
+Run the complete Kyon benchmark with fixed feet, the `dagana_1_base` target,
+environment SDF, and an explicit inter-hand self-collision mask:
+
+```bash
+benchmarkKyonTrajectory --backend device --nodes 256 --samples 20 --threads 8 \
+  --self-collision 1 --output /tmp/kyon_device
+python3 tools/benchmark_device_collision.py \
+  --binary /path/to/cuda-build/tests/benchmarkKyonTrajectory \
+  --cpu-binary /path/to/cpu-build/tests/benchmarkKyonTrajectory \
+  --samples 20 --output /tmp/kyon_device_comparison
+```
+
+The comparison script runs backends sequentially at N=30, 256, and 1024. It
+preserves raw timings, iteration traces, trajectories, median/p95 summaries,
+and checks convergence, objective, and trajectory parity. The 100 inter-hand
+pairs are a benchmark workload, not a certified whole-robot exclusion mask.
+The device benchmark's CPU feet/target functions compute only five frame
+origins; collision sphere kinematics is entirely on the device. Post-solve CPU
+validation is outside the measured solve.
+
+An isolated Kokkos Kernels comparison is available through
+`HORIZON_BENCH_KOKKOS_KERNELS=ON` and `KokkosKernels_DIR`. The optional
+`benchmarkCollisionAccumulation` target compares the packed reduction with
+TeamGemm plus packing. Production code does not depend on Kokkos Kernels.
+Measured results and the cuRoboV2 feasibility assessment are recorded in
+[`docs/device_collision_performance.md`](docs/device_collision_performance.md).
+The follow-up [`CUDA 13 library integration report`](docs/cuda13_library_integrations.md)
+contains native cuRoboV2/free-base adapter tests, nvblox mapping and direct GPU
+scene exchange, and an identical-input FP64 reference comparison. The recent
+toolkit is isolated under the user-local prefix; `source tools/cuda13_env.sh`
+selects it for the current shell. These standalone probes add no production
+dependency on either library.
+
+To inspect copy/allocation events separately from timing runs, compile
+`tools/kokkos_copy_trace.cpp` as a shared library against the same Kokkos
+installation and set `KOKKOS_TOOLS_LIBS` to that library. This diagnostic plugin
+does not participate in the production build or timed comparisons.
+
+## Kokkos residual batches across horizon nodes
+
+Configure `HORIZON_WITH_KOKKOS=ON` and provide an installed Kokkos 4+ prefix
+through `CMAKE_PREFIX_PATH` (or `Kokkos_DIR`). This dependency is optional.
+`KokkosCollisionBatch` in `horizon/kokkos_collision.h` supports an immutable
+dense SDF and explicit self-collision pairs, using `Kokkos::DefaultExecutionSpace`.
+Kokkos's build selects the execution backend; changing solver node-thread count
+does not change that execution space.
+
+```cpp
+Kokkos::ScopeGuard runtime; // before constructing batches/solvers
+// centers maps a complete stored state to SoA sphere centers. Extra task/foot
+// points may follow the collision spheres in each coordinate block.
+collision::KokkosCollisionBatch batch(centers, radii, sdf_grid, self_pairs);
+auto native = functions.addNative("collision_batch", batch.function());
+functions.addResidual("collision", {x, u}, 100 * native(x));
+// Construct solver and install the residual as usual, then register preparation.
+solver.setResidual(all_nodes, functions, "collision");
+solver.addEvaluationBatch(batch);
+```
+
+The application owns Kokkos initialization/finalization, and all solver/batch
+objects must be destroyed before the runtime guard. The solver clones each
+registered batch, including its mutable buffers. Grid, radii, and pair data are
+uploaded once per clone; buffers are reused for unchanged horizon dimensions.
+Node results live in independent solver evaluation contexts. The function is
+intentionally unavailable without preparation: standalone users must explicitly
+call `prepare(states, controls, contexts, derivatives)` and bind those contexts.
+
+Before each linearization and every trial cost pass, the solver invalidates
+native caches, prepares the entire N+1-node trajectory, then evaluates nodes.
+CPU kinematics gathers world centers and, when requested, center Jacobians.
+One kernel covers all node/sphere and node/self-pair distances; a second kernel
+contracts spatial derivatives with center Jacobians. Values and contracted
+Jacobians return to the CPU for existing graph propagation and Gauss–Newton
+accumulation. Prepared kinematics can also be reused by feet and target graphs.
+This batches collision work across nodes, not Pinocchio or the backward pass.
+
+Out-of-grid queries raise `EvaluationError` after synchronization, allowing
+line-search retries. Failed batches publish no node results. Bitwise input
+checks and pass flags reject stale or unavailable derivatives. The first
+implementation uses one dense SDF; analytic primitive and OpenVDB field objects
+cannot be passed directly. A null grid enables self-collision-only batches.
+
+For the Kyon benchmark, build and run:
+
+```bash
+cmake -S horizon/cpp -B /tmp/horizon-kokkos-build \
+  -DCMAKE_BUILD_TYPE=Release -DHORIZON_BUILD_PYTHON=OFF \
+  -DHORIZON_WITH_PINOCCHIO=ON -DHORIZON_TEST_KYON_COLLISION=ON \
+  -DHORIZON_WITH_KOKKOS=ON -DHORIZON_PROFILING=ON \
+  -DHORIZON_KYON_URDF=/path/to/kyon_urdf/urdf/kyon.urdf \
+  -DCMAKE_PREFIX_PATH="/path/to/kokkos;/path/to/pinocchio;/path/to/casadi"
+cmake --build /tmp/horizon-kokkos-build -j2
+ctest --test-dir /tmp/horizon-kokkos-build --output-on-failure
+/tmp/horizon-kokkos-build/tests/benchmarkKyonTrajectory \
+  --nodes 256 --samples 3 --iterations 40 --backend kokkos \
+  --kokkos-threads 2 --output /tmp/kyon_kokkos
+```
+
+`--backend scalar` retains the reference implementation. `--kokkos-threads`
+configures Kokkos CPU threads independently of `--threads` for solver node
+evaluation. JSON includes execution space, successful batch/pass counts,
+kernel launches, node evaluations, and preparation/kinematics/backend times.
+Backend time includes host/device transfers, kernels and synchronization, but not
+host kinematics. Preparation time additionally includes host kinematics and
+publishing node results; these nested timings must not be added together.
+
+Validated with Kokkos 4.7.1 OpenMP/Serial on CPU and CUDA 12.0 on an RTX 3060
+(Ampere 8.6). At N=256, 20 iterations produced
+38 value batches and 20 derivative batches, each over 257 nodes: 78 kernel
+launches for 1,401,164 SDF queries. With serial solver evaluation, scalar solves
+took 2.72 s and Kokkos with two CPU threads took 2.63–2.64 s on the development
+host. Both retained the same target, contacts, clearance and convergence.
+The modest end-to-end improvement reflects host kinematics, transfer/staging
+and solver costs.
+
+For CUDA, build Kokkos with `Kokkos_ENABLE_CUDA=ON` and the correct architecture
+(`Kokkos_ARCH_AMPERE86=ON` for the RTX 3060), then configure Horizon in a separate
+build directory with `CMAKE_CXX_COMPILER=/path/to/kokkos/bin/nvcc_wrapper` and
+`Kokkos_DIR` pointing to that CUDA-enabled installation. CPU solver translation
+units use the wrapper's `--host-only` mode to avoid expensive device analysis of
+Eigen/Pinocchio/CasADi templates. Build `testKokkosCollision` and
+`benchmarkKyonTrajectory`, and run the same `--backend kokkos` command; the JSON
+execution space must read `Cuda`.
+
+Three N=256 samples from the same CUDA-enabled build averaged 2,764 ms for the
+scalar path and 2,667 ms for CUDA. Transfer-inclusive backend time averaged
+71 ms versus 152 ms for scalar collision evaluation. Both took 20 iterations
+and preserved the same geometry. This is about a 3.5% end-to-end improvement,
+not a large GPU speedup. The five CUDA parity/lifecycle tests passed, including
+self collisions, node workers and out-of-grid retries. Compute Sanitizer 12.0
+could not instrument the application on this host (terminated before its first
+instrumented API call), so no GPU memory-sanitizer pass is claimed.
+Tests cover scalar parity, self-collision finite differences, terminal nodes,
+node workers, clone isolation, horizon resizing, stale-result rejection and
+out-of-grid line-search retries. The core also builds with Kokkos disabled.
+Memcheck found no invalid accesses or definitely lost allocations; full leak
+checking reported 352 bytes as possibly lost in libgomp/pthread TLS allocation
+during OpenMP initialization.
+
+## Kyon fixed-foot trajectory benchmark
+
+`benchmarkKyonTrajectory` is built with `HORIZON_TEST_KYON_COLLISION=ON`.
+Enable `HORIZON_PROFILING=ON` and use a Release build to collect solver phase
+timings. It solves a two-second configuration trajectory using generalized
+velocity controls and Pinocchio integration. Four `contact_*` frame positions
+are equality constraints at every shooting node; `dagana_1_base` has a terminal
+position target offset by (0.06, 0.04, 0.02) metres from its initial position.
+Joint position and velocity bounds are included. This is a kinematic benchmark:
+it does not enforce force balance, friction, actuator torques, or contact
+constraints between shooting nodes.
+
+A sphere obstacle is sampled into a 151-cubed dense SDF with 4 cm voxels.
+All 94 imported robot spheres are queried at every node; the scene is placed
+deterministically clear of the initial configuration. Collision residuals use
+2 cm clearance and soft penalties. Scene parameters are included in the JSON
+report so the grid can be reproduced. This benchmark measures environment
+collision costs; it does not add self-collision pairs.
+
+```bash
+/tmp/horizon-kyon-build/tests/benchmarkKyonTrajectory \
+  --nodes 30 --samples 3 --iterations 40 --threads 0 \
+  --output /tmp/kyon_trajectory
+# Collision-disabled convergence/control comparison:
+/tmp/horizon-kyon-build/tests/benchmarkKyonTrajectory \
+  --nodes 30 --samples 3 --iterations 40 --collision 0 \
+  --output /tmp/kyon_trajectory_baseline
+```
+
+One warmup solve is excluded from the report. Each measured solve resets the
+state and control guesses. JSON records solve time, iteration count, collision
+call time and query counts, nested solver phase times in microseconds, target
+error, maximum foot drift, shooting defects and minimum sampled SDF clearance.
+For multiple threads, collision time is summed across calls, not elapsed time;
+nested phase times must not be added together. CSV stores the final trajectory
+with configuration and control columns. A nonzero exit code indicates failed
+geometric acceptance checks or a setup/evaluation error. The CTest entry
+`kyonTrajectorySmoke` checks a 12-interval solve.
+
+Initial Release measurements on the development host (profiling enabled):
+
+| Intervals | Threads | Iterations | Solve time | Collision call time | SDF queries |
+|---|---:|---:|---:|---:|---:|
+| 30 | 0 | 14 | 306–316 ms | 15.9–16.2 ms | 93,248 |
+| 256 | 0 | 31 | 5,637 ms | 289 ms | 1,570,270 |
+| 256 | 2 | 31 | 3,425 ms | 304 ms summed | 1,570,270 |
+
+At 256 intervals, target error was 0.26 micrometres, maximum foot drift 15.5 nm,
+and minimum SDF clearance 40.7 mm. The collision-disabled 30-interval solve took
+about 36 ms / 3 iterations and penetrated the obstacle by 7.9 mm. Its timing
+difference includes different convergence and graph work, not just query cost.
+
+Subsequent profiling found that the shared native cache rebuilt a dense
+collision Jacobian, bypassing its direct directional kernel. Functions can now
+opt in with `hasJacobianProduct()` to preserve that kernel through the cache.
+Such directional calls are recomputed for their supplied directions; ordinary
+native functions retain value/Jacobian memoization. Graph lowering also removes
+proven pure selections and concatenations and omits unused symbolic inputs.
+These transformations happen at setup and preserve exact Hessian composition.
+
+The trajectory benchmark now defaults to control damping `0.001 / N`, which
+stabilizes the late contact-residual oscillation without changing the objective
+or stopping tolerances. Set `--damping 0` to reproduce the undamped formulation;
+`--decomposition qr` compares a QR KKT solve against the default LU. Excessive
+damping (`0.01 / N`) slowed convergence in this problem. Accepted/rejected steps
+and regularization are exported to `<output>_iterations_<sample>.csv`.
+
+Final serial N=256 measurements over three samples were 2.75–2.77 s and 20
+iterations, versus 5.55 s / 31 iterations before these changes. Collision-cost
+quadratization dropped from 2.35 s to 0.79 s, and total linearization and
+quadratization from 4.51 s to 2.06 s. The two-thread solve took 1.77 s. Target
+error remained below 0.44 micrometres, maximum foot drift below 8 nm, and SDF
+clearance remained 40.7 mm. LU and QR produced the same convergence and geometry;
+no square-root backward pass was added for this benchmark.
+
+Regularization escalation now starts at `1e-9` when the current value is zero,
+rather than jumping directly to `1000` with the default growth factor. It fails
+explicitly above a finite limit instead of retrying indefinitely. This fix is
+covered by a regression test; it did not account for the benchmark speedup,
+since the recorded solves did not require escalation.
+
+### CPU node parallelism versus CUDA batching
+
+With the same CUDA-enabled Release build, N=256, damping 0.001 and two measured
+samples after warmup, the following mean solve times were recorded on the
+Core i7-12700 / RTX 3060 development host:
+
+| CPU node workers (`--threads`) | Scalar collision | CUDA collision batch |
+|---:|---:|---:|
+| 0 | 2.770 s | 2.719 s |
+| 2 | 1.777 s | 1.921 s |
+| 4 | 1.292 s | 1.550 s |
+| 8 | 1.066 s | 1.409 s |
+
+All used 20 iterations and reached the same objective and trajectory. The
+worker count denotes persistent node workers; the caller handles the terminal
+node and any remainder. GPU gathering/preparation is currently serial on the
+CPU, which limits scaling when combined with node workers. At eight workers,
+the scalar solve spent about 372 ms in linearization/quadratization, 498 ms in
+the backward pass and 191 ms in line search. CPU node parallelism is the
+preferred configuration for this workload:
+
+```bash
+benchmarkKyonTrajectory --nodes 256 --samples 3 --iterations 40 \
+  --backend scalar --threads 8 --output /tmp/kyon_cpu_parallel
+```
+
+A small damping sweep was not adopted as a new default: `--damping 0.00025`
+converged in 13 iterations at N=256 but reached a higher-cost local solution;
+`0.0005` failed to converge within 60 iterations at both tested horizons.
+JSON now includes the final objective, and measured samples that do not report
+solver convergence force `valid=false` and a nonzero benchmark exit status even
+when their geometric errors fall below the looser acceptance checks. The
+objective and stopping tolerances were not changed for the worker comparison.
 
 ## Spot squat and formulation profiling
 
