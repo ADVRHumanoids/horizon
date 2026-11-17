@@ -1,0 +1,300 @@
+#include "horizon/pinocchio_collision.h"
+#include <pinocchio/algorithm/frames.hpp>
+#include <pinocchio/algorithm/jacobian.hpp>
+#include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/joint-configuration.hpp>
+#include <pinocchio/spatial/skew.hpp>
+#include <cstring>
+#include <Eigen/Cholesky>
+#include <stdexcept>
+
+namespace horizon::collision
+{
+PinocchioConfiguration::PinocchioConfiguration(std::shared_ptr<const pinocchio::Model> m):model(std::move(m))
+{ if(!model) throw std::invalid_argument("null Pinocchio model"); }
+int PinocchioConfiguration::stateSize() const { return model->nq; }
+int PinocchioConfiguration::tangentSize() const { return model->nv; }
+void PinocchioConfiguration::neutral(ilqr::VectorOutput q) const { q=pinocchio::neutral(*model); }
+void PinocchioConfiguration::integrate(ilqr::Input q,ilqr::Input v,ilqr::VectorOutput out) const
+{ out=pinocchio::integrate(*model,q,v); }
+void PinocchioConfiguration::difference(ilqr::Input a,ilqr::Input b,ilqr::VectorOutput out) const
+{ out=pinocchio::difference(*model,a,b); }
+void PinocchioConfiguration::retractionJacobian(ilqr::Input q,ilqr::MatrixOutput j) const
+{ j.setZero();pinocchio::integrateCoeffWiseJacobian(*model,q,j); }
+void PinocchioConfiguration::tangentProjection(ilqr::Input q,ilqr::MatrixOutput projection) const
+{
+    // Configuration integration is a product over joints. Its coefficient
+    // Jacobian is block diagonal, so solve each joint Gram matrix separately
+    // instead of factoring a robot-wide nv x nv matrix at every native call.
+    ilqr::Matrix R(model->nq,model->nv);retractionJacobian(q,R);
+    projection.setZero();
+    for(pinocchio::JointIndex i=1;i<model->njoints;++i)
+    {
+        const auto& joint=model->joints[i];
+        if(joint.nv()==0) continue;
+        auto block=R.block(joint.idx_q(),joint.idx_v(),joint.nq(),joint.nv());
+        auto out=projection.block(joint.idx_v(),joint.idx_q(),joint.nv(),joint.nq());
+        if(joint.nv()==1) out=block.transpose()/block.squaredNorm();
+        else out=(block.transpose()*block).ldlt().solve(block.transpose());
+    }
+}
+void PinocchioConfiguration::differenceJacobians(ilqr::Input a,ilqr::Input b,ilqr::MatrixOutput A,ilqr::MatrixOutput B) const
+{ A.setZero();B.setZero();pinocchio::dDifference(*model,a,b,A,pinocchio::ARG0);pinocchio::dDifference(*model,a,b,B,pinocchio::ARG1); }
+
+PinocchioStep::PinocchioStep(std::shared_ptr<const PinocchioConfiguration> s,double dt):
+    TangentFunction(std::make_shared<ilqr::ProductSpace>(std::vector<std::shared_ptr<const ilqr::StateSpace>>{
+        s,std::make_shared<ilqr::EuclideanSpace>(s->tangentSize())}),s->stateSize()),
+    _space(std::move(s)),_dt(dt),_A(_space->model->nv,_space->model->nv),_B(_A),
+    _R(_space->model->nq,_space->model->nv),_prediction(_space->model->nq)
+{ if(!std::isfinite(dt) || dt<=0) throw std::invalid_argument("integration dt must be finite and positive"); }
+std::unique_ptr<ilqr::Function> PinocchioStep::clone() const
+{ return std::make_unique<PinocchioStep>(_space,_dt); }
+void PinocchioStep::evaluateImpl(ilqr::Input z,ilqr::VectorOutput out)
+{ _space->integrate(z.head(_space->model->nq),_dt*z.tail(_space->model->nv),out); }
+void PinocchioStep::tangentJacobian(ilqr::Input z,ilqr::MatrixOutput j)
+{
+    const auto& m=*_space->model;
+    ilqr::Vector delta=_dt*z.tail(m.nv);
+    _A.setZero();_B.setZero();
+    pinocchio::dIntegrate(m,z.head(m.nq),delta,_A,pinocchio::ARG0);
+    pinocchio::dIntegrate(m,z.head(m.nq),delta,_B,pinocchio::ARG1);
+    evaluateImpl(z,_prediction);_space->retractionJacobian(_prediction,_R);
+    j.leftCols(m.nv).noalias()=_R*_A;j.rightCols(m.nv).noalias()=_dt*_R*_B;
+}
+
+DeviceRobotModel exportDeviceRobot(const pinocchio::Model& model,const SphereModel& spheres)
+{
+    DeviceRobotModel result;result.nq=model.nq;result.nv=model.nv;
+    result.joints.resize(model.njoints);
+    const Eigen::VectorXd neutral=pinocchio::neutral(model);
+    for(pinocchio::JointIndex i=1;i<model.njoints;++i)
+    {
+        const auto& joint=model.joints[i];auto& out=result.joints[i];
+        out.parent=model.parents[i];out.q=joint.idx_q();out.v=joint.idx_v();
+        const auto& p=model.jointPlacements[i];
+        for(int a=0;a<3;++a)
+        {
+            out.placement[9+a]=p.translation()[a];
+            for(int b=0;b<3;++b)out.placement[3*a+b]=p.rotation()(a,b);
+        }
+        const auto name=joint.shortname();
+        if(name.find("Mimic")!=std::string::npos)
+            throw std::invalid_argument("device collision does not support mimic joints: "+name);
+        if(joint.nv()==6 && joint.nq()==7 && name.find("FreeFlyer")!=std::string::npos)
+            out.type=DeviceRobotModel::FreeFlyer;
+        else if(joint.nv()==1 && (joint.nq()==1 || joint.nq()==2))
+        {
+            auto data=joint.createData();joint.calc(data,neutral);
+            const Eigen::MatrixXd S=data.S().matrix();
+            const bool angular=S.bottomRows(3).norm()>.5;
+            out.type=angular?(joint.nq()==2?DeviceRobotModel::Continuous:DeviceRobotModel::Revolute):DeviceRobotModel::Prismatic;
+            for(int a=0;a<3;++a)out.axis[a]=S(a+(angular?3:0),0);
+        }
+        else throw std::invalid_argument("unsupported device collision joint: "+name);
+    }
+    for(const auto& sphere:spheres.spheres())
+    {
+        if(!model.existFrame(sphere.link))throw std::invalid_argument("unknown sphere frame: "+sphere.link);
+        const auto& frame=model.frames[model.getFrameId(sphere.link)];
+        DeviceRobotModel::Sphere out;out.joint=frame.parent;
+        const Eigen::Vector3d center=frame.placement.act(sphere.center);
+        for(int a=0;a<3;++a)out.center[a]=center[a];
+        out.radius=sphere.radius;result.spheres.push_back(out);
+    }
+    return result;
+}
+
+namespace
+{
+std::shared_ptr<const pinocchio::Model> checkedModel(std::shared_ptr<const pinocchio::Model> model)
+{
+    if(!model) throw std::invalid_argument("null Pinocchio model");
+    return model;
+}
+std::shared_ptr<const ilqr::StateSpace> checkedSpace(
+    std::shared_ptr<const ilqr::StateSpace> space,
+    const std::shared_ptr<const pinocchio::Model>& model)
+{
+    if(!space || space->stateSize() != model->nq || space->tangentSize() != model->nv)
+        throw std::invalid_argument("Pinocchio model and state-space dimensions differ");
+    return space;
+}
+}
+
+PinocchioModelWorkspace::PinocchioModelWorkspace(std::shared_ptr<const pinocchio::Model> model)
+    : PinocchioModelWorkspace(checkedModel(std::move(model)), std::make_shared<const int>(0))
+{}
+
+PinocchioModelWorkspace::PinocchioModelWorkspace(
+    std::shared_ptr<const pinocchio::Model> model, std::shared_ptr<const int> identity)
+    : _model(checkedModel(std::move(model))), _identity(std::move(identity)), _data(*_model)
+{}
+
+std::shared_ptr<PinocchioModelWorkspace> PinocchioModelWorkspace::cloneEmpty() const
+{ return std::shared_ptr<PinocchioModelWorkspace>(new PinocchioModelWorkspace(_model, _identity)); }
+
+std::shared_ptr<PinocchioModelWorkspace> PinocchioModelWorkspace::forContext(
+    const std::shared_ptr<ilqr::EvaluationContext>& context) const
+{
+    if(!context) throw std::invalid_argument("Pinocchio workspace requires an evaluation context");
+    return context->shareObject<PinocchioModelWorkspace>(
+        identity(), [this] { return cloneEmpty(); });
+}
+
+bool PinocchioModelWorkspace::same(const Eigen::VectorXd& cached, ilqr::Input value, bool valid) const
+{ return valid && cached.size() == value.size() &&
+         std::memcmp(cached.data(), value.data(), value.size() * sizeof(double)) == 0; }
+
+void PinocchioModelWorkspace::resetForConfiguration(ilqr::Input q)
+{
+    if(q.size() != _model->nq || !q.allFinite()) throw std::invalid_argument("invalid Pinocchio configuration");
+    if(!same(_q, q, _has_q))
+    {
+        _q = q; _has_q = true;
+        _positions = _velocity = _acceleration = _frames = _jacobians = false;
+    }
+}
+
+void PinocchioModelWorkspace::ensurePositions(ilqr::Input q)
+{
+    resetForConfiguration(q);
+    if(!_positions)
+    {
+        pinocchio::forwardKinematics(*_model, _data, q);
+        _positions = true; _velocity = _acceleration = _frames = _jacobians = false;
+    }
+}
+
+void PinocchioModelWorkspace::ensureVelocity(ilqr::Input q, ilqr::Input v)
+{
+    resetForConfiguration(q);
+    if(v.size() != _model->nv || !v.allFinite()) throw std::invalid_argument("invalid Pinocchio velocity");
+    if(!_velocity || !same(_v, v, true))
+    {
+        pinocchio::forwardKinematics(*_model, _data, q, v);
+        _v = v; _positions = _velocity = true;
+        _acceleration = _frames = _jacobians = false;
+    }
+}
+
+void PinocchioModelWorkspace::ensureAcceleration(ilqr::Input q, ilqr::Input v, ilqr::Input a)
+{
+    resetForConfiguration(q);
+    if(v.size() != _model->nv || a.size() != _model->nv || !v.allFinite() || !a.allFinite())
+        throw std::invalid_argument("invalid Pinocchio velocity or acceleration");
+    if(!_acceleration || !same(_v, v, true) || !same(_a, a, true))
+    {
+        pinocchio::forwardKinematics(*_model, _data, q, v, a);
+        _v = v; _a = a; _positions = _velocity = _acceleration = true;
+        _frames = _jacobians = false;
+    }
+}
+
+void PinocchioModelWorkspace::ensureFramePlacements(ilqr::Input q)
+{
+    ensurePositions(q);
+    if(!_frames) { pinocchio::updateFramePlacements(*_model, _data); _frames = true; }
+}
+
+void PinocchioModelWorkspace::ensureJointJacobians(ilqr::Input q)
+{
+    ensurePositions(q);
+    if(!_jacobians)
+    {
+        // This overload uses the already populated joint placements and avoids
+        // repeating forward kinematics when a prior native call used the same q.
+        pinocchio::computeJointJacobians(*_model, _data);
+        _jacobians = true;
+    }
+}
+
+PinocchioSphereCenters::PinocchioSphereCenters(
+    std::shared_ptr<const pinocchio::Model> model,
+    std::shared_ptr<const ilqr::StateSpace> space, const SphereModel& spheres,
+    std::shared_ptr<PinocchioModelWorkspace> workspace)
+    : TangentFunction(checkedSpace(space, checkedModel(model)), static_cast<int>(3 * spheres.spheres().size())),
+      _model(checkedModel(std::move(model))), _state_space(checkedSpace(std::move(space), _model)),
+      _workspace_prototype(workspace ? std::move(workspace) : std::make_shared<PinocchioModelWorkspace>(_model)),
+      _workspace(_workspace_prototype), _spheres(spheres.spheres()), _frame_jacobian(6, _model->nv)
+{
+    if(& _workspace_prototype->model() != _model.get())
+        throw std::invalid_argument("Pinocchio workspace belongs to a different model");
+    _frames.reserve(_spheres.size());
+    for(const auto& sphere : _spheres)
+    {
+        const auto id = _model->getFrameId(sphere.link);
+        if(id >= _model->frames.size()) throw std::invalid_argument("sphere references unknown Pinocchio frame: " + sphere.link);
+        _frames.push_back(id);
+        _frame_spheres[id].push_back(_frames.size() - 1);
+    }
+}
+
+std::unique_ptr<ilqr::Function> PinocchioSphereCenters::clone() const
+{
+    return std::make_unique<PinocchioSphereCenters>(_model, _state_space, SphereModel(_spheres),
+                                                    _workspace_prototype->cloneEmpty());
+}
+
+void PinocchioSphereCenters::setEvaluationContext(
+    const std::shared_ptr<ilqr::EvaluationContext>& context)
+{
+    _workspace = context ? _workspace_prototype->forContext(context) : _workspace_prototype;
+}
+
+void PinocchioSphereCenters::evaluateImpl(ilqr::Input q, ilqr::VectorOutput out)
+{
+    _workspace->ensureFramePlacements(q);
+    fillCenters(out);
+}
+
+void PinocchioSphereCenters::fillCenters(ilqr::VectorOutput out) const
+{
+    const auto count = static_cast<Eigen::Index>(_spheres.size());
+    for(std::size_t i = 0; i < _spheres.size(); ++i)
+    {
+        const Eigen::Vector3d p = _workspace->data().oMf[_frames[i]].act(_spheres[i].center);
+        out[i] = p.x(); out[count + i] = p.y(); out[2 * count + i] = p.z();
+    }
+}
+
+void PinocchioSphereCenters::tangentJacobian(ilqr::Input q, ilqr::MatrixOutput jac)
+{
+    _workspace->ensureJointJacobians(q);
+    _workspace->ensureFramePlacements(q);
+    fillJacobian(jac);
+}
+
+void PinocchioSphereCenters::valueAndTangentJacobian(
+    ilqr::Input q, ilqr::VectorOutput centers, ilqr::MatrixOutput jacobian)
+{
+    // The combined path performs FK and joint Jacobians once for every sphere
+    // and shares the resulting Pinocchio Data across the output rows.
+    _workspace->ensureJointJacobians(q);
+    _workspace->ensureFramePlacements(q);
+    fillCenters(centers);
+    fillJacobian(jacobian);
+}
+
+void PinocchioSphereCenters::fillJacobian(ilqr::MatrixOutput jac)
+{
+    const auto count = static_cast<Eigen::Index>(_spheres.size());
+    for(const auto& [frame, indices] : _frame_spheres)
+    {
+        _frame_jacobian.setZero();
+        pinocchio::getFrameJacobian(*_model, _workspace->data(), frame, pinocchio::LOCAL_WORLD_ALIGNED,
+                                    _frame_jacobian);
+        for(const auto i : indices)
+        {
+        const Eigen::Vector3d offset = _workspace->data().oMf[_frames[i]].rotation() * _spheres[i].center;
+        for(int col = 0; col < _model->nv; ++col)
+        {
+            const Eigen::Vector3d point = _frame_jacobian.col(col).head<3>()
+                + _frame_jacobian.col(col).tail<3>().cross(offset);
+            jac(i, col) = point.x();
+            jac(count + i, col) = point.y();
+            jac(2 * count + i, col) = point.z();
+        }
+        }
+    }
+}
+}
