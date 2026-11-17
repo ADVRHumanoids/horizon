@@ -1,0 +1,266 @@
+{
+  "date": "2026-11-16",
+  "toolkit": {
+    "release": "13.0.2",
+    "nvcc": "13.0.88",
+    "prefix": "/home/alaurenzi/.local/opt/cuda-13.0.2",
+    "driver": "580.178.04",
+    "source_manifest": "https://developer.download.nvidia.com/compute/cuda/redist/redistrib_13.0.2.json",
+    "installation": "Verified official component archives; driver and shell defaults unchanged"
+  },
+  "revisions": {
+    "curobo_v2": "71ce1726925adfdcc7d0d39dabec5f2d6bb71acd",
+    "nvblox": "5bd2d73da901ce0ba279c997a4c1f9f632b9309c"
+  },
+  "dependencies": {
+    "cuda-core": "0.7.0",
+    "cuda-bindings": "13.0.3",
+    "cuda-runtime": "13.0.96",
+    "cuda-nvrtc": "13.0.88",
+    "warp-lang": "1.19.0",
+    "torch": "2.9.0+cu128"
+  },
+  "curobo_v2": {
+    "precision": "FP32 native FK, FP64 adapter/interpolation/cost/GN",
+    "active_environment_cost": true,
+    "timing": "CUDA graph device-only; no upload/download or solver timing",
+    "cases": [
+      {
+        "nodes": 31,
+        "spheres": 94,
+        "self_pairs": 100,
+        "errors": {
+          "center_max_abs": 1.4900055222977215e-07,
+          "jacobian_max_abs": 1.4981883034170806e-07,
+          "cost_max_abs": 9.845307268108172e-05,
+          "cost_relative_norm": 7.525716446456423e-07,
+          "gradient_max_abs": 0.002715046170123969,
+          "gradient_relative_norm": 9.466788136596375e-07,
+          "gn_hessian_max_abs": 0.06289725552414893,
+          "gn_hessian_relative_norm": 9.219320837212711e-07
+        },
+        "native_fk_jacobian": {
+          "median_ms": 0.01884160041809082,
+          "p95_ms": 0.019040000438690186
+        },
+        "fk_sphere_tangent_adapter": {
+          "median_ms": 0.4437920093536377,
+          "p95_ms": 0.4468736171722412
+        },
+        "full_collision_prototype": {
+          "median_ms": 0.8711408138275147,
+          "p95_ms": 0.8763360023498535
+        },
+        "max_cost": 158.32157900101305,
+        "fused_adapter_parity_max_abs": {
+          "centers": 3.3306690738754696e-16,
+          "jacobians": 2.220446049250313e-16
+        },
+        "native_fk_fused_adapter": {
+          "median_ms": 0.06993920207023621,
+          "p95_ms": 0.07065280079841614
+        },
+        "fused_adapter_collision_prototype": {
+          "median_ms": 0.5003664016723632,
+          "p95_ms": 0.5028863906860351
+        }
+      },
+      {
+        "nodes": 257,
+        "spheres": 94,
+        "self_pairs": 100,
+        "errors": {
+          "center_max_abs": 1.5739177333662369e-07,
+          "jacobian_max_abs": 1.5733394559402925e-07,
+          "cost_max_abs": 0.00020643249446550271,
+          "cost_relative_norm": 7.870229562993007e-07,
+          "gradient_max_abs": 0.0034465147191440337,
+          "gradient_relative_norm": 8.835388743534717e-07,
+          "gn_hessian_max_abs": 0.09178437865739397,
+          "gn_hessian_relative_norm": 8.693876168351317e-07
+        },
+        "native_fk_jacobian": {
+          "median_ms": 0.025702399015426636,
+          "p95_ms": 0.02590720057487488
+        },
+        "fk_sphere_tangent_adapter": {
+          "median_ms": 2.2582271575927733,
+          "p95_ms": 2.331737518310547
+        },
+        "full_collision_prototype": {
+          "median_ms": 4.409667205810546,
+          "p95_ms": 4.429894256591797
+        },
+        "max_cost": 208.97870521576277,
+        "fused_adapter_parity_max_abs": {
+          "centers": 3.3306690738754696e-16,
+          "jacobians": 3.3306690738754696e-16
+        },
+        "native_fk_fused_adapter": {
+          "median_ms": 0.6226944208145142,
+          "p95_ms": 0.6249472141265869
+        },
+        "fused_adapter_collision_prototype": {
+          "median_ms": 2.8518912315368654,
+          "p95_ms": 2.8732160568237304
+        }
+      },
+      {
+        "nodes": 1025,
+        "spheres": 94,
+        "self_pairs": 100,
+        "errors": {
+          "center_max_abs": 1.490366197676174e-07,
+          "jacobian_max_abs": 1.4928068751973722e-07,
+          "cost_max_abs": 0.00024353628334949917,
+          "cost_relative_norm": 8.122683732251771e-07,
+          "gradient_max_abs": 0.006209962939010438,
+          "gradient_relative_norm": 9.70040256072075e-07,
+          "gn_hessian_max_abs": 0.10108889923139941,
+          "gn_hessian_relative_norm": 9.089033644330915e-07
+        },
+        "native_fk_jacobian": {
+          "median_ms": 0.06216480135917664,
+          "p95_ms": 0.06252800226211548
+        },
+        "fk_sphere_tangent_adapter": {
+          "median_ms": 8.49653434753418,
+          "p95_ms": 8.933977508544922
+        },
+        "full_collision_prototype": {
+          "median_ms": 17.12125930786133,
+          "p95_ms": 17.127926635742188
+        },
+        "max_cost": 210.5745447492484,
+        "fused_adapter_parity_max_abs": {
+          "centers": 3.3306690738754696e-16,
+          "jacobians": 3.3306690738754696e-16
+        },
+        "native_fk_fused_adapter": {
+          "median_ms": 2.5420608520507812,
+          "p95_ms": 2.5660415649414063
+        },
+        "fused_adapter_collision_prototype": {
+          "median_ms": 11.16178741455078,
+          "p95_ms": 11.169586944580079
+        }
+      }
+    ]
+  },
+  "controlled_horizon_reference": {
+    "execution_space": "Cuda",
+    "cases": [
+      {
+        "nodes": 31,
+        "oracle_max_scaled_error": 7.77267516962e-13,
+        "gpu_compute_median_ms": 0.249679993838,
+        "prepare_wall_median_ms": 0.3330815,
+        "fk_median_ms": 0.126943998039,
+        "queries_median_ms": 0.0800639986992,
+        "gn_median_ms": 0.0427040010691
+      },
+      {
+        "nodes": 257,
+        "oracle_max_scaled_error": 8.13423194406e-12,
+        "gpu_compute_median_ms": 0.981232002378,
+        "prepare_wall_median_ms": 1.4065555,
+        "fk_median_ms": 0.250880002975,
+        "queries_median_ms": 0.439007997513,
+        "gn_median_ms": 0.29078400135
+      },
+      {
+        "nodes": 1025,
+        "oracle_max_scaled_error": 1.15092382959e-11,
+        "gpu_compute_median_ms": 2.91100794077,
+        "prepare_wall_median_ms": 4.40613,
+        "fk_median_ms": 0.257023990154,
+        "queries_median_ms": 1.54771202803,
+        "gn_median_ms": 1.10591995716
+      }
+    ]
+  },
+  "nvblox": {
+    "blocks": 6859,
+    "allocated_pool_blocks": 7000,
+    "dense_payload_bytes": 13771804,
+    "sparse_voxel_payload_bytes": 28094464,
+    "sparse_pool_bytes": 28672000,
+    "map_upload_and_hash_ms": 15.879705,
+    "cases": [
+      {
+        "queries": 2914,
+        "dense_median_ms": 0.02783999965,
+        "dense_p95_ms": 0.02785279974,
+        "sparse_median_ms": 0.07434239984,
+        "sparse_p95_ms": 0.0752639994,
+        "distance_max_error": 0,
+        "gradient_max_error": 0,
+        "invalid_queries": 1
+      },
+      {
+        "queries": 24158,
+        "dense_median_ms": 0.1064991951,
+        "dense_p95_ms": 0.1065760031,
+        "sparse_median_ms": 0.2626399994,
+        "sparse_p95_ms": 0.2758656144,
+        "distance_max_error": 0,
+        "gradient_max_error": 0,
+        "invalid_queries": 1
+      },
+      {
+        "queries": 96350,
+        "dense_median_ms": 0.3677183986,
+        "dense_p95_ms": 0.3680223823,
+        "sparse_median_ms": 0.7499567866,
+        "sparse_p95_ms": 0.7567359805,
+        "distance_max_error": 0,
+        "gradient_max_error": 0,
+        "invalid_queries": 1
+      },
+      {
+        "queries": 1000000,
+        "dense_median_ms": 3.460555077,
+        "dense_p95_ms": 3.64196825,
+        "sparse_median_ms": 6.600499392,
+        "sparse_p95_ms": 6.634291172,
+        "distance_max_error": 0,
+        "gradient_max_error": 0,
+        "invalid_queries": 1
+      }
+    ],
+    "esdf_first_build_ms": 13.633688,
+    "esdf_full_reupdate_median_ms": 2.095497,
+    "esdf_observed_test_queries": 1000,
+    "esdf_analytic_max_distance_error": 0.0371441299,
+    "esdf_gradient_fd_max_error": 9.105050047e-11,
+    "unknown_corner_rejected": true,
+    "esdf_changed_block_update_ms": 1.948596,
+    "changed_block_distance_before": 0.5200000778,
+    "changed_block_distance_after": 0,
+    "esdf_full_reupdate_input_changed": false,
+    "gpu_dense_snapshot_median_ms": 2.219118357,
+    "gpu_dense_snapshot_p95_ms": 2.238630533,
+    "curobo_scene_gpu_write": true,
+    "fp16_snapshot_max_error": 0.001953125
+  },
+  "validation": {
+    "horizon_collision_compute_sanitizer": "8 tests passed, 0 errors",
+    "curobo_adapter_compute_sanitizer": "31-state native/fused numerical check, 0 errors",
+    "nvblox_compute_sanitizer": "query/update/snapshot checks, 0 errors",
+    "curobo_native_ctest": {
+      "passed": 10,
+      "skipped": 1,
+      "failed": 0,
+      "skip_reason": "Calibration artifact not supplied"
+    }
+  },
+  "limits": [
+    "Prototypes do not replace production collision code.",
+    "Native cuRobo FK/Jacobians are FP32; the adapter and custom objective use FP64.",
+    "cuRobo collision prototype uses custom PyTorch objective/GN operations, not cuRobo planner cost semantics.",
+    "Reported cuRobo timings use CUDA graphs and exclude transfers/solver execution.",
+    "Reference GPU-compute timings sum FK, query and GN CUDA events; preparation wall time includes transfers.",
+    "nvblox map comes from synthetic observed TSDF; no RGB-D/LiDAR ingestion timing is claimed.",
+    "GPU shared with existing applications; no exclusive clock or reservation."
+  ]
+}
