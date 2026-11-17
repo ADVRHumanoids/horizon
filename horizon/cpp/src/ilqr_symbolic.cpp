@@ -13,6 +13,61 @@ struct Operation
     bool native=false;
 };
 
+// Pure selection/concatenation needs no numerical CasADi operation. Prove
+// this symbolically at setup; never infer it from sampled derivatives.
+bool selection(const casadi::MX& expression,const std::vector<casadi::MX>& symbols,
+               const std::vector<int>& indices,std::vector<int>& selected)
+{
+    const auto input=casadi::MX::vertcat(symbols);
+    const auto J=casadi::MX::jacobian(expression,input);
+    if(casadi::MX::depends_on(J,input)) return false;
+    const auto offset=casadi::MX::substitute(expression,input,casadi::MX::zeros(input.size1()));
+    if(!casadi::MX::symvar(offset).empty() || !casadi::MX::symvar(J).empty()) return false;
+    const auto zero=casadi::MX::evalf(offset);
+    if(!zero.is_zero()) return false;
+    const auto jac=casadi::MX::evalf(J);
+    const auto sp=jac.sparsity();
+    std::vector<int> columns(expression.size1(),-1);
+    const auto nonzeros=jac.nonzeros();
+    for(int c=0;c<sp.size2();++c)
+        for(auto k=sp.colind(c);k<sp.colind(c+1);++k)
+        {
+            if(nonzeros[k]==0) continue;
+            const int r=sp.row(k);
+            if(nonzeros[k]!=1 || columns[r]!=-1) return false;
+            columns[r]=c;
+        }
+    for(int col:columns) if(col<0) return false;
+    for(int col:columns) selected.push_back(indices[col]);
+    return true;
+}
+
+Operation symbolicOperation(const std::string& name,const casadi::MX& expression,
+                            const std::vector<casadi::MX>& symbols,
+                            const std::vector<int>& indices,bool exact)
+{
+    const auto needed=casadi::MX::symvar(expression);
+    std::vector<casadi::MX> inputs;
+    std::vector<int> selected;
+    std::size_t offset=0;
+    for(const auto& symbol:symbols)
+    {
+        bool used=false;
+        for(const auto& dependency:needed)
+            if(casadi::MX::is_equal(symbol,dependency)) {used=true;break;}
+        if(used)
+        {
+            inputs.push_back(symbol);
+            selected.insert(selected.end(),indices.begin()+offset,indices.begin()+offset+symbol.size1());
+        }
+        offset+=symbol.size1();
+    }
+    // Keep one declared input for constant maps: Function dimensions are
+    // positive, and CasADi supplies its structurally zero derivative.
+    if(inputs.empty()) { inputs.push_back(symbols.front());selected.assign(indices.begin(),indices.begin()+symbols.front().size1()); }
+    return {std::make_shared<CasadiFunction>(casadi::Function(name,inputs,{expression}),exact),std::move(selected)};
+}
+
 // A numerical tape: all native workspaces are cloned, and symbolic segments
 // contain only pure CasADi. Shared calls are evaluated once per forward sweep.
 class GraphFunction final : public Function
@@ -209,17 +264,17 @@ void SymbolicFunctionManager::addExpression(const std::string& name,
     {
         if(!used[i]) continue;
         const auto& call=_calls->at(i);
-        auto argument=std::make_shared<CasadiFunction>(
-            casadi::Function(name+"_arg_"+std::to_string(i),symbols,{call.argument}),exact);
-        operations.push_back({argument,indices});
         std::vector<int> nativeIndices;
-        for(int j=0;j<argument->outputSize();++j) nativeIndices.push_back(offset++);
+        if(!selection(call.argument,symbols,indices,nativeIndices))
+        {
+            operations.push_back(symbolicOperation(name+"_arg_"+std::to_string(i),call.argument,symbols,indices,exact));
+            for(int j=0;j<operations.back().function->outputSize();++j) nativeIndices.push_back(offset++);
+        }
         operations.push_back({call.function,std::move(nativeIndices),true});
         for(int j=0;j<call.function->outputSize();++j) indices.push_back(offset++);
         symbols.push_back(call.result);
     }
-    operations.push_back({std::make_shared<CasadiFunction>(
-        casadi::Function(name+"_outer",symbols,{expression}),exact),indices});
+    operations.push_back(symbolicOperation(name+"_outer",expression,symbols,indices,exact));
     auto function=std::make_shared<GraphFunction>(nin,std::move(operations));
     if(exact && !function->hasHessian())
         throw std::invalid_argument("exact symbolic costs require Hessians for all native calls");
