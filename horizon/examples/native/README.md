@@ -15,6 +15,22 @@ Run them in order:
 10. `10_contact_inverse`: use generalized acceleration and contact forces as controls, with the first six inverse-dynamics rows and contact accelerations constrained to zero.
 11. `11_accelerated_collision`: revisit lesson 8 with the Kokkos batched collision cost.
 
+`spot_motions` is a native iLQR port of the Spot jump, wheelie, leap, wall-jump,
+and twist examples. It defaults to the bundled Spot URDF and accepts `--action`,
+the common solver options, and `--visualize` for browser playback in Viser:
+
+```sh
+python -m horizon.examples.native.spot_motions --action leap --visualize
+```
+
+The same action interface is available through the Spot command and the action
+dispatcher:
+
+```sh
+python -m horizon.examples.native.spot --action jump_forward --visualize
+python -m horizon.examples.native.spot_actions --action wheelie --visualize
+```
+
 Lessons 05 and 06 place an obstacle on the direct tool route, with the start and target clear. They sample clearance within each interval as well as at the knots. Clearance penalties are soft; sampled checks do not prove continuous collision freedom. Lesson 04 uses an exaggerated self-clearance margin on the simple arm; a multi-link self-collision example would make this lesson more realistic.
 
 Run Python lessons from the repository root, for example `python -m horizon.examples.native.03_robot_kinematics`. For C++, configure `horizon/cpp` with `HORIZON_BUILD_EXAMPLES=ON`; lessons 3 through 11 also require `HORIZON_WITH_PINOCCHIO=ON`. Build the corresponding `native_...` target. With `BUILD_TESTING=ON`, CTest runs each built lesson; Python lessons additionally require `HORIZON_BUILD_PYTHON=ON`.

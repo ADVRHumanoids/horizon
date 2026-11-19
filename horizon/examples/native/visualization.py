@@ -93,7 +93,9 @@ def _viewer_urdf(path, directory):
 
 
 def visualize_robot(robot, urdf, trajectory, dt, options, *, target=None,
-                    collision_spheres=None, obstacle=None, mesh=None):
+                    collision_spheres=None, obstacle=None, mesh=None,
+                    contact_frames=("contact_1", "contact_2", "contact_3", "contact_4"),
+                    tool_frame="dagana_1_base"):
     """Replay a solved robot trajectory in Viser until interrupted.
 
     ``obstacle`` is (center, radius); ``mesh`` is an STL path in world frame.
@@ -123,7 +125,7 @@ def visualize_robot(robot, urdf, trajectory, dt, options, *, target=None,
             contacts = None
             ground_height = -.12
             if base_frame is not None:
-                contacts = robot.framePositions([f"contact_{i}" for i in range(1, 5)], states[:, 0])
+                contacts = robot.framePositions(contact_frames, states[:, 0])
                 ground_height = float(np.min(contacts[2])) - .01
             server.scene.add_grid("/ground", width=4, height=4, cell_size=.2,
                                   section_size=1, position=(0, 0, ground_height))
@@ -136,12 +138,12 @@ def visualize_robot(robot, urdf, trajectory, dt, options, *, target=None,
             viewer = ViserUrdf(server, visual, root_node_name="/robot")
             joint_indices = [robot.joint_iq(name) for name in viewer.get_actuated_joint_names()]
 
-            # Show the tool's knot positions as a path independently of playback.
-            tool = "tool" if base_frame is None else "dagana_1_base"
-            points = np.array([robot.framePositions([tool], q).reshape(3) for q in states.T])
-            server.scene.add_line_segments("/tool_path", np.stack((points[:-1], points[1:]), axis=1),
-                                           (40, 150, 220), line_width=3)
-            server.gui.add_markdown("Blue: tool path and initial contacts · Orange: target · Red: obstacle")
+            if tool_frame is not None:
+                points = np.array([robot.framePositions([tool_frame], q).reshape(3) for q in states.T])
+                server.scene.add_line_segments("/tool_path", np.stack((points[:-1], points[1:]), axis=1),
+                                               (40, 150, 220), line_width=3)
+            description = "Blue: tool path and initial contacts" if tool_frame is not None else "Initial foot contacts"
+            server.gui.add_markdown(f"{description} · Orange: target · Red: obstacle")
 
             if target is not None:
                 server.scene.add_icosphere("/target", radius=.035, color=(240, 100, 35),
@@ -182,7 +184,7 @@ def visualize_robot(robot, urdf, trajectory, dt, options, *, target=None,
 
             start = previous = time.monotonic()
             print(f"Viser: http://127.0.0.1:{server.get_port()} (Ctrl-C to stop)", flush=True)
-            while not options.visualization_seconds or time.monotonic() - start < options.visualization_seconds:
+            while True:
                 now = time.monotonic()
                 if play.value:
                     clock.value = (clock.value + now - previous) % duration
