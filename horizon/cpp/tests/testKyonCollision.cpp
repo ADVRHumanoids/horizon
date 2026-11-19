@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "horizon/kyon_spheres.h"
+
 #include "horizon/pinocchio_collision.h"
 #include <ilqr/state_space.h>
 #include <pinocchio/algorithm/joint-configuration.hpp>
@@ -29,7 +29,7 @@ public:
 TEST(KyonCollision, JointBlockTangentProjectionMatchesDenseReference)
 {
     auto model=std::make_shared<pin::Model>();
-    pin::urdf::buildModel(HORIZON_KYON_URDF_PATH,*model);
+    pin::urdf::buildModel("data/kyon_spheres.urdf",*model);
     PinocchioConfiguration space(model);
     Matrix actual(model->nv,model->nq),expected(model->nv,model->nq),R(model->nq,model->nv);
     Vector neutral=pin::neutral(*model);
@@ -50,9 +50,9 @@ TEST(KyonCollision, JointBlockTangentProjectionMatchesDenseReference)
 TEST(KyonCollision, SelfCollisionDerivativesAndAvoidance)
 {
     auto model = std::make_shared<pin::Model>();
-    pin::urdf::buildModel(HORIZON_KYON_URDF_PATH, *model);
+    pin::urdf::buildModel("data/kyon_spheres.urdf", *model);
     auto space = std::make_shared<KyonConfigurationSpace>(model);
-    SphereModel spheres(kyon::spheres());
+    SphereModel spheres(loadSphereModelFromUrdf("data/kyon_spheres.urdf").spheres());
     PinocchioSphereCenters fk(model, space, spheres);
     const int count = spheres.spheres().size();
     Vector q(model->nq), centers(3 * count);
@@ -143,9 +143,9 @@ TEST(KyonCollision, IlqrSeparatesOverlappingSpheres)
 TEST(KyonCollision, SphereModelFramesAndDistanceJacobian)
 {
     auto model = std::make_shared<pin::Model>();
-    pin::urdf::buildModel(HORIZON_KYON_URDF_PATH, *model);
-    auto spheres = std::make_shared<SphereModel>(kyon::spheres());
-    ASSERT_EQ(spheres->spheres().size(), 94u);
+    pin::urdf::buildModel("data/kyon_spheres.urdf", *model);
+    auto spheres = std::make_shared<SphereModel>(loadSphereModelFromUrdf("data/kyon_spheres.urdf").spheres());
+    ASSERT_EQ(spheres->spheres().size(), 96u);
     for(const auto& sphere : spheres->spheres())
         ASSERT_LT(model->getFrameId(sphere.link), model->frames.size()) << sphere.link;
 

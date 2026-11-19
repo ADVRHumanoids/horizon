@@ -10,6 +10,7 @@ import ctypes as ct
 import json
 from pathlib import Path
 import statistics
+import xml.etree.ElementTree as ET
 import numpy as np
 import pinocchio as pin
 import torch
@@ -87,7 +88,8 @@ def main():
     parser.add_argument("--library", required=True, type=Path)
     parser.add_argument("--artifact", required=True, type=Path)
     parser.add_argument("--urdf", required=True, type=Path)
-    parser.add_argument("--spheres", required=True, type=Path)
+    parser.add_argument("--spheres", required=True, type=Path, help="sphere collision URDF")
+    parser.add_argument("--collision-policy", required=True, type=Path)
     parser.add_argument("--trajectory", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--adapter-library", type=Path, help="Optional fused free-base/sphere CUDA adapter")
@@ -97,9 +99,17 @@ def main():
     args = parser.parse_args()
     measure = (lambda fn: ({"skipped":True},None)) if args.check_only else graph_timing
     model = pin.buildModelFromUrdf(str(args.urdf)); data = model.createData()
-    geometry = json.loads(args.spheres.read_text())
-    spheres = [(link["name"], np.array(s["center"]), s["radius"])
-               for link in geometry["links"] for s in link["spheres"]]
+    root_xml = ET.parse(args.spheres).getroot()
+    spheres = []
+    for link in root_xml.findall("link"):
+        for collision in link.findall("collision"):
+            shape = collision.find("./geometry/sphere")
+            if shape is None:
+                raise ValueError("sphere URDF contains non-sphere collision geometry")
+            origin = collision.find("origin")
+            xyz = origin.get("xyz", "0 0 0") if origin is not None else "0 0 0"
+            spheres.append((link.attrib["name"], np.array([float(x) for x in xyz.split()]),
+                            float(shape.attrib["radius"])))
     manifest = json.loads((args.artifact / "robot_kinematics_manifest.json").read_text())
     tools = manifest["tool_frames"]
     q_indices = [model.joints[model.getJointId(name)].idx_q for name in manifest["joint_names"]]
@@ -116,8 +126,10 @@ def main():
     q_map = device(q_indices, torch.long); order = device(np.argsort(v_indices), torch.long)
     base_q_map = device([6,3,4,5], torch.long)
     root = model.jointPlacements[1]; root_R = device(root.rotation); root_t = device(root.translation)
+    policy = json.loads(args.collision_policy.read_text())
+    disabled = {frozenset((p["link1"], p["link2"])) for p in policy["disabled_pairs"]}
     pairs = [(i,j) for i,a in enumerate(spheres) for j,b in enumerate(spheres)
-             if a[0].startswith("dagana_1") and b[0].startswith("dagana_2")]
+             if i < j and a[0] != b[0] and frozenset((a[0], b[0])) not in disabled]
     left = device([p[0] for p in pairs], torch.long); right = device([p[1] for p in pairs], torch.long)
     pin.forwardKinematics(model, data, start); pin.updateFramePlacements(model, data)
     obstacle = data.oMf[model.getFrameId(spheres[6][0])].act(spheres[6][1]) + np.array([.09, 0, 0])
@@ -159,7 +171,8 @@ def main():
     if args.reference_output:
         args.reference_output.mkdir(parents=True,exist_ok=True)
         grid_np.tofile(args.reference_output/'grid.f32')
-        reference_manifest={"urdf":str(args.urdf.resolve()),"dimensions":[dims]*3,
+        reference_manifest={"urdf":str(args.urdf.resolve()), "sphere_urdf":str(args.spheres.resolve()),
+                            "collision_policy":str(args.collision_policy.resolve()), "dimensions":[dims]*3,
                             "origin":[origin]*3,"voxel_size":voxel,"batches":args.nodes}
         (args.reference_output/'manifest.json').write_text(json.dumps(reference_manifest,indent=2)+'\n')
     if args.adapter_library:

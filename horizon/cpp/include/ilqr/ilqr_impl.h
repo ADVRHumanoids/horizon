@@ -11,6 +11,15 @@ namespace cs = casadi;
 
 extern thread_local utils::Timer::TocCallback on_timer_toc;
 
+struct IterativeLQR::GlobalizationModel
+{
+    Eigen::SparseMatrix<double> H, J;
+    Eigen::VectorXd g, residual, scale;
+    // Rows after hard_begin are fixed state/control equality bounds.
+    int hard_begin = 0, dynamics_rows = 0;
+    double cost = 0, violation = 0, stationarity = 0;
+};
+
 struct IterativeLQR::FunctionWorkspace
 {
     ilqr::FunctionSpec spec;
@@ -241,6 +250,9 @@ struct IterativeLQR::BoundAuglagCostEntity : CostEntityBase
     CostEntityBase::Ptr clone() const override { return std::make_shared<BoundAuglagCostEntity>(*this); }
 
     void update_lam(VecConstRef x, VecConstRef u, int k);
+    double multiplierResidual(VecConstRef x, VecConstRef u, int k) const;
+    void resetStateMultiplier(int i) { _xlam(i) = 0; }
+    void resetInputMultiplier(int i) { _ulam(i) = 0; }
 
     VecConstRef getStateMultiplier() const;
 
@@ -250,9 +262,6 @@ private:
 
     VecConstRef _xlb, _xub;
     VecConstRef _ulb, _uub;
-
-    Eigen::VectorXd _x_violation;
-    Eigen::VectorXd _u_violation;
 
     Eigen::VectorXd _xlam, _ulam;
     double _rho;
@@ -508,6 +517,11 @@ struct IterativeLQR::BackwardPassResult
     Eigen::MatrixXd Gu;
     Eigen::MatrixXd Gx;
     Eigen::VectorXd glam;
+
+    // Maps from original rows (next constraints-to-go, local equalities,
+    // local bounds) to the feasible and propagated constraint bases.
+    Eigen::MatrixXd feasible_map, propagated_map, infeasible_map;
+    Eigen::MatrixXd next_constraint_C;
 
     // optimal state
     // (this is only filled at i = 0)

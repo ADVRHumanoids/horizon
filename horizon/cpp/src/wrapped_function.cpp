@@ -1,5 +1,6 @@
 #include "horizon/wrapped_function.h"
 #include "horizon/profiling.h"
+#include "ilqr/function.h"
 
 using namespace casadi_utils;
 
@@ -98,7 +99,7 @@ void WrappedFunction::setInput(int i, Eigen::Ref<const Eigen::VectorXd> xi)
         std::ostringstream oss;
         oss << _f.name() << " input " << i << " contains invalid values: \n" <<
                xi.transpose().format(3);
-        throw std::runtime_error(oss.str());
+        throw horizon::ilqr::EvaluationError(oss.str());
     }
 
     _in_buf[i] = xi.data();
@@ -161,7 +162,7 @@ void WrappedFunction::call(bool sparse)
                     oss << _f.name() << " input " << j <<
                            " = " << u.transpose().format(3) << "\n";
                 }
-                throw std::runtime_error(oss.str());
+                throw horizon::ilqr::EvaluationError(oss.str());
             }
         }
 

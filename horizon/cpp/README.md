@@ -1,5 +1,8 @@
 # C++ iLQR functions and state spaces
 
+For the complete native kinematics/dynamics API, analytic Jacobian table, and
+torque-driven contact dynamics, see the [native robot guide](../examples/README_native_robot.md).
+
 For a complete Kyon motion example with collision on/off comparisons, profiling,
 and optional Viser or ROS2/RViz replay, see the
 [Kyon example guide](../examples/README_kyon_collision.md).
@@ -12,6 +15,93 @@ interfaces live in `horizon::ilqr`; Python bindings retain their existing API.
 Python can also configure native function graphs and call C++ Pinocchio directly.
 See the [Python manager guide](../examples/README_ilqr_native_pinocchio.md) and
 its fixed-feet Kyon example, including integration with Horizon's `Problem`.
+
+## State and control bounds
+
+`setStateBounds(lb, ub)` accepts `stateSize()` by `N+1` matrices;
+`setInputBounds(lb, ub)` accepts `nu` by `N` matrices. Use `-infinity` and
+`+infinity` for missing sides. Bounds with `lb == ub` remain hard equality
+constraints in the Riccati or baseline KKT solve. `setInitialState()` sets an
+initial guess; fix the initial state using equal bounds at node zero.
+
+Enable augmented Lagrangian handling of the remaining component bounds:
+
+```cpp
+horizon::IterativeLQR solver(dynamics, N, {
+    {"ilqr.enable_auglag", 1},
+    {"ilqr.rho_base", 1.0},
+    {"ilqr.rho_max", 1e8}
+});
+solver.setStateBounds(state_lb, state_ub);
+solver.setInputBounds(control_lb, control_ub);
+bool converged = solver.solve(200);
+```
+
+The same options pass through the Python solver. State inequalities apply to
+stored state coordinates, including the terminal node; their derivatives are
+converted to tangent coordinates for custom state spaces. There is no terminal
+control bound. General nonlinear inequality functions are not supported here.
+
+For each component, the method eliminates a slack constrained to `[lb, ub]`.
+With signed multiplier `lambda`, it uses
+`z = lambda + rho * (v - projection(v + lambda/rho, [lb, ub]))` and adds
+`(z*z - lambda*lambda)/(2*rho)` to the cost. Its gradient is `z` and its
+curvature is `rho` in the shifted active region, zero elsewhere. Multiplier
+updates set `lambda = z`, so lower-bound multipliers are negative, upper-bound
+multipliers positive, and inactive multipliers can return to zero. Running
+penalties have the same `1/N` scaling as running costs.
+
+The solver updates multipliers after an inner subproblem becomes stationary,
+using its current penalty. It increases the next penalty only if the maximum
+bound violation fails to decrease by `ilqr.auglag_progress_ratio` (default
+`0.5`), with growth factor `ilqr.rho_growth_factor` (default `10`) and cap
+`ilqr.rho_max`. `ilqr.auglag_inner_tolerance` (default `1e-10`) controls the
+relative merit derivative for inner convergence; the control-increment and
+equality/defect tolerances also apply. `solve(max_iter)` counts all inner
+iterations and returns false if that budget expires before convergence.
+
+`ForwardPassResult.bound_violation` reports the maximum component violation.
+Stopping with AL enabled requires bound feasibility and convergence of the
+projected multiplier update, as well as the usual stationarity and equality
+checks. Duals and the penalty warm-start across solves. Changing a bound clears
+its multiplier; passing identical bounds preserves it. Line-search filter
+entries reset when the AL objective changes.
+
+AL is disabled by default. When disabled, `rho_base` defaults to zero; explicitly
+setting a positive `rho_base` retains a quadratic bound penalty without dual
+updates or hard inequality feasibility guarantees. Enabling AL defaults it to
+`1.0` and requires a positive finite starting penalty. Invalid or NaN bounds,
+reversed bounds, and invalid penalty options throw `std::invalid_argument`.
+
+## C++ formatting and linting
+
+From the repository root, check all C++ sources and headers with clang-format
+15 or newer and clang-tidy:
+
+```bash
+python3 tools/lint_cpp.py --build-dir /path/to/build
+```
+
+The build directory must contain `compile_commands.json`; configure your CMake
+build with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` to generate it. Enable the optional
+backends you intend to check: sources absent from the build database may fail
+clang-tidy because their include paths or compile definitions are unavailable.
+Headers are formatted directly and checked by clang-tidy through their includes.
+
+To apply fixes, or to format without a configured build:
+
+```bash
+python3 tools/lint_cpp.py --build-dir /path/to/build --fix
+python3 tools/lint_cpp.py --format-only --fix
+```
+
+Use `--tidy-only` to skip formatting, or `--clang-format clang-format-18`
+and `--clang-tidy clang-tidy-18` to select versioned executables. The script
+includes tracked and new C++ files throughout the repository, excludes ignored
+build artifacts, and returns a nonzero status if either tool reports a failure.
+Fix mode runs clang-tidy before clang-format so inserted braces get formatted.
+The `.clang-format` configuration preserves manually inserted blank lines before
+control statements. Clang-format cannot automatically insert those blank lines.
 
 ## Symbolic expressions around native functions
 
@@ -250,7 +340,9 @@ share the same prototype can bind their per-node workspace with
 are evaluated once per node and pass.
 
 ```cpp
-auto model_spheres = std::make_shared<collision::SphereModel>(collision::kyon::spheres());
+auto model_spheres = std::make_shared<collision::SphereModel>(collision::loadSphereModelFromUrdf(sphere_urdf));
+auto disabled = collision::loadDisabledCollisionPairs(collision_policy_json);
+auto self_pairs = collision::makeSelfCollisionPairs(*model_spheres, disabled);
 auto robot_workspace = std::make_shared<collision::PinocchioModelWorkspace>(pin_model);
 auto centers = functions.addNative("kyon_centers",
     std::make_shared<collision::PinocchioSphereCenters>(pin_model, robot_space,
@@ -258,27 +350,41 @@ auto centers = functions.addNative("kyon_centers",
 std::vector<double> radii;
 for(const auto& sphere : model_spheres->spheres()) radii.push_back(sphere.radius);
 auto distances = functions.addNative("collision_distances",
-    std::make_shared<collision::SphereDistanceFunction>(radii, environment_fields));
+    std::make_shared<collision::SphereDistanceFunction>(radii, environment_fields, self_pairs));
 auto residual = distances(centers(q));
 functions.addResidual("collision", {q, u}, residual);
 solver.setResidual(all_nodes, functions, "collision");
 ```
 
-The sphere model pipeline converts a sphere-collision URDF into JSON and an
-inline C++ header. With the Kyon URDF package present in the workspace, run:
+The runtime loader reads every collision sphere directly from a URDF; a JSON
+policy supplies disabled link pairs with MoveIt reasons. `makeSelfCollisionPairs`
+enables all distinct-link sphere pairs except those disabled in that policy.
+Same-link pairs are excluded. Unknown policy links and malformed input fail
+explicitly. No robot-specific sphere data is compiled into Horizon.
+
+The original vendored Kyon fixture is `tests/data/kyon_spheres.urdf`, with
+`kyon_disabled_collisions.json`. It has no collision geometry for the arm
+links. Examples and benchmarks instead use the xacro-derived
+`kyon_full_spheres.urdf` and `kyon_full_disabled_collisions.json`: 103 spheres
+on all 31 links with source collision geometry, with 3,799 enabled sphere pairs.
+Both policies were generated with 75,000 trials. `Adjacent` and `Default` are
+MoveIt classifications; `Never` is based on random samples and is not a proof
+that a pair can never collide. Review and adjust the disabled-pair policy for
+the intended operating range and sphere approximation.
+
+Generate a new sphere URDF and JSON policy from a xacro command with FOAM and
+the JSON-capable `moveit_compute_default_collisions` installed:
 
 ```bash
-python3 tools/generate_sphere_model.py \
-  /path/to/iit-kyon-ros-pkg/kyon_urdf/urdf/kyon_spheres.urdf \
-  horizon/cpp/tests/data/kyon.spheres.json \
-  --cpp-header horizon/cpp/include/horizon/kyon_spheres.h
+python3 tools/generate_collision_assets.py \
+  --sphere-urdf /tmp/robot_spheres.urdf \
+  --collision-json /tmp/robot_disabled_collisions.json \
+  --trials 75000 -- xacro /path/to/robot.urdf.xacro
 ```
 
-The checked-in Kyon artifact was generated from `kyon_spheres.urdf` and
-contains the 94 spheres across 21 links present in the canonical `kyon.urdf`.
-The two lidar attachment links present only in the sphere variant are omitted
-and recorded in the JSON report. Unsupported non-sphere collision shapes are
-reported and listed rather than silently approximated.
+Source the robot's ROS environment first so xacro and `package://` mesh
+resources resolve. The script preserves sphere primitives and applies mesh
+scale and pose before FOAM fitting. FOAM fitting is an approximation.
 
 OpenVDB support is optional (`-DHORIZON_WITH_OPENVDB=ON`). It enables
 `OpenVdbDistanceField` for grids named `sdf` and the STL mesh converter:
@@ -292,19 +398,18 @@ takes voxel size in world units and the narrow-band width in voxels. Its mesh
 input must describe a closed surface. Pinocchio collision kinematics are independently optional via
 `-DHORIZON_WITH_PINOCCHIO=ON`.
 
-The Kyon integration test also needs the canonical URDF path:
+The Kyon integration test reads the vendored fixture at runtime:
 
 ```bash
 cmake -S horizon/cpp -B /tmp/horizon-kyon-build \
   -DHORIZON_BUILD_PYTHON=OFF -DHORIZON_WITH_PINOCCHIO=ON \
-  -DHORIZON_TEST_KYON_COLLISION=ON \
-  -DHORIZON_KYON_URDF=/path/to/kyon_urdf/urdf/kyon.urdf
+  -DHORIZON_TEST_KYON_COLLISION=ON
 cmake --build /tmp/horizon-kyon-build -j2
 ctest --test-dir /tmp/horizon-kyon-build -R testKyonCollision --output-on-failure
 ```
 
 `profileKyonCollision` (built with the Kyon test option) accepts an iteration
-count, e.g. `profileKyonCollision 10000`. Use a Release build for timings.
+count and runtime paths, e.g. `profileKyonCollision 1000 horizon/cpp/tests/data/kyon_full_spheres.urdf horizon/cpp/tests/data/kyon_full_disabled_collisions.json`. Use a Release build for timings.
 Collision Jacobian products contract the three nonzero center derivatives per
 sphere directly with directions. Sphere kinematics computes one frame Jacobian
 per occupied link and applies each sphere offset without allocating a matrix
@@ -376,10 +481,12 @@ Statistics aggregate a prototype and its solver clones; reset them only while
 those solvers are idle. Mutable evaluation buffers remain private to each clone.
 
 Run the complete Kyon benchmark with fixed feet, the `dagana_1_base` target,
-environment SDF, and an explicit inter-hand self-collision mask:
+environment SDF, and every enabled self-collision pair:
 
 ```bash
-benchmarkKyonTrajectory --backend device --nodes 256 --samples 20 --threads 8 \
+benchmarkKyonTrajectory --urdf horizon/cpp/tests/data/kyon_full_spheres.urdf \
+  --collision-policy horizon/cpp/tests/data/kyon_full_disabled_collisions.json \
+  --backend device --nodes 256 --samples 20 --threads 8 \
   --self-collision 1 --output /tmp/kyon_device
 python3 tools/benchmark_device_collision.py \
   --binary /path/to/cuda-build/tests/benchmarkKyonTrajectory \
@@ -389,8 +496,8 @@ python3 tools/benchmark_device_collision.py \
 
 The comparison script runs backends sequentially at N=30, 256, and 1024. It
 preserves raw timings, iteration traces, trajectories, median/p95 summaries,
-and checks convergence, objective, and trajectory parity. The 100 inter-hand
-pairs are a benchmark workload, not a certified whole-robot exclusion mask.
+and checks convergence, objective, and trajectory parity. The default runtime
+model has 103 spheres and 3,799 enabled self-collision pairs.
 The device benchmark's CPU feet/target functions compute only five frame
 origins; collision sphere kinematics is entirely on the device. Post-solve CPU
 validation is outside the measured solve.
@@ -464,11 +571,12 @@ cmake -S horizon/cpp -B /tmp/horizon-kokkos-build \
   -DCMAKE_BUILD_TYPE=Release -DHORIZON_BUILD_PYTHON=OFF \
   -DHORIZON_WITH_PINOCCHIO=ON -DHORIZON_TEST_KYON_COLLISION=ON \
   -DHORIZON_WITH_KOKKOS=ON -DHORIZON_PROFILING=ON \
-  -DHORIZON_KYON_URDF=/path/to/kyon_urdf/urdf/kyon.urdf \
   -DCMAKE_PREFIX_PATH="/path/to/kokkos;/path/to/pinocchio;/path/to/casadi"
 cmake --build /tmp/horizon-kokkos-build -j2
 ctest --test-dir /tmp/horizon-kokkos-build --output-on-failure
 /tmp/horizon-kokkos-build/tests/benchmarkKyonTrajectory \
+  --urdf horizon/cpp/tests/data/kyon_full_spheres.urdf \
+  --collision-policy horizon/cpp/tests/data/kyon_full_disabled_collisions.json \
   --nodes 256 --samples 3 --iterations 40 --backend kokkos \
   --kokkos-threads 2 --output /tmp/kyon_kokkos
 ```
@@ -481,7 +589,7 @@ Backend time includes host/device transfers, kernels and synchronization, but no
 host kinematics. Preparation time additionally includes host kinematics and
 publishing node results; these nested timings must not be added together.
 
-Validated with Kokkos 4.7.1 OpenMP/Serial on CPU and CUDA 12.0 on an RTX 3060
+Historical partial-model measurements below used Kokkos 4.7.1 OpenMP/Serial on CPU and CUDA 12.0 on an RTX 3060
 (Ampere 8.6). At N=256, 20 iterations produced
 38 value batches and 20 derivative batches, each over 257 nodes: 78 kernel
 launches for 1,401,164 SDF queries. With serial solver evaluation, scalar solves
@@ -527,18 +635,21 @@ it does not enforce force balance, friction, actuator torques, or contact
 constraints between shooting nodes.
 
 A sphere obstacle is sampled into a 151-cubed dense SDF with 4 cm voxels.
-All 94 imported robot spheres are queried at every node; the scene is placed
+All 103 imported robot spheres and all 3,799 enabled self pairs are queried at every node; the scene is placed
 deterministically clear of the initial configuration. Collision residuals use
 2 cm clearance and soft penalties. Scene parameters are included in the JSON
-report so the grid can be reproduced. This benchmark measures environment
-collision costs; it does not add self-collision pairs.
+report so the grid can be reproduced. This benchmark measures environment and complete enabled self-collision costs.
 
 ```bash
 /tmp/horizon-kyon-build/tests/benchmarkKyonTrajectory \
+  --urdf horizon/cpp/tests/data/kyon_full_spheres.urdf \
+  --collision-policy horizon/cpp/tests/data/kyon_full_disabled_collisions.json \
   --nodes 30 --samples 3 --iterations 40 --threads 0 \
   --output /tmp/kyon_trajectory
 # Collision-disabled convergence/control comparison:
 /tmp/horizon-kyon-build/tests/benchmarkKyonTrajectory \
+  --urdf horizon/cpp/tests/data/kyon_full_spheres.urdf \
+  --collision-policy horizon/cpp/tests/data/kyon_full_disabled_collisions.json \
   --nodes 30 --samples 3 --iterations 40 --collision 0 \
   --output /tmp/kyon_trajectory_baseline
 ```
@@ -553,7 +664,7 @@ with configuration and control columns. A nonzero exit code indicates failed
 geometric acceptance checks or a setup/evaluation error. The CTest entry
 `kyonTrajectorySmoke` checks a 12-interval solve.
 
-Initial Release measurements on the development host (profiling enabled):
+Historical Release measurements below used an earlier environment-only model; they do not describe the full self-collision model. See [current measurements](docs/device_collision_performance.md).
 
 | Intervals | Threads | Iterations | Solve time | Collision call time | SDF queries |
 |---|---:|---:|---:|---:|---:|
@@ -595,9 +706,9 @@ explicitly above a finite limit instead of retrying indefinitely. This fix is
 covered by a regression test; it did not account for the benchmark speedup,
 since the recorded solves did not require escalation.
 
-### CPU node parallelism versus CUDA batching
+### Historical CPU node parallelism versus CUDA batching
 
-With the same CUDA-enabled Release build, N=256, damping 0.001 and two measured
+For the earlier incomplete collision model, with the same CUDA-enabled Release build, N=256, damping 0.001 and two measured
 samples after warmup, the following mean solve times were recorded on the
 Core i7-12700 / RTX 3060 development host:
 
@@ -617,7 +728,9 @@ the backward pass and 191 ms in line search. CPU node parallelism is the
 preferred configuration for this workload:
 
 ```bash
-benchmarkKyonTrajectory --nodes 256 --samples 3 --iterations 40 \
+benchmarkKyonTrajectory --urdf horizon/cpp/tests/data/kyon_full_spheres.urdf \
+  --collision-policy horizon/cpp/tests/data/kyon_full_disabled_collisions.json \
+  --nodes 256 --samples 3 --iterations 40 \
   --backend scalar --threads 8 --output /tmp/kyon_cpu_parallel
 ```
 

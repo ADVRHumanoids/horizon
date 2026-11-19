@@ -1,0 +1,1385 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="kyon">
+	<material name="black">
+		<color rgba="0.4 0.4 0.4 1" />
+	</material>
+	<material name="dark_grey">
+		<color rgba="0.1 0.1 0.1 1" />
+	</material>
+	<material name="light_grey">
+		<color rgba="0.2 0.2 0.2 1" />
+	</material>
+	<material name="kyon_orange">
+		<color rgba="0.925 0.325 0.0 1" />
+	</material>
+	<link name="base_link" />
+	<link name="pelvis">
+		<inertial>
+			<origin xyz="0.056500758 0.002091838 0.086799843" />
+			<mass value="19.962822" />
+			<inertia ixx="0.24817282999999998" ixy="-0.0041644587" ixz="-0.060913554999999994" iyy="1.2563811999999999" iyz="0.00024917702" izz="1.2495441" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_pelvis.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.23513" />
+			</geometry>
+			<origin xyz="-0.31307294922447204 0.0016158752636909485 0.055453353567123415" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.246231" />
+			</geometry>
+			<origin xyz="0.0025780507755279545 0.0026528752636909487 0.07355235356712342" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.240873" />
+			</geometry>
+			<origin xyz="0.31871805077552795 8.187526369094848e-05 0.0660193535671234" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="imu_link" />
+	<link name="zed_front_up_mount_link" />
+	<link name="zed_front_down_mount_link" />
+	<link name="left_camera_mount_link" />
+	<link name="right_camera_mount_link" />
+	<link name="hesai_lidar" />
+	<link name="shoulder_yaw_1_link">
+		<inertial>
+			<origin xyz="-0.00036680683 -0.00091946646 0.039513613999999996" />
+			<mass value="0.68281255" />
+			<inertia ixx="0.0024646423" ixy="6.777069799999999e-07" ixz="-7.4060192e-06" iyy="0.0019177419999999998" iyz="-3.9949027e-05" izz="0.0019116331999999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-yaw.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.070125" />
+			</geometry>
+			<origin xyz="1e-06 1e-05 0.07336100110268592" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.078709" />
+			</geometry>
+			<origin xyz="-2e-06 0.004987 0.01994200110268593" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.078908" />
+			</geometry>
+			<origin xyz="5e-06 -0.004972 0.01981300110268593" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="shoulder_pitch_1_link">
+		<inertial>
+			<origin xyz="-7.458544400000001e-06 -0.14775681000000002 -0.0017955048000000001" />
+			<mass value="2.6972599" />
+			<inertia ixx="0.061239751999999995" ixy="-1.9752319e-05" ixz="-5.9550041e-06" iyy="0.0032676404999999998" iyz="-0.00040271622999999996" izz="0.06110526" />
+		</inertial>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.094689" />
+			</geometry>
+			<origin xyz="-0.01354838057911396 -0.02890971024620534 -0.006184999746680259" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.094293" />
+			</geometry>
+			<origin xyz="0.01485761942088604 -0.16264271024620533 -0.01594999974668026" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.087981" />
+			</geometry>
+			<origin xyz="-0.01168538057911396 -0.29339071024620533 -0.025978999746680262" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="elbow_pitch_1_link">
+		<inertial>
+			<origin xyz="-0.00032761312 -0.16511035000000002 0.022799378000000002" />
+			<mass value="1.048477" />
+			<inertia ixx="0.01112601" ixy="1.7724864e-05" ixz="6.0670899e-06" iyy="0.00095730481" iyz="-0.0010167295" izz="0.011293245999999998" />
+		</inertial>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_elbow.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.078352" />
+			</geometry>
+			<origin xyz="0.00015377360732600476 -0.009935887388836495 0.040078388689894676" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.081671" />
+			</geometry>
+			<origin xyz="0.00044777360732600475 -0.2168898873888365 0.03222738868989467" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.061582" />
+			</geometry>
+			<origin xyz="-0.0006222263926739952 -0.1111928873888365 0.03450838868989467" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="wrist_pitch_1_link">
+		<inertial>
+			<origin xyz="-0.00035889305999999997 -0.056046555 -0.010441123" />
+			<mass value="0.8276976" />
+			<inertia ixx="0.001897925" ixy="1.5812979999999998e-05" ixz="-8.8320155e-06" iyy="0.0007269340299999999" iyz="0.00044823507999999996" izz="0.0018533680999999998" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_wrist-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.057927" />
+			</geometry>
+			<origin xyz="0.0003750382889000787 -0.005335841775615569 -0.02214494438228893" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.057816" />
+			</geometry>
+			<origin xyz="0.00026103828890007867 -0.05569784177561557 0.0018510556177110688" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.058744" />
+			</geometry>
+			<origin xyz="-0.0017909617110999213 -0.05535984177561557 -0.00981094438228893" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="wrist_yaw_1_link">
+		<inertial>
+			<origin xyz="8.3852847e-05 0.0005684798500000001 -0.018794291" />
+			<mass value="0.13163366" />
+			<inertia ixx="7.7640101e-05" ixy="-6.2563895e-07" ixz="-1.2366562e-07" iyy="7.791881799999999e-05" iyz="-8.839218099999999e-07" izz="0.00012246055" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_wrist-yaw.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.041747" />
+			</geometry>
+			<origin xyz="0.01230517036482884 0.014758501363756116 -0.021503652686806117" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.043693" />
+			</geometry>
+			<origin xyz="0.006274170364828839 -0.016956498636243884 -0.021724652686806116" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.04216" />
+			</geometry>
+			<origin xyz="-0.01711082963517116 0.002294501363756115 -0.021583652686806117" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="dagana_1_base">
+		<inertial>
+			<origin xyz="-0.004224466600000001 -0.0027238215 0.053670845" />
+			<mass value="0.96534359" />
+			<inertia ixx="0.0020957096" ixy="-6.455410899999999e-05" ixz="4.4955880999999996e-05" iyy="0.0021216529" iyz="0.00037094612999999995" izz="0.0011572224" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_dagana-base-boxy.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<origin rpy="0 1.5707 0" xyz="0 -0.0145 0.181" />
+			<geometry>
+				<cylinder length="0.0279" radius="0.01" />
+			</geometry>
+		</visual>
+		<visual>
+			<origin rpy="0 0 0" xyz="0.0 0.0007432 0.0405" />
+			<geometry>
+				<box size="0.0879  0.0844864 0.081" />
+			</geometry>
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.036074" />
+			</geometry>
+			<origin xyz="-0.019235 -0.0270499990016222 0.10293199994039536" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.036651" />
+			</geometry>
+			<origin xyz="0.024993 -0.0267919990016222 0.10870499994039536" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.036232" />
+			</geometry>
+			<origin xyz="-0.004425 -0.0243999990016222 0.16138399994039535" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014127" />
+			</geometry>
+			<origin xyz="0.003972 -0.014501 0.181001" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.00397 -0.0145 0.180999" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.009249" />
+			</geometry>
+			<origin xyz="0.008204 -0.018225 0.182992" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.071172" />
+			</geometry>
+			<origin xyz="-0.003448 0.0007471999999999994 0.0405" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.058601" />
+			</geometry>
+			<origin xyz="0.014001 -0.011551800000000001 0.0405" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.06098" />
+			</geometry>
+			<origin xyz="0.011714 0.010751199999999999 0.0405" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="dagana_1_claw">
+		<inertial>
+			<origin xyz="-0.0516203 0.0080601187 -0.037212096" />
+			<mass value="0.25739835" />
+			<inertia ixx="0.00029169897" ixy="8.3015178e-06" ixz="1.3355847e-05" iyy="0.00073268589" iyz="-2.1083033000000003e-06" izz="0.00051112938" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_dagana-clamp-boxy.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<origin rpy="0 0 0" xyz="-0.137 0.0 -0.0362125" />
+			<geometry>
+				<cylinder length="0.0279" radius="0.01" />
+			</geometry>
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.03653" />
+			</geometry>
+			<origin xyz="-0.06074600017881394 0.012469000350177242 -0.01591449762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.035533" />
+			</geometry>
+			<origin xyz="-0.11655100017881394 0.009937000350177243 -0.03477649762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.035912" />
+			</geometry>
+			<origin xyz="-0.06339500017881394 0.012349000350177242 -0.06071149762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.137 0.0 -0.0322415" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.137 0.0 -0.040183500000000004" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.013142" />
+			</geometry>
+			<origin xyz="-0.13645100000000002 -0.000821 -0.0410675" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="shoulder_yaw_2_link">
+		<inertial>
+			<origin xyz="-0.00036680683 -0.00091946646 0.039513613999999996" />
+			<mass value="0.68281255" />
+			<inertia ixx="0.0024646423" ixy="6.777069799999999e-07" ixz="-7.4060192e-06" iyy="0.0019177419999999998" iyz="-3.9949027e-05" izz="0.0019116331999999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-yaw.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.070125" />
+			</geometry>
+			<origin xyz="1e-06 1e-05 0.07336100110268592" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.078709" />
+			</geometry>
+			<origin xyz="-2e-06 0.004987 0.01994200110268593" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.078908" />
+			</geometry>
+			<origin xyz="5e-06 -0.004972 0.01981300110268593" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="shoulder_pitch_2_link">
+		<inertial>
+			<origin xyz="-7.458544400000001e-06 -0.14775681000000002 -0.0017955048000000001" />
+			<mass value="2.6972599" />
+			<inertia ixx="0.061239751999999995" ixy="-1.9752319e-05" ixz="-5.9550041e-06" iyy="0.0032676404999999998" iyz="-0.00040271622999999996" izz="0.06110526" />
+		</inertial>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_sh-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.094689" />
+			</geometry>
+			<origin xyz="-0.01354838057911396 -0.02890971024620534 -0.006184999746680259" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.094293" />
+			</geometry>
+			<origin xyz="0.01485761942088604 -0.16264271024620533 -0.01594999974668026" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.087981" />
+			</geometry>
+			<origin xyz="-0.01168538057911396 -0.29339071024620533 -0.025978999746680262" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="elbow_pitch_2_link">
+		<inertial>
+			<origin xyz="-0.00032761312 -0.16511035000000002 0.022799378000000002" />
+			<mass value="1.048477" />
+			<inertia ixx="0.01112601" ixy="1.7724864e-05" ixz="6.0670899e-06" iyy="0.00095730481" iyz="-0.0010167295" izz="0.011293245999999998" />
+		</inertial>
+		<visual>
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_elbow.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.078352" />
+			</geometry>
+			<origin xyz="0.00015377360732600476 -0.009935887388836495 0.040078388689894676" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.081671" />
+			</geometry>
+			<origin xyz="0.00044777360732600475 -0.2168898873888365 0.03222738868989467" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.061582" />
+			</geometry>
+			<origin xyz="-0.0006222263926739952 -0.1111928873888365 0.03450838868989467" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="wrist_pitch_2_link">
+		<inertial>
+			<origin xyz="-0.00035889305999999997 -0.056046555 -0.010441123" />
+			<mass value="0.8276976" />
+			<inertia ixx="0.001897925" ixy="1.5812979999999998e-05" ixz="-8.8320155e-06" iyy="0.0007269340299999999" iyz="0.00044823507999999996" izz="0.0018533680999999998" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_wrist-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.057927" />
+			</geometry>
+			<origin xyz="0.0003750382889000787 -0.005335841775615569 -0.02214494438228893" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.057816" />
+			</geometry>
+			<origin xyz="0.00026103828890007867 -0.05569784177561557 0.0018510556177110688" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.058744" />
+			</geometry>
+			<origin xyz="-0.0017909617110999213 -0.05535984177561557 -0.00981094438228893" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="wrist_yaw_2_link">
+		<inertial>
+			<origin xyz="8.3852847e-05 0.0005684798500000001 -0.018794291" />
+			<mass value="0.13163366" />
+			<inertia ixx="7.7640101e-05" ixy="-6.2563895e-07" ixz="-1.2366562e-07" iyy="7.791881799999999e-05" iyz="-8.839218099999999e-07" izz="0.00012246055" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_wrist-yaw.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.041747" />
+			</geometry>
+			<origin xyz="0.01230517036482884 0.014758501363756116 -0.021503652686806117" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.043693" />
+			</geometry>
+			<origin xyz="0.006274170364828839 -0.016956498636243884 -0.021724652686806116" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.04216" />
+			</geometry>
+			<origin xyz="-0.01711082963517116 0.002294501363756115 -0.021583652686806117" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="dagana_2_base">
+		<inertial>
+			<origin xyz="-0.004224466600000001 -0.0027238215 0.053670845" />
+			<mass value="0.96534359" />
+			<inertia ixx="0.0020957096" ixy="-6.455410899999999e-05" ixz="4.4955880999999996e-05" iyy="0.0021216529" iyz="0.00037094612999999995" izz="0.0011572224" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_dagana-base-boxy.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<origin rpy="0 1.5707 0" xyz="0 -0.0145 0.181" />
+			<geometry>
+				<cylinder length="0.0279" radius="0.01" />
+			</geometry>
+		</visual>
+		<visual>
+			<origin rpy="0 0 0" xyz="0.0 0.0007432 0.0405" />
+			<geometry>
+				<box size="0.0879  0.0844864 0.081" />
+			</geometry>
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.036074" />
+			</geometry>
+			<origin xyz="-0.019235 -0.0270499990016222 0.10293199994039536" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.036651" />
+			</geometry>
+			<origin xyz="0.024993 -0.0267919990016222 0.10870499994039536" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.036232" />
+			</geometry>
+			<origin xyz="-0.004425 -0.0243999990016222 0.16138399994039535" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014127" />
+			</geometry>
+			<origin xyz="0.003972 -0.014501 0.181001" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.00397 -0.0145 0.180999" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.009249" />
+			</geometry>
+			<origin xyz="0.008204 -0.018225 0.182992" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.071172" />
+			</geometry>
+			<origin xyz="-0.003448 0.0007471999999999994 0.0405" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.058601" />
+			</geometry>
+			<origin xyz="0.014001 -0.011551800000000001 0.0405" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.06098" />
+			</geometry>
+			<origin xyz="0.011714 0.010751199999999999 0.0405" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="dagana_2_claw">
+		<inertial>
+			<origin xyz="-0.0516203 0.0080601187 -0.037212096" />
+			<mass value="0.25739835" />
+			<inertia ixx="0.00029169897" ixy="8.3015178e-06" ixz="1.3355847e-05" iyy="0.00073268589" iyz="-2.1083033000000003e-06" izz="0.00051112938" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_dagana-clamp-boxy.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<visual>
+			<origin rpy="0 0 0" xyz="-0.137 0.0 -0.0362125" />
+			<geometry>
+				<cylinder length="0.0279" radius="0.01" />
+			</geometry>
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.03653" />
+			</geometry>
+			<origin xyz="-0.06074600017881394 0.012469000350177242 -0.01591449762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.035533" />
+			</geometry>
+			<origin xyz="-0.11655100017881394 0.009937000350177243 -0.03477649762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.035912" />
+			</geometry>
+			<origin xyz="-0.06339500017881394 0.012349000350177242 -0.06071149762363732" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.137 0.0 -0.0322415" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.014128" />
+			</geometry>
+			<origin xyz="-0.137 0.0 -0.040183500000000004" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.013142" />
+			</geometry>
+			<origin xyz="-0.13645100000000002 -0.000821 -0.0410675" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="hip_roll_1_link">
+		<inertial>
+			<origin xyz="-0.00067317742 0.0065349155 -0.11564663" />
+			<mass value="2.5772427" />
+			<inertia ixx="0.014198247999999998" ixy="5.199100799999999e-06" ixz="5.3090191e-05" iyy="0.014484612" iyz="0.001454582" izz="0.004551220599999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-roll.stl" scale="0.001 -0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.096785" />
+			</geometry>
+			<origin xyz="0.0001597408317981338 -0.0017195196465923887 -0.09769482724500583" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.088574" />
+			</geometry>
+			<origin xyz="-0.004973259168201866 -0.01598751964659239 -0.010322827245005842" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.08529" />
+			</geometry>
+			<origin xyz="0.010491740831798133 -0.01726351964659239 0.00461717275499416" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="hip_pitch_1_link">
+		<inertial>
+			<origin xyz="6.9653887e-05 -0.077666126 0.14689295000000002" />
+			<mass value="6.4366103" />
+			<inertia ixx="0.12144025" ixy="-0.0006467757299999999" ixz="-5.7668584e-05" iyy="0.03368201999999999" iyz="0.027586780999999998" izz="0.10048465" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.117058" />
+			</geometry>
+			<origin xyz="0.004707697127161226 -0.2989999041746629 0.1963384474384007" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.130528" />
+			</geometry>
+			<origin xyz="-0.00010230287283877386 -0.12452390417466286 0.17403644743840072" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.125976" />
+			</geometry>
+			<origin xyz="-0.00014030287283877386 -0.00823290417466288 0.14678944743840072" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="knee_pitch_1_link">
+		<inertial>
+			<origin xyz="5.1193011000000004e-06 -0.10291594999999999 -0.0012895495" />
+			<mass value="0.70900216" />
+			<inertia ixx="0.012517512" ixy="5.4385779e-07" ixz="-1.4538899e-07" iyy="0.00080474409" iyz="0.001744629" izz="0.01230702" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_foot-leg.stl" scale="-0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.079645" />
+			</geometry>
+			<origin xyz="0.0033799580630830646 -0.2707457327348609 0.021320262858306967" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.075249" />
+			</geometry>
+			<origin xyz="-0.004438041936916936 -0.1459827327348609 0.016821262858306964" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.070594" />
+			</geometry>
+			<origin xyz="0.0030509580630830643 -0.02866373273486089 0.011389262858306966" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="contact_1">
+		<inertial>
+			<origin xyz="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="6.4e-7" ixy="0.0" ixz="0.0" iyy="6.4e-7" iyz="0.0" izz="6.4e-7" />
+		</inertial>
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0" />
+			<geometry>
+				<sphere radius="0.03" />
+			</geometry>
+			<material name="white" />
+		</visual>
+	<collision name="contact_1">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.03" />
+      </geometry>
+    </collision>
+  </link>
+	<link name="hip_roll_2_link">
+		<inertial>
+			<origin xyz="-0.00067317742 0.0065349155 -0.11564663" />
+			<mass value="2.5772427" />
+			<inertia ixx="0.014198247999999998" ixy="-5.199100799999999e-06" ixz="5.3090191e-05" iyy="0.014484612" iyz="-0.001454582" izz="0.004551220599999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-roll.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.095013" />
+			</geometry>
+			<origin xyz="-5.5590246492222915e-05 0.0011035364988824328 -0.09796130623889415" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.084441" />
+			</geometry>
+			<origin xyz="-0.0019995902464922228 0.016456536498882433 0.003964693761105843" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.086943" />
+			</geometry>
+			<origin xyz="0.001228409753507777 0.009908536498882433 -0.05303130623889416" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="hip_pitch_2_link">
+		<inertial>
+			<origin xyz="6.9653887e-05 -0.077666126 0.14689295000000002" />
+			<mass value="6.4366103" />
+			<inertia ixx="0.12144025" ixy="-0.0006467757299999999" ixz="-5.7668584e-05" iyy="0.03368201999999999" iyz="0.027586780999999998" izz="0.10048465" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.117058" />
+			</geometry>
+			<origin xyz="0.004707697127161226 -0.2989999041746629 0.1963384474384007" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.130528" />
+			</geometry>
+			<origin xyz="-0.00010230287283877386 -0.12452390417466286 0.17403644743840072" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.125976" />
+			</geometry>
+			<origin xyz="-0.00014030287283877386 -0.00823290417466288 0.14678944743840072" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="knee_pitch_2_link">
+		<inertial>
+			<origin xyz="5.1193011000000004e-06 -0.10291594999999999 -0.0012895495" />
+			<mass value="0.70900216" />
+			<inertia ixx="0.012517512" ixy="-5.4385779e-07" ixz="1.4538899e-07" iyy="0.00080474409" iyz="0.001744629" izz="0.01230702" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_foot-leg.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.077575" />
+			</geometry>
+			<origin xyz="-0.006254163090118666 -0.27392160165710144 0.021576993579846316" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.077921" />
+			</geometry>
+			<origin xyz="0.0067878369098813346 -0.14970360165710145 0.016957993579846314" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.071513" />
+			</geometry>
+			<origin xyz="-0.006069163090118666 -0.030128601657101448 0.011508993579846315" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="contact_2">
+		<inertial>
+			<origin xyz="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="6.4e-7" ixy="0.0" ixz="0.0" iyy="6.4e-7" iyz="0.0" izz="6.4e-7" />
+		</inertial>
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0" />
+			<geometry>
+				<sphere radius="0.03" />
+			</geometry>
+			<material name="white" />
+		</visual>
+	<collision name="contact_2">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.03" />
+      </geometry>
+    </collision>
+  </link>
+	<link name="hip_roll_3_link">
+		<inertial>
+			<origin xyz="-0.00067317742 0.0065349155 -0.11564663" />
+			<mass value="2.5772427" />
+			<inertia ixx="0.014198247999999998" ixy="5.199100799999999e-06" ixz="5.3090191e-05" iyy="0.014484612" iyz="0.001454582" izz="0.004551220599999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-roll.stl" scale="0.001 -0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.096785" />
+			</geometry>
+			<origin xyz="0.0001597408317981338 -0.0017195196465923887 -0.09769482724500583" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.088574" />
+			</geometry>
+			<origin xyz="-0.004973259168201866 -0.01598751964659239 -0.010322827245005842" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.08529" />
+			</geometry>
+			<origin xyz="0.010491740831798133 -0.01726351964659239 0.00461717275499416" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="hip_pitch_3_link">
+		<inertial>
+			<origin xyz="6.9653887e-05 -0.077666126 0.14689295000000002" />
+			<mass value="6.4366103" />
+			<inertia ixx="0.12144025" ixy="-0.0006467757299999999" ixz="-5.7668584e-05" iyy="0.03368201999999999" iyz="0.027586780999999998" izz="0.10048465" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.117058" />
+			</geometry>
+			<origin xyz="0.004707697127161226 -0.2989999041746629 0.1963384474384007" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.130528" />
+			</geometry>
+			<origin xyz="-0.00010230287283877386 -0.12452390417466286 0.17403644743840072" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.125976" />
+			</geometry>
+			<origin xyz="-0.00014030287283877386 -0.00823290417466288 0.14678944743840072" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="knee_pitch_3_link">
+		<inertial>
+			<origin xyz="5.1193011000000004e-06 -0.10291594999999999 -0.0012895495" />
+			<mass value="0.70900216" />
+			<inertia ixx="0.012517512" ixy="5.4385779e-07" ixz="-1.4538899e-07" iyy="0.00080474409" iyz="0.001744629" izz="0.01230702" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_foot-leg.stl" scale="-0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.079645" />
+			</geometry>
+			<origin xyz="0.0033799580630830646 -0.2707457327348609 0.021320262858306967" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.075249" />
+			</geometry>
+			<origin xyz="-0.004438041936916936 -0.1459827327348609 0.016821262858306964" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.070594" />
+			</geometry>
+			<origin xyz="0.0030509580630830643 -0.02866373273486089 0.011389262858306966" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="contact_3">
+		<inertial>
+			<origin xyz="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="6.4e-7" ixy="0.0" ixz="0.0" iyy="6.4e-7" iyz="0.0" izz="6.4e-7" />
+		</inertial>
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0" />
+			<geometry>
+				<sphere radius="0.03" />
+			</geometry>
+			<material name="white" />
+		</visual>
+	<collision name="contact_3">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.03" />
+      </geometry>
+    </collision>
+  </link>
+	<link name="hip_roll_4_link">
+		<inertial>
+			<origin xyz="-0.00067317742 0.0065349155 -0.11564663" />
+			<mass value="2.5772427" />
+			<inertia ixx="0.014198247999999998" ixy="-5.199100799999999e-06" ixz="5.3090191e-05" iyy="0.014484612" iyz="-0.001454582" izz="0.004551220599999999" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-roll.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.095013" />
+			</geometry>
+			<origin xyz="-5.5590246492222915e-05 0.0011035364988824328 -0.09796130623889415" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.084441" />
+			</geometry>
+			<origin xyz="-0.0019995902464922228 0.016456536498882433 0.003964693761105843" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.086943" />
+			</geometry>
+			<origin xyz="0.001228409753507777 0.009908536498882433 -0.05303130623889416" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="hip_pitch_4_link">
+		<inertial>
+			<origin xyz="6.9653887e-05 -0.077666126 0.14689295000000002" />
+			<mass value="6.4366103" />
+			<inertia ixx="0.12144025" ixy="-0.0006467757299999999" ixz="-5.7668584e-05" iyy="0.03368201999999999" iyz="0.027586780999999998" izz="0.10048465" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="kyon_orange" />
+		</visual>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_hip-pitch_cover.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.117058" />
+			</geometry>
+			<origin xyz="0.004707697127161226 -0.2989999041746629 0.1963384474384007" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.130528" />
+			</geometry>
+			<origin xyz="-0.00010230287283877386 -0.12452390417466286 0.17403644743840072" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.125976" />
+			</geometry>
+			<origin xyz="-0.00014030287283877386 -0.00823290417466288 0.14678944743840072" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="knee_pitch_4_link">
+		<inertial>
+			<origin xyz="5.1193011000000004e-06 -0.10291594999999999 -0.0012895495" />
+			<mass value="0.70900216" />
+			<inertia ixx="0.012517512" ixy="-5.4385779e-07" ixz="1.4538899e-07" iyy="0.00080474409" iyz="0.001744629" izz="0.01230702" />
+		</inertial>
+		<visual>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0" />
+			<geometry>
+				<mesh filename="package://kyon_urdf/meshes/visual_lowres/mesh_foot-leg.stl" scale="0.001 0.001 0.001" />
+			</geometry>
+			<material name="dark_grey" />
+		</visual>
+		<collision>
+			<geometry>
+				<sphere radius="0.077575" />
+			</geometry>
+			<origin xyz="-0.006254163090118666 -0.27392160165710144 0.021576993579846316" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.077921" />
+			</geometry>
+			<origin xyz="0.0067878369098813346 -0.14970360165710145 0.016957993579846314" rpy="0 0 0" />
+		</collision>
+		<collision>
+			<geometry>
+				<sphere radius="0.071513" />
+			</geometry>
+			<origin xyz="-0.006069163090118666 -0.030128601657101448 0.011508993579846315" rpy="0 0 0" />
+		</collision>
+	</link>
+	<link name="contact_4">
+		<inertial>
+			<origin xyz="0 0 0" />
+			<mass value="0.001" />
+			<inertia ixx="6.4e-7" ixy="0.0" ixz="0.0" iyy="6.4e-7" iyz="0.0" izz="6.4e-7" />
+		</inertial>
+		<visual>
+			<origin rpy="0 0 0" xyz="0 0 0" />
+			<geometry>
+				<sphere radius="0.03" />
+			</geometry>
+			<material name="white" />
+		</visual>
+	<collision name="contact_4">
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <sphere radius="0.03" />
+      </geometry>
+    </collision>
+  </link>
+	<link name="world" />
+	<joint name="base_joint" type="fixed">
+		<parent link="pelvis" />
+		<child link="base_link" />
+		<origin rpy="0 0 0" xyz="0 0 0" />
+	</joint>
+	<joint name="imu_joint" type="fixed">
+		<origin rpy="3.14159265359 0 0" xyz="-0.256190 0 0.103" />
+		<parent link="pelvis" />
+		<child link="imu_link" />
+	</joint>
+	<joint name="zed_front_up_mount_joint" type="fixed">
+		<parent link="pelvis" />
+		<child link="zed_front_up_mount_link" />
+		<origin rpy="0 -0.1745327 0" xyz="0.526174 0 0.0674608" />
+	</joint>
+	<joint name="zed_front_down_mount_joint" type="fixed">
+		<parent link="pelvis" />
+		<child link="zed_front_down_mount_link" />
+		<origin rpy="0 0.9250251 0" xyz="0.509601 0 0.00343992" />
+	</joint>
+	<joint name="left_camera_mount_joint" type="fixed">
+		<parent link="pelvis" />
+		<child link="left_camera_mount_link" />
+		<origin rpy="0 0.3490656 1.5707963" xyz="0 0.150100 0.109486" />
+	</joint>
+	<joint name="right_camera_mount_joint" type="fixed">
+		<parent link="pelvis" />
+		<child link="right_camera_mount_link" />
+		<origin rpy="0 0.3490656 -1.5707963" xyz="0 -0.150100 0.109486" />
+	</joint>
+	<joint name="hesai_lidar_joints" type="fixed">
+		<origin rpy="0 0 2.0928020" xyz="0.43 0 0.118" />
+		<parent link="pelvis" />
+		<child link="hesai_lidar" />
+	</joint>
+	<joint name="shoulder_yaw_1" type="revolute">
+		<parent link="pelvis" />
+		<child link="shoulder_yaw_1_link" />
+		<origin rpy="-0.3490656 0.0 0.0" xyz="0.28 0.0998258 0.203238" />
+		<axis xyz="0 0 -1" />
+		<limit effort="122" lower="-3.0" upper="3.0" velocity="4.6" />
+	</joint>
+	<joint name="shoulder_pitch_1" type="revolute">
+		<parent link="shoulder_yaw_1_link" />
+		<child link="shoulder_pitch_1_link" />
+		<origin rpy="-1.57079632679 0.0 -3.14159265358" xyz="0.0 0.0 0.0735" />
+		<axis xyz="0 0 1" />
+		<limit effort="146" lower="-2.2" upper="2.2" velocity="3.8" />
+	</joint>
+	<joint name="elbow_pitch_1" type="revolute">
+		<parent link="shoulder_pitch_1_link" />
+		<child link="elbow_pitch_1_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.32 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="122" lower="-2.8" upper="2.8" velocity="4.6" />
+	</joint>
+	<joint name="wrist_pitch_1" type="revolute">
+		<parent link="elbow_pitch_1_link" />
+		<child link="wrist_pitch_1_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.25 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="25" lower="-1.6" upper="1.6" velocity="14" />
+	</joint>
+	<joint name="wrist_yaw_1" type="revolute">
+		<parent link="wrist_pitch_1_link" />
+		<child link="wrist_yaw_1_link" />
+		<origin rpy="1.57079632679 0.0 0.0" xyz="0.0 -0.13861199999999999 0.0" />
+		<axis xyz="0 0 1" />
+		<limit effort="25" lower="-2.7" upper="2.7" velocity="14" />
+	</joint>
+	<joint name="dagana_1_base_joint" type="fixed">
+		<parent link="wrist_yaw_1_link" />
+		<child link="dagana_1_base" />
+		<origin rpy="0.0 0.0 -1.57079632679" xyz="0.0 0.0 0.0" />
+	</joint>
+	<joint name="dagana_1_clamp_joint" type="revolute">
+		<parent link="dagana_1_base" />
+		<child link="dagana_1_claw" />
+		<origin rpy="0.0 1.57079632679 0.0" xyz="0.0361625 0.016 0.044" />
+		<axis xyz="0 0 -1" />
+		<limit effort="25" lower="0" upper="1.2" velocity="14" />
+	</joint>
+	<joint name="shoulder_yaw_2" type="revolute">
+		<parent link="pelvis" />
+		<child link="shoulder_yaw_2_link" />
+		<origin rpy="0.3490656 0.0 0.0" xyz="0.28 -0.0998258 0.203238" />
+		<axis xyz="0 0 -1" />
+		<limit effort="122" lower="-3.0" upper="3.0" velocity="4.6" />
+	</joint>
+	<joint name="shoulder_pitch_2" type="revolute">
+		<parent link="shoulder_yaw_2_link" />
+		<child link="shoulder_pitch_2_link" />
+		<origin rpy="-1.57079632679 0.0 0.0" xyz="0.0 0.0 0.0735" />
+		<axis xyz="0 0 1" />
+		<limit effort="146" lower="-2.2" upper="2.2" velocity="3.8" />
+	</joint>
+	<joint name="elbow_pitch_2" type="revolute">
+		<parent link="shoulder_pitch_2_link" />
+		<child link="elbow_pitch_2_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.32 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="122" lower="-2.8" upper="2.8" velocity="4.6" />
+	</joint>
+	<joint name="wrist_pitch_2" type="revolute">
+		<parent link="elbow_pitch_2_link" />
+		<child link="wrist_pitch_2_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.25 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="25" lower="-1.6" upper="1.6" velocity="14" />
+	</joint>
+	<joint name="wrist_yaw_2" type="revolute">
+		<parent link="wrist_pitch_2_link" />
+		<child link="wrist_yaw_2_link" />
+		<origin rpy="1.57079632679 0.0 0.0" xyz="0.0 -0.13861199999999999 0.0" />
+		<axis xyz="0 0 1" />
+		<limit effort="25" lower="-2.7" upper="2.7" velocity="14" />
+	</joint>
+	<joint name="dagana_2_base_joint" type="fixed">
+		<parent link="wrist_yaw_2_link" />
+		<child link="dagana_2_base" />
+		<origin rpy="0.0 0.0 1.57079632679" xyz="0.0 0.0 0.0" />
+	</joint>
+	<joint name="dagana_2_clamp_joint" type="revolute">
+		<parent link="dagana_2_base" />
+		<child link="dagana_2_claw" />
+		<origin rpy="0.0 1.57079632679 0.0" xyz="0.0361625 0.016 0.044" />
+		<axis xyz="0 0 -1" />
+		<limit effort="25" lower="0" upper="1.2" velocity="14" />
+	</joint>
+	<joint name="hip_roll_1" type="revolute">
+		<parent link="pelvis" />
+		<child link="hip_roll_1_link" />
+		<origin rpy="0.0 1.57079632679 0.0" xyz="0.391 0.0775 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-0.65" upper="0.65" velocity="7.6" />
+	</joint>
+	<joint name="hip_pitch_1" type="revolute">
+		<parent link="hip_roll_1_link" />
+		<child link="hip_pitch_1_link" />
+		<origin rpy="0.0 1.57079632679 1.57079632679" xyz="0.0 -0.04746 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-2.4056" upper="2.4056" velocity="7.6" />
+	</joint>
+	<joint name="knee_pitch_1" type="revolute">
+		<parent link="hip_pitch_1_link" />
+		<child link="knee_pitch_1_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.34600000000000003 0.24606" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-3.2" upper="3.2" velocity="7.6" />
+	</joint>
+	<joint name="contact_1_joint" type="fixed">
+		<parent link="knee_pitch_1_link" />
+		<child link="contact_1" />
+		<origin rpy="-1.57 0 0.785" xyz="0.0 -0.312 0.024" />
+	</joint>
+	<joint name="hip_roll_2" type="revolute">
+		<parent link="pelvis" />
+		<child link="hip_roll_2_link" />
+		<origin rpy="0.0 1.57079632679 0.0" xyz="0.391 -0.0775 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-0.65" upper="0.65" velocity="7.6" />
+	</joint>
+	<joint name="hip_pitch_2" type="revolute">
+		<parent link="hip_roll_2_link" />
+		<child link="hip_pitch_2_link" />
+		<origin rpy="0.0 -1.57079632679 1.57079632679" xyz="0.0 0.04746 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-2.3266" upper="2.3266" velocity="7.6" />
+	</joint>
+	<joint name="knee_pitch_2" type="revolute">
+		<parent link="hip_pitch_2_link" />
+		<child link="knee_pitch_2_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.34600000000000003 0.24606" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-3.2" upper="3.2" velocity="7.6" />
+	</joint>
+	<joint name="contact_2_joint" type="fixed">
+		<parent link="knee_pitch_2_link" />
+		<child link="contact_2" />
+		<origin rpy="1.57 0 2.356" xyz="-0.0 -0.312 0.024" />
+	</joint>
+	<joint name="hip_roll_3" type="revolute">
+		<parent link="pelvis" />
+		<child link="hip_roll_3_link" />
+		<origin rpy="0.0 -1.57079632679 0.0" xyz="-0.391 0.0775 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-0.65" upper="0.65" velocity="7.6" />
+	</joint>
+	<joint name="hip_pitch_3" type="revolute">
+		<parent link="hip_roll_3_link" />
+		<child link="hip_pitch_3_link" />
+		<origin rpy="0.0 -1.57079632679 -1.57079632679" xyz="0.0 -0.04746 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-2.4696" upper="2.4696" velocity="7.6" />
+	</joint>
+	<joint name="knee_pitch_3" type="revolute">
+		<parent link="hip_pitch_3_link" />
+		<child link="knee_pitch_3_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.34600000000000003 0.24606" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-3.2" upper="3.2" velocity="7.6" />
+	</joint>
+	<joint name="contact_3_joint" type="fixed">
+		<parent link="knee_pitch_3_link" />
+		<child link="contact_3" />
+		<origin rpy="-1.57 0 0.785" xyz="0.0 -0.312 0.024" />
+	</joint>
+	<joint name="hip_roll_4" type="revolute">
+		<parent link="pelvis" />
+		<child link="hip_roll_4_link" />
+		<origin rpy="0.0 -1.57079632679 0.0" xyz="-0.391 -0.0775 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-0.65" upper="0.65" velocity="7.6" />
+	</joint>
+	<joint name="hip_pitch_4" type="revolute">
+		<parent link="hip_roll_4_link" />
+		<child link="hip_pitch_4_link" />
+		<origin rpy="0.0 1.57079632679 -1.57079632679" xyz="0.0 0.04746 0.0" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-2.3426" upper="2.3426" velocity="7.6" />
+	</joint>
+	<joint name="knee_pitch_4" type="revolute">
+		<parent link="hip_pitch_4_link" />
+		<child link="knee_pitch_4_link" />
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 -0.34600000000000003 0.24606" />
+		<axis xyz="0 0 -1" />
+		<limit effort="185" lower="-3.2" upper="3.2" velocity="7.6" />
+	</joint>
+	<joint name="contact_4_joint" type="fixed">
+		<parent link="knee_pitch_4_link" />
+		<child link="contact_4" />
+		<origin rpy="1.57 0 2.356" xyz="-0.0 -0.312 0.024" />
+	</joint>
+	<joint name="reference" type="floating">
+		<parent link="world" />
+		<child link="pelvis" />
+		<origin xyz="0 0 0.6" />
+	</joint>
+</robot>

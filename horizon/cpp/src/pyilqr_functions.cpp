@@ -69,6 +69,15 @@ void bindIlqrFunctions(py::module_& m)
     py::class_<NativeCasadiCallback,std::shared_ptr<NativeCasadiCallback>>(m,"_NativeCasadiCallback");
     py::register_exception<EvaluationError>(m,"EvaluationError");
     py::class_<Function,std::shared_ptr<Function>>(m,"Function")
+        .def("_exportCasadi",[](const Function& f,const std::string& name,py::object destination){
+            auto cls=py::module_::import("casadi").attr("Function");
+            if(!py::isinstance(destination,cls))throw std::invalid_argument("destination must be a CasADi Function");
+            auto address=py::int_(destination.attr("this")).cast<std::uintptr_t>();
+            if(!address)throw std::invalid_argument("null CasADi Function");
+            auto callback=std::make_shared<NativeCasadiCallback>(name,std::make_shared<NativeCasadiCallback::Workspace>(f));
+            *reinterpret_cast<casadi::Function*>(address)=*callback;
+            return callback;
+        })
         .def("inputSize",&Function::inputSize)
         .def("outputSize",&Function::outputSize)
         .def("hasHessian",&Function::hasHessian)
@@ -133,5 +142,7 @@ void bindIlqrFunctions(py::module_& m)
             Vector out(s.tangentSize());s.difference(a,b,out);return out;
         });
     py::class_<EuclideanSpace,StateSpace,std::shared_ptr<EuclideanSpace>>(m,"EuclideanSpace").def(py::init<int>());
+    py::class_<ProductSpace,StateSpace,std::shared_ptr<ProductSpace>>(m,"ProductSpace")
+        .def(py::init<std::vector<std::shared_ptr<const StateSpace>>>());
     py::class_<QuaternionSpace,StateSpace,std::shared_ptr<QuaternionSpace>>(m,"QuaternionSpace").def(py::init<>());
 }

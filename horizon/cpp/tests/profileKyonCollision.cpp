@@ -1,4 +1,4 @@
-#include "horizon/kyon_spheres.h"
+
 #include "horizon/pinocchio_collision.h"
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/parsers/urdf.hpp>
@@ -43,9 +43,11 @@ void measure(const char* name, int iterations, F&& fn)
 int main(int argc, char** argv)
 {
     const int iterations = argc > 1 ? std::max(1, std::atoi(argv[1])) : 2000;
+    if (argc < 4) throw std::invalid_argument("usage: profileKyonCollision ITERATIONS SPHERE_URDF COLLISION_JSON");
     auto model = std::make_shared<pin::Model>();
-    pin::urdf::buildModel(HORIZON_KYON_URDF_PATH, *model);
-    auto sphere_model = std::make_shared<SphereModel>(kyon::spheres());
+    pin::urdf::buildModel(argv[2], *model);
+    auto sphere_model = std::make_shared<SphereModel>(loadSphereModelFromUrdf(argv[2]));
+    const auto pairs = makeSelfCollisionPairs(*sphere_model, loadDisabledCollisionPairs(argv[3]));
     auto space = std::make_shared<KyonSpace>(model);
     auto workspace = std::make_shared<PinocchioModelWorkspace>(model);
     PinocchioSphereCenters centers_function(model, space, *sphere_model, workspace);
@@ -55,7 +57,7 @@ int main(int argc, char** argv)
     std::vector<double> radii;
     for(const auto& sphere : sphere_model->spheres()) radii.push_back(sphere.radius);
     auto plane = std::make_shared<PlaneField>(Eigen::Vector3d::Zero(), Eigen::Vector3d::UnitZ());
-    SphereDistanceFunction plane_function(radii, {plane});
+    SphereDistanceFunction plane_function(radii, {plane}, pairs);
     Vector plane_values(plane_function.outputSize());
     Matrix plane_jac(plane_function.outputSize(), plane_function.inputSize());
     Matrix directions = Matrix::Zero(plane_function.inputSize(), model->nv);
@@ -74,7 +76,7 @@ int main(int argc, char** argv)
                 grid_values[(static_cast<std::size_t>(z) * dims.y() + y) * dims.x() + x] =
                     static_cast<float>(origin.z() + z * voxel);
     auto grid = std::make_shared<SdfGrid>(dims, origin, voxel, std::move(grid_values));
-    SphereDistanceFunction grid_function(radii, {grid});
+    SphereDistanceFunction grid_function(radii, {grid}, pairs);
     Vector grid_values_out(grid_function.outputSize());
     Matrix grid_jac(grid_function.outputSize(), grid_function.inputSize());
     Matrix center_jac(center_values.size(), model->nv);
@@ -91,6 +93,7 @@ int main(int argc, char** argv)
     }
     std::cout << "Kyon nq=" << model->nq << " nv=" << model->nv
               << " spheres=" << sphere_model->spheres().size()
+              << " self_pairs=" << pairs.size()
               << " iterations=" << iterations << '\n';
 
     measure("Pinocchio sphere centers/value", iterations, [&](int i)

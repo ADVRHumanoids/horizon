@@ -3,8 +3,8 @@
 Optimize a two-second motion of `dagana_1_base` with four fixed foot contacts,
 then compare the same problem with collision costs enabled and disabled. The
 default avoidance scene places a spherical obstacle in the direct path. It
-uses a sampled environment SDF, Kyon's 94-sphere model, and the explicit 100
-inter-hand self-collision pairs. `N` is the number of shooting intervals: the
+uses a sampled environment SDF, Kyon's full-body 103-sphere URDF, and all 3,799
+enabled self-collision sphere pairs from its disabled-link policy. `N` is the number of shooting intervals: the
 trajectory contains `N+1` configurations and `N` controls.
 
 The native C++ executable performs optimization and profiling. Python creates
@@ -13,10 +13,62 @@ Visualization and diagnostic FK run after optimization, outside solve timers.
 For graph construction directly in Horizon Python, see the
 [native Pinocchio Python example](README_ilqr_native_pinocchio.md).
 
+## Modeling and example support
+
+The [C++ example](../cpp/src/kyon_collision_example.cpp) keeps symbolic dynamics,
+feet constraints, effort, tool target, collision-term selection, bounds, and
+solver settings together. Horizon-relative node selections remove manual index
+vectors:
+
+```cpp
+solver.setResidual(horizon::Nodes::running(), manager, "effort");
+solver.setResidual(horizon::Nodes::terminal(), manager, "target");
+solver.setConstraint(horizon::Nodes::all(), manager, "feet");
+solver.setStateBounds(model->lowerPositionLimit, model->upperPositionLimit);
+solver.fixInitialState(start);
+solver.setInputBounds(-1., 1.);
+solver.setStateInitialGuess(start);
+solver.setInputInitialGuess(Vector::Zero(model->nv));
+```
+
+Contact definitions use named frame positions:
+
+```cpp
+feet.push_back(kinematics.framePosition("contact_1") -
+               vectorConstant(kinematics.initialFramePosition("contact_1")));
+```
+
+Contact and tool FK uses `horizon::kinematics::PinocchioFramePositions`,
+independently of collision geometry. Example support maps the frame batch to
+names; collision sphere centers are evaluated separately. Both native functions
+share a node-local Pinocchio workspace so robot FK can be reused.
+
+For a full-pose target or rigid contact, use
+`horizon::kinematics::PinocchioFramePoseError`. Its input is
+`[q; target xyz; target quaternion xyzw]`; its output is
+`[p(q) - p_target; log(R_target.T * R(q))]`. Register that output as a residual
+for a soft target or as a constraint for a rigid contact. Position and rotation
+components can have separate weights. See the
+[Python frame and pose API](README_ilqr_native_pinocchio.md#frame-positions-and-full-pose-targets).
+
+Vectors broadcast across the trajectory; existing explicit node-vector and
+matrix APIs remain supported. `setInitialState()` sets only the node-zero
+initial guess. `fixInitialState()` explicitly sets equal bounds at node zero
+and initializes its guess.
+
+[kyon_collision_support.h](../cpp/src/kyon_collision_support.h) owns scene setup,
+backend installation and statistics, runtime lifetime, sampling, validation,
+and serialization. Scalar, Kokkos, and device paths share that support
+interface; runtime teardown follows solver and backend destruction.
+[kyon_collision_support.py](kyon_collision_support.py) holds CLI, process,
+replay export, and dashboard utilities. The Python entrypoint orchestrates
+configuration, cases, reports, and optional replay. Existing flags, filenames,
+report schemas, and exit statuses are preserved.
+
 ## Build and run
 
 Run from the repository root. The C++ dependencies are Eigen, CasADi,
-yaml-cpp, and Pinocchio. Point CMake at their installed prefixes as necessary:
+yaml-cpp, TinyXML2, and Pinocchio. Point CMake at their installed prefixes as necessary:
 
 ```bash
 cmake -S horizon/cpp -B build/kyon \
@@ -31,18 +83,16 @@ cmake --build build/kyon --target kyon_collision_example -j2
 The reporting environment needs NumPy, Matplotlib, and the Python bindings of
 Pinocchio (`pin` on PyPI). Use a Python environment compatible with the native
 dependencies. The example currently requires this repository checkout for its
-sphere-model data. Set the path to the canonical Kyon URDF:
+sphere-model data. The default runtime model and collision policy are vendored in `horizon/cpp/tests/data`:
 
 ```bash
-export KYON_URDF=/path/to/iit-kyon-ros-pkg/kyon_urdf/urdf/kyon.urdf
 python -m horizon.examples.kyon_collision \
   --build-dir build/kyon --N 30 --collision both \
   --samples 3 --warmup 1 --output /tmp/kyon-comparison
 ```
 
-Open `/tmp/kyon-comparison/report.html`. The script also finds the URDF
-automatically when `iit-kyon-ros-pkg` is a sibling of this repository.
-`--urdf PATH` overrides both mechanisms. No ROS installation is needed for a
+Open `/tmp/kyon-comparison/report.html`. Use `--urdf PATH --collision-policy PATH` to select a different sphere URDF
+and its matching policy. No ROS installation is needed for a
 headless run. The compiled executable also works directly; use
 `build/kyon/kyon_collision_example --help` for its options.
 
@@ -51,14 +101,14 @@ headless run. The compiled executable also works directly; use
 python -m horizon.examples.kyon_collision --build-dir build/kyon \
   --N 256 --collision both --output /tmp/kyon-256
 
-# Isolate a case or omit the inter-hand self-collision cost.
+# Isolate a case or omit the self-collision cost.
 python -m horizon.examples.kyon_collision --build-dir build/kyon \
   --collision on --no-self-collision --output /tmp/kyon-environment-only
 ```
 
-The default `avoidance` scene uses collision weight 1000 and a 120-iteration
-budget. `--scenario benchmark` selects the previous small-motion timing scene
-(weight 10000), retained for comparison with earlier performance reports.
+The default `avoidance` scene has a 120-iteration budget. Both scenes use
+collision weight 100 with the full collision-pair set. `--scenario benchmark`
+selects the small-motion timing scene.
 `--collision-weight W`, `--iterations`, `--damping`, `--threads` (0 is serial),
 `--samples`, and `--warmup` are configurable. The native executable defaults to
 the legacy benchmark scene; the Python example explicitly selects avoidance.
@@ -213,7 +263,12 @@ self-pair mask covers the two hands, not all possible robot link pairs.
 Soft collision costs are checked at shooting knots; continuous swept collision
 avoidance is not guaranteed by this example.
 
-Run the headless integration regression against a profiling-enabled build:
+Profiling is optional for solving, reports, and Viser/ROS2 replay. A build with
+`HORIZON_PROFILING=OFF` still reports solve time and trajectory diagnostics;
+internal solver phase timings are marked unavailable. Enable
+`HORIZON_PROFILING=ON` only when you want those detailed timer tables.
+
+Run the headless integration regression against either build:
 
 ```bash
 HORIZON_KYON_EXAMPLE_BINARY="$PWD/build/kyon/kyon_collision_example" \

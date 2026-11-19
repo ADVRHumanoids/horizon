@@ -87,6 +87,7 @@ class SolverILQR(Solver):
 
         # should we use GN approx for residuals?
         self.use_gn = self.opts.get('ilqr.enable_gn', False)
+        self._problem_constraint_functions = {}
 
         # set constraints, costs, bounds
         self._set_constraint()
@@ -150,6 +151,11 @@ class SolverILQR(Solver):
         # update bounds
         self._set_bounds()
 
+        if getattr(self, "_native_compilation", None) is not None:
+            self._native_compilation.refresh_constraints(self)
+
+        self._refresh_problem_constraints()
+
         # update nodes
         self._update_nodes()
 
@@ -201,7 +207,14 @@ class SolverILQR(Solver):
         return self.ilqr.getConstraintsValues()
 
     def getCostsValues(self):
-        return self.ilqr.getCostsValues()
+        values = self.ilqr.getCostsValues()
+        if not self.opts.get('ilqr.legacy_problem_cost_scaling', False):
+            for name in self.prb.function_container.getCost():
+                if name in values:
+                    value = np.array(values[name], copy=True)
+                    value[:self.N] /= self.N
+                    values[name] = value
+        return values
 
     def print_timings(self):
 
@@ -293,6 +306,9 @@ class SolverILQR(Solver):
             # give a type to f
             f: Function = f
 
+            if getattr(self.prb, "_native_compile_active", False) and getattr(f, "_native_owners", ()):
+                continue
+
             # get input variables for this function
             input_list = f.getVariables()
             param_list = f.getParameters()
@@ -312,16 +328,39 @@ class SolverILQR(Solver):
             elif isinstance(f, (Residual, RecedingResidual)) and not self.use_gn:
                 value = cs.sumsqr(value)
 
-            # wrap function
-            l = cs.Function(fname, 
-                            [self.x, self.u] + param_list, [value], 
-                            ['x', 'u'] + [p.getName() for p in param_list], 
-                            [outname_actual]
-                            )
+            extra_inputs, extra_names = [], []
+            normalize = outname == 'l' and not self.opts.get('ilqr.legacy_problem_cost_scaling', False)
+            if normalize:
+                symbol_type = cs.MX if isinstance(self.x, cs.MX) else cs.SX
+                scale = symbol_type.sym('horizon_problem_cost_scale')
+                if isinstance(f, (Residual, RecedingResidual)) and self.use_gn:
+                    value = np.sqrt(2)*scale*value
+                else:
+                    value = scale**2*value
+                extra_inputs = [scale]
+                extra_names = ['horizon_problem_cost_scale']
 
-            set_to_ilqr_actual(f.getNodes(), l)
-        
-    
+            l = cs.Function(fname,
+                            [self.x, self.u] + param_list + extra_inputs, [value],
+                            ['x', 'u'] + [p.getName() for p in param_list] + extra_names,
+                            [outname_actual])
+            if outname == 'h':
+                from ._native_problem import NativeCompilation
+                targets = NativeCompilation._targets(f)
+                set_to_ilqr_actual(f.getNodes(), l, targets)
+                self._problem_constraint_functions[fname] = (f, l)
+            else:
+                set_to_ilqr_actual(f.getNodes(), l)
+            if normalize:
+                self.ilqr.setParameterValue('horizon_problem_cost_scale',
+                    np.r_[np.full(self.N, np.sqrt(self.N)), 1.][None, :])
+
+    def _refresh_problem_constraints(self):
+        from ._native_problem import NativeCompilation
+        for function, compiled in self._problem_constraint_functions.values():
+            self.ilqr.setIntermediateConstraint(function.getNodes(), compiled,
+                                               NativeCompilation._targets(function))
+
     def _set_param_values(self):
 
 

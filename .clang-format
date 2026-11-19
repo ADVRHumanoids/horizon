@@ -16,3 +16,6 @@ AllowShortFunctionsOnASingleLine: None
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AllowShortLambdasOnASingleLine: None
+
+# Preserve manually inserted blank lines, including before control statements.
+KeepEmptyLinesAtTheStartOfBlocks: true

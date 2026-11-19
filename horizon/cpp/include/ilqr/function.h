@@ -83,12 +83,15 @@ public:
     template<class T, class Factory>
     std::shared_ptr<T> shareObject(const void* key, Factory&& factory)
     {
-        if(!key) throw std::invalid_argument("evaluation-context object key is null");
+        if(!key) { throw std::invalid_argument("evaluation-context object key is null");
+}
         const auto typed_key = std::make_pair(key, std::type_index(typeid(T)));
         auto it = _objects.find(typed_key);
-        if(it != _objects.end()) return std::static_pointer_cast<T>(it->second);
+        if(it != _objects.end()) { return std::static_pointer_cast<T>(it->second);
+}
         auto value = std::forward<Factory>(factory)();
-        if(!value) throw std::invalid_argument("evaluation-context factory returned null");
+        if(!value) { throw std::invalid_argument("evaluation-context factory returned null");
+}
         auto typed = std::static_pointer_cast<T>(value);
         _objects.emplace(typed_key, std::move(value));
         return typed;

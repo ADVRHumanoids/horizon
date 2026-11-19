@@ -128,10 +128,12 @@ TEST(ManagedIlqr, QuaternionShootingWithInfeasibleNodes)
         [](Input,MatrixOutput j){j.setZero();j.rightCols(3).setIdentity();}));
     Vector start(4),goal(4),rotation(3); space->neutral(start); rotation<<.7,-.5,.4;
     space->integrate(start,rotation,goal);
+    for(const std::string strategy:{"legacy","lm_merit","filter_sqp"})
+    {
     Matrix reference;
     for(int kkt:{0,1})
     {
-        IterativeLQR solver(fm,"dyn",5,{{"ilqr.n_threads",2},{"ilqr.use_kkt_solver",kkt},
+        IterativeLQR solver(fm,"dyn",5,{{"ilqr.globalization",strategy},{"ilqr.n_threads",2},{"ilqr.use_kkt_solver",kkt},
             {"ilqr.merit_der_threshold",1e-10}},space);
         solver.setResidual({0,1,2,3,4},fm,"effort");
         fixEndpoints(solver,start,goal,5);
@@ -142,7 +144,9 @@ TEST(ManagedIlqr, QuaternionShootingWithInfeasibleNodes)
             space->integrate(start,d,guess.col(k));
         }
         solver.setStateInitialGuess(guess);
-        solver.solve(40);
+        ASSERT_TRUE(solver.solve(80)) << strategy << " kkt=" << kkt
+            << " reason=" << solver.getIterationResult().acceptance_reason
+            << " stationarity=" << solver.getIterationResult().stationarity;
         Vector gap(3); space->difference(goal,solver.state(5),gap);
         EXPECT_LT(gap.norm(),1e-7);
         for(int k=0;k<5;++k)
@@ -155,6 +159,7 @@ TEST(ManagedIlqr, QuaternionShootingWithInfeasibleNodes)
         if(!kkt) reference=solver.getInputTrajectory();
         else EXPECT_LT((reference-solver.getInputTrajectory()).norm(),1e-5);
     }
+}
 }
 
 TEST(ManagedIlqr, WorkerExceptionsReachCallerAndWorkersStop)

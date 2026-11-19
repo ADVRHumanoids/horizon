@@ -1,0 +1,828 @@
+{
+  "format": "horizon.collision_asset_validation.v1",
+  "xacro": "xacro /path/to/kyon_urdf/urdf/kyon.urdf.xacro",
+  "source_revision": "0f2208d4452556f3d5b704af1f6e721dbbb6b521",
+  "foam_revision": "116928f71aaa7c40356d79c84d3c9ff1f4497d90",
+  "arguments": {
+    "branch": 3,
+    "depth": 1,
+    "threads": 2,
+    "num_trials": 2000
+  },
+  "collision_links_source": 31,
+  "collision_links_generated": 31,
+  "generated_spheres": 103,
+  "original_sphere_primitives_preserved": true,
+  "verified_output_policy": {
+    "disabled_pairs": [
+      {
+        "link1": "contact_1",
+        "link2": "contact_2",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "contact_4",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "dagana_1_claw",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "dagana_2_claw",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "knee_pitch_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_1",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "contact_3",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "contact_4",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "dagana_1_claw",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "knee_pitch_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_2",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "contact_4",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "knee_pitch_3_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "wrist_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_3",
+        "link2": "wrist_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "dagana_2_claw",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "elbow_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "knee_pitch_4_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "contact_4",
+        "link2": "wrist_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_1_base",
+        "link2": "dagana_1_claw",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "dagana_1_base",
+        "link2": "elbow_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_1_base",
+        "link2": "wrist_pitch_1_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "dagana_1_base",
+        "link2": "wrist_yaw_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "dagana_1_claw",
+        "link2": "elbow_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_1_claw",
+        "link2": "wrist_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_1_claw",
+        "link2": "wrist_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_2_base",
+        "link2": "dagana_2_claw",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "dagana_2_base",
+        "link2": "elbow_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_2_base",
+        "link2": "wrist_pitch_2_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "dagana_2_base",
+        "link2": "wrist_yaw_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "dagana_2_claw",
+        "link2": "elbow_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_2_claw",
+        "link2": "wrist_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "dagana_2_claw",
+        "link2": "wrist_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "elbow_pitch_1_link",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "elbow_pitch_1_link",
+        "link2": "wrist_pitch_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "elbow_pitch_2_link",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "elbow_pitch_2_link",
+        "link2": "wrist_pitch_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "hip_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "hip_roll_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "pelvis",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_pitch_1_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "hip_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "hip_roll_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "pelvis",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_pitch_2_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "pelvis",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_3_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "hip_roll_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "hip_roll_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "pelvis",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_pitch_4_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "hip_roll_2_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "pelvis",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_1_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "hip_roll_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "pelvis",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_2_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "hip_roll_4_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "pelvis",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_3_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "knee_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "knee_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "knee_pitch_4_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "pelvis",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "hip_roll_4_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "knee_pitch_1_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "knee_pitch_2_link",
+        "link2": "knee_pitch_3_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "knee_pitch_2_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "knee_pitch_3_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "knee_pitch_4_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "pelvis",
+        "link2": "shoulder_pitch_1_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "pelvis",
+        "link2": "shoulder_pitch_2_link",
+        "reason": "Default"
+      },
+      {
+        "link1": "pelvis",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "pelvis",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "shoulder_pitch_1_link",
+        "link2": "shoulder_yaw_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "shoulder_pitch_2_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "shoulder_yaw_1_link",
+        "link2": "shoulder_yaw_2_link",
+        "reason": "Never"
+      },
+      {
+        "link1": "wrist_pitch_1_link",
+        "link2": "wrist_yaw_1_link",
+        "reason": "Adjacent"
+      },
+      {
+        "link1": "wrist_pitch_2_link",
+        "link2": "wrist_yaw_2_link",
+        "reason": "Adjacent"
+      }
+    ],
+    "format": "horizon.disabled_collision_pairs.v1",
+    "num_trials": 2000,
+    "robot": "kyon"
+  }
+}

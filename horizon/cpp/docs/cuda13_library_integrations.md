@@ -1,5 +1,7 @@
 # CUDA 13: cuRoboV2 and nvblox integration probes
 
+Historical library feasibility measurements below used the previous 94-sphere, 100-pair workload. See [current full-body measurements](device_collision_performance.md) for the runtime URDF/JSON model.
+
 The newer toolkit is installed and both native libraries build and run. For the current Kyon/iLQR workload, keep the existing collision implementation. **nvblox is useful as an optional map producer; replacing dense queries with its sparse hash is not a speed improvement here. cuRoboV2 has very fast native FK/Jacobians, but the tested adapter/cost composition does not improve the current collision pass.**
 
 [Machine-readable results](cuda13_library_results.json) contain revisions, numerical errors, timings, dependencies, and validation scope. These experiments are isolated tools; the production FP64 backend and solver objective are unchanged.

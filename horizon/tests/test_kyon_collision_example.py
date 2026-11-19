@@ -1,4 +1,4 @@
-"""Opt-in end-to-end regression; requires a profiling-enabled native example."""
+"""Opt-in end-to-end regression for profiling and non-profiling native builds."""
 import csv
 import json
 import os
@@ -48,6 +48,8 @@ class KyonCollisionExampleTest(unittest.TestCase):
                     self.assertEqual(replay["q"].shape, (13, model.nq))
                     self.assertAlmostEqual(replay["environment_clearance"].min(),
                                            sample["min_sdf_clearance"], places=8)
+                    self.assertAlmostEqual(replay["self_clearance"].min(),
+                                           sample["min_self_clearance"], places=8)
                     for q in replay["q"]:
                         self.assertTrue(pin.isNormalized(model, q, 1e-8))
                         pin.forwardKinematics(model, data, q)
@@ -57,11 +59,15 @@ class KyonCollisionExampleTest(unittest.TestCase):
                         np.testing.assert_allclose(feet, replay["feet"], atol=1e-4)
                     tool = data.oMf[model.getFrameId("dagana_1_base")].translation
                     self.assertLess(np.linalg.norm(tool - target), .005)
-                for phase in ("linearize_quadratize", "backward_pass", "line_search"):
+                phases = ("linearize_quadratize", "backward_pass", "line_search") if profile["profiling_enabled"] else ()
+                for phase in phases:
                     stats = sample["phase_statistics"][phase]
                     self.assertGreater(stats["calls"], 0)
                     self.assertGreater(stats["total_us"], 0)
                     self.assertLessEqual(stats["p50_us"], stats["p95_us"])
+                if not profile["profiling_enabled"]:
+                    self.assertFalse(sample.get("phase_statistics"))
+                    self.assertIn("Internal solver timings unavailable", (output / "report.html").read_text())
                 with (directory / "trajectory_iterations_0.csv").open() as stream:
                     trace = list(csv.DictReader(stream))
                 elapsed = np.array([float(row["elapsed_ms"]) for row in trace])

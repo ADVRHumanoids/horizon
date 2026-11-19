@@ -63,6 +63,8 @@ class AbstractFunction:
         all_input = self.vars + self.pars
         all_names = [f'{i.getName()}_{str(i.getOffset())}' for i in all_input]
 
+        from horizon.native import _owners
+        self._native_owners = _owners(f)
         self._fun = cs.Function(name, self.vars + self.pars, [self._f], all_names, ['f'])
 
     def getName(self) -> str:

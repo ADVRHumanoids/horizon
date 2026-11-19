@@ -1,0 +1,597 @@
+{
+  "disabled_pairs": [
+    {
+      "link1": "contact_1",
+      "link2": "hesai_jt128_back_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hesai_jt128_front_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hip_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "knee_pitch_1_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "contact_1",
+      "link2": "pelvis",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "contact_3",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hesai_jt128_back_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hesai_jt128_front_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "knee_pitch_2_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "contact_2",
+      "link2": "pelvis",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hesai_jt128_back_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hesai_jt128_front_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_3",
+      "link2": "knee_pitch_3_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hesai_jt128_back_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hesai_jt128_front_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "knee_pitch_4_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "contact_4",
+      "link2": "pelvis",
+      "reason": "Never"
+    },
+    {
+      "link1": "dagana_1_base",
+      "link2": "dagana_1_claw",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "dagana_1_base",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "dagana_2_base",
+      "link2": "dagana_2_claw",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "dagana_2_base",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hesai_jt128_front_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Default"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Default"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_back_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "hip_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "hip_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Default"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hesai_jt128_front_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "hip_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "hip_roll_1_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_1_link",
+      "link2": "pelvis",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "hip_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_2_link",
+      "link2": "pelvis",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_3_link",
+      "link2": "pelvis",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "hip_roll_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_pitch_4_link",
+      "link2": "pelvis",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "hip_roll_2_link",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_1_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "hip_roll_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_2_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "hip_roll_4_link",
+      "reason": "Default"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_3_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    },
+    {
+      "link1": "hip_roll_4_link",
+      "link2": "knee_pitch_1_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_4_link",
+      "link2": "knee_pitch_2_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_4_link",
+      "link2": "knee_pitch_3_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_4_link",
+      "link2": "knee_pitch_4_link",
+      "reason": "Never"
+    },
+    {
+      "link1": "hip_roll_4_link",
+      "link2": "pelvis",
+      "reason": "Adjacent"
+    }
+  ],
+  "format": "horizon.disabled_collision_pairs.v1",
+  "num_trials": 75000,
+  "robot": "kyon"
+}

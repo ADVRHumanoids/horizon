@@ -1,0 +1,5 @@
+#pragma once
+#define HORIZON_EXAMPLE_ARM R"(@CMAKE_CURRENT_SOURCE_DIR@/examples/data/planar_arm.urdf)"
+#define HORIZON_EXAMPLE_KYON R"(@CMAKE_CURRENT_SOURCE_DIR@/tests/data/kyon_full_spheres.urdf)"
+#define HORIZON_EXAMPLE_POLICY R"(@CMAKE_CURRENT_SOURCE_DIR@/tests/data/kyon_full_disabled_collisions.json)"
+#define HORIZON_EXAMPLE_SDF R"(@CMAKE_CURRENT_SOURCE_DIR@/examples/data/obstacle.vdb)"

@@ -123,6 +123,7 @@ std::pair<double, double> IterativeLQR::compute_merit_weights(
 double IterativeLQR::compute_cost(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
 {
     TIC(compute_cost);
+    ++_fp_res->value_evaluations;
     prepareEvaluationBatches(xtrj,utrj,false);
 
     double cost = 0.0;
@@ -169,17 +170,18 @@ double IterativeLQR::compute_bound_penalty(const Eigen::MatrixXd &xtrj,
 {
     TIC(compute_bound_penalty);
 
-    double res = 0.0;
-
-    auto xineq = _x_lb.array() < _x_ub.array();
-    auto uineq = _u_lb.array() < _u_ub.array();
-
-    res += xineq.select(_x_lb - xtrj, 0).cwiseMax(0).lpNorm<1>();
-    res += xineq.select(_x_ub - xtrj, 0).cwiseMin(0).lpNorm<1>();
-    res += uineq.select(_u_lb - utrj, 0).cwiseMax(0).lpNorm<1>();
-    res += uineq.select(_u_ub - utrj, 0).cwiseMin(0).lpNorm<1>();
-
-    return res / _N;
+    // Maximum component violation, so the stopping tolerance applies to
+    // every bound independently of the horizon length.
+    double res = 0;
+    for(int k = 0; k <= _N; ++k)
+        for(int j = 0; j < _ns; ++j)
+            if(_x_lb(j,k) < _x_ub(j,k))
+                res = std::max({res,_x_lb(j,k)-xtrj(j,k),xtrj(j,k)-_x_ub(j,k)});
+    for(int k = 0; k < _N; ++k)
+        for(int j = 0; j < _nu; ++j)
+            if(_u_lb(j,k) < _u_ub(j,k))
+                res = std::max({res,_u_lb(j,k)-utrj(j,k),utrj(j,k)-_u_ub(j,k)});
+    return res;
 }
 
 double IterativeLQR::compute_constr(const Eigen::MatrixXd& xtrj, const Eigen::MatrixXd& utrj)
@@ -321,8 +323,12 @@ bool IterativeLQR::line_search(int iter)
         report_result(*_fp_res);
     }
 
-    // maybe we can stop
-    if(should_stop())
+    // An AL subproblem may be stationary while the original bounds are
+    // infeasible. Return to the outer dual update without a zero-step search.
+    _fp_res->merit = merit;
+    const bool stationary_al = _enable_auglag && auglag_inner_converged() &&
+        _fp_res->step_length <= 16*std::numeric_limits<double>::epsilon()*(1+_xtrj.norm()+_utrj.norm());
+    if(should_stop() || stationary_al)
     {
         report_result(*_fp_res);
         return true;
@@ -351,6 +357,11 @@ bool IterativeLQR::line_search(int iter)
                                              _fp_res->defect_norm,
                                              _fp_res->constraint_violation);
 
+        // Shifted AL costs can lose a few ulps when subtracting the dual
+        // constant. Do not turn roundoff at an inner optimum into repeated
+        // line-search failures and ever-increasing Hessian regularization.
+        const double merit_roundoff = _enable_auglag ?
+            16*std::numeric_limits<double>::epsilon()*(1+std::abs(merit)) : 0;
         if(_use_it_filter)
         {
             // evaluate filter
@@ -362,8 +373,12 @@ bool IterativeLQR::line_search(int iter)
         else
         {
             // evaluate Armijo's condition
-            _fp_res->accepted = _fp_res->merit <= merit + eta*alpha*merit_der;
+            _fp_res->accepted = _fp_res->merit <= merit + eta*alpha*merit_der + merit_roundoff;
         }
+
+        if(_enable_auglag && std::abs(alpha*merit_der) <= merit_roundoff &&
+            std::abs(_fp_res->merit-merit) <= merit_roundoff)
+            _fp_res->accepted = true;
 
         // if full step ok, we can reduce regularization
         if(_fp_res->accepted)
@@ -465,7 +480,7 @@ bool IterativeLQR::should_stop()
     }
 
     if(_enable_auglag &&
-            _fp_res->bound_violation > constraint_violation_threshold)
+            (_fp_res->bound_violation > constraint_violation_threshold || !auglag_dual_converged()))
     {
         return false;
     }
@@ -475,7 +490,7 @@ bool IterativeLQR::should_stop()
 
     // exit if merit function directional derivative (normalized)
     // is too close to zero
-    if(std::fabs(_fp_res->merit_der) < merit_der_threshold*(1 + _fp_res->merit))
+    if(std::fabs(_fp_res->merit_der) < merit_der_threshold*(1 + std::abs(_fp_res->merit)))
     {
         std::cout << "exiting due to small merit derivative \n";
         return true;

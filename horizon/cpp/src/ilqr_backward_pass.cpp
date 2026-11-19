@@ -16,6 +16,8 @@ void IterativeLQR::backward_pass()
 
     // regularize final cost
     _value.back().S.diagonal().array() += _hxx_reg;
+    if(_globalization != "legacy")
+        _value.back().S.diagonal().array() += _damping*_global_xdiag.col(_N).array();
 
     // ..and initialize constraints and bounds
     _constraint_to_go->set(_constraint.back());
@@ -39,6 +41,7 @@ void IterativeLQR::backward_pass()
         }
         catch(HessianIndefinite&)
         {
+            if(_globalization != "legacy") throw;
             increase_regularization();
             if(_verbose) std::cout << "increasing reg at k = " << i << ", hxx_reg = " << _hxx_reg << "\n";
             // retry with increased reg
@@ -84,9 +87,35 @@ void IterativeLQR::backward_pass()
     {
         _du.col(i).noalias() = _bp_res[i].Lu * _dx.col(i) + _bp_res[i].lu;
         _dx.col(i+1).noalias() = _dyn[i].A() * _dx.col(i) + _dyn[i].B() * _du.col(i) + _dyn[i].d;
-        _lam_x.col(i) = _value[i].s + _value[i].S*_dx.col(i);
-        _lam_g[i] = _bp_res[i].glam;
     }
+
+    // Reverse the constraint row transformations in forward time. A local
+    // KKT multiplier is affine in dx and lives in the feasible basis; rows
+    // deferred to earlier stages contribute through their propagated duals.
+    Eigen::VectorXd incoming = fixed_initial_state() ?
+        Eigen::VectorXd::Zero(_bp_res[0].propagated_map.rows()).eval() : _bp_res[0].dx_lam;
+    for(int i = 0; i < _N; ++i)
+    {
+        const auto& res = _bp_res[i];
+        Eigen::VectorXd dual = res.feasible_map.transpose()*(res.glam + res.Gx*_dx.col(i))
+            + res.propagated_map.transpose()*incoming;
+        const int next_size = res.next_constraint_C.rows();
+        incoming = dual.head(next_size);
+        _lam_g[i] = dual.segment(next_size, _constraint[i].size());
+        const int bound_size = dual.size() - next_size - _constraint[i].size();
+        if(bound_size)
+            _bound_multiplier_max = std::max(_bound_multiplier_max,
+                dual.tail(bound_size).cwiseAbs().maxCoeff());
+
+        // Dynamics use A dx_i + B du_i + d - dx_{i+1} = 0, so lam_x[i]
+        // is the constrained value gradient at i+1, including deferred rows.
+        _lam_x.col(i) = _value[i+1].s + _value[i+1].S*_dx.col(i+1)
+            + res.next_constraint_C.transpose()*incoming;
+    }
+    _lam_g[_N] = incoming.head(_constraint[_N].size());
+    if(incoming.size() > _constraint[_N].size())
+        _bound_multiplier_max = std::max(_bound_multiplier_max,
+            incoming.tail(incoming.size()-_constraint[_N].size()).cwiseAbs().maxCoeff());
 
 }
 
@@ -139,12 +168,16 @@ void IterativeLQR::backward_pass_iter(int i)
     tmp.hx.noalias() = q + A.transpose()*tmp.s_plus_S_d;
     tmp.Hxx.noalias() = Q + A.transpose()*tmp.S_A;
     tmp.Hxx.diagonal().array() += _hxx_reg;
+    if(_globalization != "legacy")
+        tmp.Hxx.diagonal().array() += _damping*_global_xdiag.col(i).array();
 
     // remaining components of next node's value function
     tmp.hu.noalias() = r + B.transpose()*tmp.s_plus_S_d;
     tmp.Huu.noalias() = R + B.transpose()*Snext*B;
     tmp.Hux.noalias() = P + B.transpose()*tmp.S_A;
     tmp.Huu.diagonal().array() += _huu_reg;
+    if(_globalization != "legacy")
+        tmp.Huu.diagonal().array() += _damping*_global_udiag.col(i).array();
     TOC(form_value_fn_inner);
 
     // print
@@ -276,6 +309,7 @@ void IterativeLQR::backward_pass_iter(int i)
     Lu = u_lam.topLeftCorner(_nu, _nx);
     lu = u_lam.col(_nx).head(_nu);
     lam = u_lam.col(_nx).tail(nc);
+    res.Gx = Lmu;
 
     // save optimal value function
     TIC(upd_value_fn_inner);
@@ -323,6 +357,9 @@ void IterativeLQR::backward_pass_iter(int i)
                 continue;
             }
 
+            const int row = res.propagated_map.rows();
+            res.propagated_map.conservativeResize(row + 1, Eigen::NoChange);
+            res.propagated_map.row(row) = res.infeasible_map.row(j);
             _constraint_to_go->add(tmp.Cinf.row(j),
                                    tmp.hinf.row(j));
         }
@@ -510,55 +547,52 @@ void IterativeLQR::add_bound_constraint(int k)
 
 }
 
+bool IterativeLQR::auglag_inner_converged() const
+{
+    return _fp_res->constraint_violation <= _constraint_violation_threshold &&
+        _fp_res->defect_norm <= _defect_norm_threshold &&
+        (std::abs(_fp_res->merit_der) <= _auglag_inner_tolerance*(1+std::abs(_fp_res->merit)) ||
+         _fp_res->step_length <= _step_length_threshold*(1+_utrj.norm()));
+}
+
+bool IterativeLQR::auglag_dual_converged() const
+{
+    for(int k = 0; k <= _N; ++k)
+        if(_auglag_cost[k]->multiplierResidual(_xtrj.col(k),_utrj.col(std::min(k,_N-1)),k)
+            > _constraint_violation_threshold)
+            return false;
+    return true;
+}
+
 bool IterativeLQR::auglag_update()
 {
-    // check if we need to update the aug lag estimate
-    if(!_enable_auglag)
-    {
+    if(!_enable_auglag || !auglag_inner_converged()) return false;
+    if(_fp_res->bound_violation <= _constraint_violation_threshold && auglag_dual_converged())
         return false;
-    }
 
-    // current solution too coarse based on merit derivative
-    if(std::fabs(_fp_res->merit_der) >
-        _merit_der_threshold*(1 + _fp_res->merit))
+    if(_verbose) std::cout << "[ilqr] performing auglag update\n";
+
+    // Update duals with the penalty used to solve this subproblem. Increase
+    // the next penalty only when primal feasibility is not improving enough.
+    for(int k = 0; k <= _N; ++k)
     {
-        return false;
+        _auglag_cost[k]->update_lam(_xtrj.col(k),_utrj.col(std::min(k,_N-1)),k);
+        _lam_bound_x.col(k) = _auglag_cost[k]->getStateMultiplier()*_cost[k].scale;
+        if(k < _N) _lam_bound_u.col(k) = _auglag_cost[k]->getInputMultiplier()*_cost[k].scale;
     }
+    if(_fp_res->bound_violation > _constraint_violation_threshold &&
+        _fp_res->bound_violation > _auglag_progress_ratio*_auglag_previous_violation)
+        _rho = std::min(_rho_max,_rho*_rho_growth_factor);
+    _auglag_previous_violation = _fp_res->bound_violation;
+    for(auto& cost : _auglag_cost) cost->setRho(_rho);
 
-    // current solution does satisfy bounds,
-    // we dont need to increase rho further
-    if(_fp_res->bound_violation < _constraint_violation_threshold)
-    {
-        return false;
-    }
-
-    if(_verbose)
-    {
-        std::cout << "[ilqr] performing auglag update \n";
-    }
-
-    // grow rho
-    _rho *= _rho_growth_factor;
-
-    // update lag mult estimate
-    for(int i = 0; i < _N + 1; i++)
-    {
-        _auglag_cost[i]->update_lam(
-            _xtrj.col(i),
-            _utrj.col(std::min(i, _N-1)),
-            i);
-
-        _auglag_cost[i]->setRho(_rho);
-
-        _lam_bound_x.col(i) = _auglag_cost[i]->getStateMultiplier();
-
-        if(i < _N) _lam_bound_u.col(i) = _auglag_cost[i]->getInputMultiplier();
-    }
-
+    _fp_res->rho = _rho;
     _fp_res->mu_b = _lam_bound_u.lpNorm<1>() + _lam_bound_x.lpNorm<1>();
-
-    _fp_res->cost = compute_cost(_fp_res->xtrj, _fp_res->utrj);
-
+    _fp_res->cost = compute_cost(_xtrj,_utrj);
+    _fp_res->merit = compute_merit_value(_fp_res->mu_f,_fp_res->mu_c,
+        _fp_res->cost,_fp_res->defect_norm,_fp_res->constraint_violation);
+    // The objective has changed, so old filter entries are no longer comparable.
+    _it_filt.clear();
     return true;
 }
 
@@ -608,6 +642,7 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
 
     TIC(constraint_prepare_inner);
     // back-propagate constraint to go from next step to current step
+    res.next_constraint_C = _constraint_to_go->C();
     _constraint_to_go->propagate_backwards(A, B, d);
 
     // add current step intermediate constraint
@@ -618,7 +653,9 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
 
     // number of constraints
     int nc = _constraint_to_go->dim();
-
+    res.feasible_map.setZero(0, nc);
+    res.propagated_map.setZero(0, nc);
+    res.infeasible_map.setZero(0, nc);
 
     if(_log)
     {
@@ -656,17 +693,24 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     Eigen::MatrixXd D(Dtmp.rows(), Dtmp.cols());
     Eigen::VectorXd h(htmp.size());
 
+    // Keep the row selectors so duals can be returned in the original basis.
+    Eigen::MatrixXd selector = Eigen::MatrixXd::Zero(nc, nc);
     int pruned_idx = 0;
     for(int j = 0; j < h.size(); j++)
     {
         double Dnorm = Dtmp.row(j).lpNorm<Eigen::Infinity>();
         if(Dnorm == 0)
         {
+            const int row = res.propagated_map.rows();
+            res.propagated_map.conservativeResize(row + 1, Eigen::NoChange);
+            res.propagated_map.row(row).setZero();
+            res.propagated_map(row, j) = 1;
             _constraint_to_go->add(Ctmp.row(j),
                                    htmp.row(j));
         }
         else
         {
+            selector(pruned_idx, j) = 1;
             D.row(pruned_idx) = Dtmp.row(j);
             C.row(pruned_idx) = Ctmp.row(j);
             h(pruned_idx) = htmp(j);
@@ -753,6 +797,9 @@ IterativeLQR::FeasibleConstraint IterativeLQR::handle_constraints(int i)
     MatConstRef codQ1 = tmp.codQ.leftCols(rank);
     MatConstRef codQ2 = tmp.codQ.rightCols(nc - rank);
     TOC(constraint_decomp_inner);
+
+    res.feasible_map = codQ1.transpose()*selector.topRows(nc);
+    res.infeasible_map = codQ2.transpose()*selector.topRows(nc);
 
     // feasible part
     TIC(constraint_upd_to_go_inner);

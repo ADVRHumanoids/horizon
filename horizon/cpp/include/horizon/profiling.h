@@ -5,6 +5,7 @@
 #include <functional>
 #include <map>
 #include <vector>
+#include <string>
 
 namespace horizon { namespace utils {
 

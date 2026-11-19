@@ -33,6 +33,22 @@ private:
     std::vector<LinkSphere> _spheres;
 };
 
+/** Read link-local sphere collision geometry from a URDF at runtime. */
+SphereModel loadSphereModelFromUrdf(const std::string& path);
+
+/** Link pairs for which collision checking is disabled, with MoveIt reasons. */
+struct DisabledCollisionPair
+{
+    std::string link1, link2, reason;
+};
+std::vector<DisabledCollisionPair> loadDisabledCollisionPairs(const std::string& path);
+
+/** Expand enabled link pairs into sphere pairs. Spheres on the same link never
+ * collide with one another. All other link pairs are enabled unless explicitly
+ * disabled; a missing or malformed policy must not silently disable checks. */
+std::vector<std::pair<int, int>> makeSelfCollisionPairs(
+    const SphereModel& model, const std::vector<DisabledCollisionPair>& disabled);
+
 struct DistanceSample
 {
     double distance;
@@ -118,5 +134,28 @@ private:
     std::vector<Pair> _self_pairs;
     double _margin, _smoothing;
 };
+/** Signed clearances, with no penalty or margin baked into the function.
+ * Environment clearances precede explicitly selected self-pair clearances.
+ */
+class SphereClearanceFunction final : public ilqr::Function
+{
+public:
+    SphereClearanceFunction(std::vector<double> radii,
+        std::vector<std::shared_ptr<const DistanceField>> environment = {},
+        std::vector<std::pair<int,int>> pairs = {});
+    std::unique_ptr<ilqr::Function> clone() const override;
+    bool hasJacobianProduct() const override { return true; }
+private:
+    void evaluateImpl(ilqr::Input x, ilqr::VectorOutput value) override;
+    void jacobianImpl(ilqr::Input x, ilqr::MatrixOutput jac) override;
+    void valueAndJacobianProductImpl(ilqr::Input x, ilqr::MatrixInput directions,
+        ilqr::VectorOutput value, ilqr::MatrixOutput product) override;
+    void compute(ilqr::Input x, ilqr::VectorOutput value, const ilqr::MatrixInput* directions,
+        ilqr::MatrixOutput* product);
+    std::vector<double> _radii;
+    std::vector<std::shared_ptr<const DistanceField>> _environment;
+    std::vector<std::pair<int,int>> _pairs;
+};
+
 }
 #endif

@@ -1,0 +1,86 @@
+solid obstacle
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 -0.1
+  vertex 1.99 0.82 -0.1
+  vertex 1.99 0.62 -0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 -0.1
+  vertex 1.79 0.82 -0.1
+  vertex 1.99 0.82 -0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 0.1
+  vertex 1.99 0.62 0.1
+  vertex 1.99 0.82 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 0.1
+  vertex 1.99 0.82 0.1
+  vertex 1.79 0.82 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 -0.1
+  vertex 1.99 0.62 -0.1
+  vertex 1.99 0.62 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.62 -0.1
+  vertex 1.99 0.62 0.1
+  vertex 1.79 0.62 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.99 0.62 -0.1
+  vertex 1.99 0.82 -0.1
+  vertex 1.99 0.82 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.99 0.62 -0.1
+  vertex 1.99 0.82 0.1
+  vertex 1.99 0.62 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.99 0.82 -0.1
+  vertex 1.79 0.82 -0.1
+  vertex 1.79 0.82 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.99 0.82 -0.1
+  vertex 1.79 0.82 0.1
+  vertex 1.99 0.82 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.82 -0.1
+  vertex 1.79 0.62 -0.1
+  vertex 1.79 0.62 0.1
+ endloop
+endfacet
+facet normal 0 0 0
+ outer loop
+  vertex 1.79 0.82 -0.1
+  vertex 1.79 0.62 0.1
+  vertex 1.79 0.82 0.1
+ endloop
+endfacet
+endsolid obstacle

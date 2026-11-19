@@ -1,5 +1,8 @@
 # Native Pinocchio from Horizon Python
 
+For the complete native kinematics/dynamics API, analytic Jacobian table, and
+torque-driven contact dynamics, see the [native robot guide](README_native_robot.md).
+
 Python can configure the new function manager and compose CasADi MX expressions
 around native C++ Pinocchio calls. Graph construction happens in Python;
 values and analytical first derivatives run in C++, including parallel iLQR
@@ -27,182 +30,49 @@ ctest --test-dir build/python-native -R pythonIlqrInterop --output-on-failure
 The existing build rule copies the extension into `horizon/solvers`. CTest
 explicitly loads the extension from its own build directory, so an older
 package copy cannot mask a regression. The Kyon test additionally needs
-`KYON_URDF`, `HORIZON_KYON_URDF`, or a sibling `iit-kyon-ros-pkg` checkout;
+`KYON_URDF`;
 otherwise that portion is skipped. Python Pinocchio is used for setup and an
 independent reference check, and is required by the Kyon example/test.
 
 Without `HORIZON_WITH_PINOCCHIO`, the managers, CasADi-native adapters, and
 legacy Python API remain available; `PinocchioModel` is omitted.
 
-## Build a native graph
+## Model through Problem
 
-```python
-import casadi as cs
-from horizon.solvers import pyilqr
-from horizon.solvers.function_manager import SymbolicFunctionManager
+The [native robot guide](README_native_robot.md) shows direct MX expressions,
+full pose targets, underactuated contact dynamics, force bounds and collision
+helpers. Costs, constraints and dynamics are defined on `Problem`; call
+`Solver.make_solver` to compile for a backend. There is no public export step
+or native registration layer to configure.
 
-robot = pyilqr.PinocchioModel('/path/to/kyon.urdf')
-functions = SymbolicFunctionManager()
-q = cs.MX.sym('q', robot.nq)
-v = cs.MX.sym('v', robot.nv)
-target = cs.MX.sym('target', 3)
-
-fk = functions.addNative('tool_fk', robot.framePositions(['dagana_1_base']))
-step = functions.addNative('integrate', robot.step(0.05))
-functions.addExpression('dynamics', [q, v], step(cs.vertcat(q, v)),
-                        exact_hessian=False)
-functions.addResidual('target', [q, v, target], 100*(fk(q) - target))
-
-solver = pyilqr.IterativeLQR(functions, 'dynamics', 30,
-                           {'ilqr.n_threads': 2}, robot.configuration_space)
-solver.setResidual([30], functions, 'target')
-# Set parameter values, bounds, and initial guesses, then call solve().
-```
-
-`PinocchioModel` loads the URDF into a C++ model. It respects a floating joint
-already declared in the URDF and does not insert another one. Kyon has nq=31
-stored configuration coordinates and nv=30 tangent coordinates.
-`configuration_space` supplies Pinocchio integration/difference operations;
-`step(dt)` maps `[q; generalized_velocity]` to the next configuration, with
-analytical integration derivatives. `framePositions` returns frame origins in
-SoA order `[x0, x1, ..., y0, y1, ..., z0, z1, ...]`.
-For arbitrary link-local points, `sphereCenters` accepts `pyilqr.LinkSphere`
-objects. Functions from the same robot share node-local Pinocchio workspaces;
-different nodes/solvers own separate mutable workspaces.
-
-Use the **same manager** to finalize expressions containing its native calls.
-The returned MX objects are placeholders until `addExpression`, `addResidual`,
-or `addCost` lowers them. Do not put an unfinished placeholder into an ordinary
-CasADi Function or Horizon residual. The Python/C++ serialization bridge runs
-only during setup and preserves shared-symbol identity, nested native calls,
-and symbolic transforms. Evaluators own their compiled graphs independently of
-the Python manager's lifetime.
-
-`addResidual` defines a half squared norm with Gauss–Newton curvature. Pinocchio
-FK and integration expose analytical first derivatives; use residuals and
-first-derivative dynamics/constraints for these adapters. `addCost` requests
-exact second derivatives and rejects native calls without weighted Hessians.
-`FunctionManager.addCasadi` also registers ordinary SX/MX CasADi functions.
-No Python-callback trampoline is exposed for native node functions.
-
-## Use Horizon's Problem interface
-
-The [complete Kyon example](ilqr_native_pinocchio.py) combines ordinary Horizon
-variables, bounds, effort costs, parameter updates, and solution dictionaries
-with native dynamics, fixed foot equalities, and a tool target:
+The [kinematic example](ilqr_native_pinocchio.py) defines a velocity-controlled
+motion with fixed feet and a tool position objective. It preserves its
+historical objective through explicit residual weights. General Problem
+residuals are squared norms summed over active nodes for either backend.
+The legacy `NativeModel` adapter and low-level managers remain supported.
 
 ```bash
-python -m horizon.examples.ilqr_native_pinocchio \
-  --urdf /path/to/kyon.urdf --N 30 --threads 2
-```
-
-It uses the optional factory arguments:
-
-```python
-solver = Solver.make_solver(
-    'ilqr', problem, opts,
-    function_manager=functions, dynamics='dynamics',
-    state_space=robot.configuration_space,
-)
-solver.ilqr.setConstraint(all_nodes, functions, 'feet')
-solver.ilqr.setResidual([N], functions, 'target')
-solver.solve()
-q_solution = solver.getSolutionDict()['q']
-```
-
-In this mode the native manager supplies dynamics, so `Problem.setDynamics`
-is not required. Ordinary Horizon costs and constraints still use the legacy
-CasADi path. Register native terms through `solver.ilqr`; their active nodes
-can be updated with `setIndices`/`updateIndices`. Horizon parameters whose names
-match manager inputs are refreshed on every `solver.solve()`. If the native
-dynamics uses `Problem.setDt`, declare a scalar `dt` input as the example does.
-Fixed integration steps can instead be used with the low-level solver.
-
-The example controls generalized velocity, rather than physical joint torque.
-It checks convergence, target error, and foot drift. Native graphs cannot be
-exported as a CasADi-only saved problem; `solver.save()` raises an explicit
-`NotImplementedError` in manager mode. Legacy problem saving remains supported.
-
-The regression covers SX/MX legacy graphs against an independent dense QP,
-GN/exact costs, serial/two-worker execution, changing parameters and active
-nodes, warm starts, callbacks, and exports. Kyon checks native FK values and
-Jacobian directions, unit quaternions, fixed feet, and repeated solves with a
-changed target. It patches Python Pinocchio FK to fail during optimization,
-checking that the native solve does not enter that Python function.
-
-## CasADi/IPOPT with the same native graphs
-
-`FunctionManager.asCasadi(name, nx, nu)` exports a registered graph as a CasADi
-MX Function. Values and analytical Jacobians execute in a C++ CasADi Callback;
-there is no Python numerical callback or finite differencing. Each exported
-adapter clones the graph and protects its workspace during threaded CasADi
-maps. Calls to the same adapter are serialized; different adapters own separate
-workspaces. Cross-function/node Pinocchio caching remains specific to iLQR.
-The extension must use the same CasADi library/ABI as Python: the binding
-transfers a Function into an allocated SWIG wrapper at setup time.
-
-Use exported functions in ordinary Horizon constraints and residuals:
-
-```python
-fk_residual = functions.asCasadi('target', robot.nq, robot.nv)
-problem.createFinalResidual(
-    'tool_target', fk_residual(q, cs.MX.zeros(robot.nv), target)/np.sqrt(2))
-solver = Solver.make_solver(
-    'ipopt', problem, {'ipopt.tol': 1e-11},
-    function_manager=functions, dynamics='dynamics', gauss_newton=True,
-)
-```
-
-The solver retains the manager and adds multiple-shooting equalities for the
-named **discrete** dynamics. Inputs after state/control match Horizon parameter
-names; `dt` uses `Problem.setDt`. Do not also transcribe the dynamics through
-`Transcriptor`. Native residuals/constraints use `asCasadi` before constructing
-the solver. If using exported functions without passing `function_manager`,
-keep the manager alive yourself for the entire lifetime of those functions.
-Native callback graphs cannot be serialized or code generated.
-
-`gauss_newton=True` supplies IPOPT's `hess_lag(x, p, sigma, lambda)` with the
-upper triangle of `sigma * (2 J_r.T J_r + H_scalar_costs)`. Constraint multiplier
-curvature and residual second derivatives are omitted. The Jacobian and GN
-matrix are evaluated at the current NLP variables and parameters on each
-Hessian request. Scalar Horizon costs keep exact curvature, so express native
-least-squares terms with `createResidual`, rather than `createCost(sumsqr(...))`.
-Custom `hess_lag` and limited-memory Hessian options conflict with this mode
-and are rejected. Legacy IPOPT defaults are unchanged.
-
-Horizon IPOPT minimizes `sum(sumsqr(r))`; iLQR's GN residual setters minimize
-`0.5*sumsqr(r)`, with running costs additionally divided by N. To compare the
-same objective, scale IPOPT running residuals by `1/sqrt(2*N)` and terminal
-residuals by `1/sqrt(2)`. The existing example handles these scales:
-
-```bash
+python -m horizon.examples.ilqr_native_pinocchio --urdf /path/to/kyon.urdf --N 30
 python -m horizon.examples.ilqr_native_pinocchio --urdf /path/to/kyon.urdf --N 30 --solver ipopt
-OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 python -m tools.benchmark_native_ipopt \
-  --urdf /path/to/kyon.urdf --nodes 12 30 --samples 3 --output /tmp/comparison.json
 ```
 
-The floating-base example uses ambient configuration coordinates for IPOPT and
-Pinocchio integration for its discrete step. Fixed initial configuration and
-step equalities preserve the unit quaternion. iLQR uses its tangent state
-space. Initial foot constraints are redundant with the fixed initial state and
-are omitted from IPOPT. Neither solver changes the robot model.
+Robot presets, solver options and validation live in
+[native_pinocchio_support.py](native_pinocchio_support.py). The
+[torque-controlled example](native_contact_motion.py) returns a Problem with
+contacts, a full tool pose residual, positive fZ, self collision and environment
+collision constraints. Use IPOPT for its hard function inequalities.
 
-Initial measurements before the profiling fixes below (CasADi 3.8.2, two iLQR workers, three fresh solves;
-medians exclude setup and post-solve diagnostics):
+Native first derivatives run in C++. IPOPT uses ambient configuration
+coordinates; iLQR infers the robot manifold from native calls, with an optional
+explicit `state_space` in `Problem.setDiscreteDynamics`. Native residuals use
+Gauss–Newton curvature, and native scalar costs require IPOPT limited-memory
+Hessians. Keep graph topology fixed after constructing a solver, and build a
+fresh Problem for each backend. Parameters, bounds and active nodes can be
+updated before repeated solves.
 
-| Intervals | iLQR solve | IPOPT solve | iLQR objective | IPOPT objective |
-|---:|---:|---:|---:|---:|
-| 12 | 0.0247 s | 0.6251 s | 5.307923e-6 | 5.308150e-6 |
-| 30 | 0.0548 s | 0.5222 s | 5.307925e-6 | 5.308330e-6 |
-
-These are example-specific timings, not a general speed ranking. Both reach
-about 2.34e-8 m target error. The benchmark checks feet, discrete dynamics,
-quaternion norms, velocity bounds, and matched objective values on every run.
-[Raw measurements](../cpp/docs/ipopt_native_results.json) include setup times
-and all numerical diagnostics. The interoperability regression also compares
-a nonlinear native residual problem, verifies SX/MX GN scaling with nonzero
-residuals, repeats solves after parameter changes, and runs the existing legacy
-QP and native Pinocchio tests.
+The profiling results below describe the earlier low-level implementation of
+the same kinematic example and objective. They are retained as historical
+measurements, not measurements of every modeling frontend.
 
 ### IPOPT bottleneck investigation and fixes
 

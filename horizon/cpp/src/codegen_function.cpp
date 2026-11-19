@@ -21,7 +21,10 @@ public:
     }
     ~RestoreCwd()
     {
-        chdir(_cwd);
+        if(chdir(_cwd) != 0)
+        {
+            std::cerr << "could not restore cwd to '" << _cwd << "': " << strerror(errno) << "\n";
+        }
         free((void *)_cwd);
     }
 private:

@@ -46,7 +46,8 @@ void fill_m_eye(int n,
     for(int i = 0; i < n; i++)
     {
         tr.emplace_back(offset_i + i, offset_j + i, value);
-        tr.emplace_back(offset_j + i, offset_i + i, value);
+        if(offset_i != offset_j)
+            tr.emplace_back(offset_j + i, offset_i + i, value);
     }
 }
 }
@@ -124,6 +125,9 @@ void IterativeLQR::kkt_solve()
                      _kkt_mat,
                      _kkt_triplets);
 
+        if(_globalization != "legacy")
+            for(int j=0;j<_nx;++j)
+                _kkt_triplets.emplace_back(i*_nx+j,i*_nx+j,_damping*_global_xdiag(j,i));
         _kkt_rhs.segment(i*_nx, _nx) = -_cost[i].q();
 
     }
@@ -144,6 +148,16 @@ void IterativeLQR::kkt_solve()
                      _kkt_mat,
                      _kkt_triplets);
 
+        ::fill_m_eye(_nu,
+                     _huu_reg,
+                     row_offset + i*_nu,
+                     row_offset + i*_nu,
+                     _kkt_mat,
+                     _kkt_triplets);
+
+        if(_globalization != "legacy")
+            for(int j=0;j<_nu;++j)
+                _kkt_triplets.emplace_back(row_offset+i*_nu+j,row_offset+i*_nu+j,_damping*_global_udiag(j,i));
         _kkt_rhs.segment(row_offset + i*_nu, _nu) = -_cost[i].r();
     }
 

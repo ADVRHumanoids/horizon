@@ -49,18 +49,22 @@ struct StageTimer
 };
 
 KOKKOS_INLINE_FUNCTION void identity(double* p)
-{for(int i=0;i<12;++i)p[i]=0.;p[0]=p[4]=p[8]=1.;}
+{for(int i=0;i<12;++i) {p[i]=0.;
+}p[0]=p[4]=p[8]=1.;}
 KOKKOS_INLINE_FUNCTION void compose(const double* a,const double* b,double* out)
 {
     for(int i=0;i<3;++i)
     {
         out[9+i]=a[9+i];
-        for(int k=0;k<3;++k)out[9+i]+=a[3*i+k]*b[9+k];
-        for(int j=0;j<3;++j){out[3*i+j]=0.;for(int k=0;k<3;++k)out[3*i+j]+=a[3*i+k]*b[3*k+j];}
+        for(int k=0;k<3;++k) {out[9+i]+=a[3*i+k]*b[9+k];
+}
+        for(int j=0;j<3;++j){out[3*i+j]=0.;for(int k=0;k<3;++k) {out[3*i+j]+=a[3*i+k]*b[3*k+j];
+}}
     }
 }
 KOKKOS_INLINE_FUNCTION void act(const double* pose,const double* p,double* out)
-{for(int a=0;a<3;++a){out[a]=pose[9+a];for(int b=0;b<3;++b)out[a]+=pose[3*a+b]*p[b];}}
+{for(int a=0;a<3;++a){out[a]=pose[9+a];for(int b=0;b<3;++b) {out[a]+=pose[3*a+b]*p[b];
+}}}
 
 // Add g^T dp/dq for one sphere. Every invocation owns one residual row;
 // common ancestors cancel naturally for self-collision, without atomics.
@@ -72,26 +76,30 @@ KOKKOS_INLINE_FUNCTION void project(const JV& joints,const TV& transforms,const 
     while(joint)
     {
         const auto data=joints(joint);double pose[12];
-        for(int a=0;a<12;++a)pose[a]=transforms(node,joint,a);
+        for(int a=0;a<12;++a) {pose[a]=transforms(node,joint,a);
+}
         double relative[3],cross[3];
-        for(int a=0;a<3;++a)relative[a]=centers(node,sphere,a)-pose[9+a];
+        for(int a=0;a<3;++a) {relative[a]=centers(node,sphere,a)-pose[9+a];
+}
         cross[0]=relative[1]*g[2]-relative[2]*g[1];
         cross[1]=relative[2]*g[0]-relative[0]*g[2];
         cross[2]=relative[0]*g[1]-relative[1]*g[0];
         if(data.type==DeviceRobotModel::FreeFlyer)
         {
-            for(int col=0;col<3;++col)for(int a=0;a<3;++a)
+            for(int col=0;col<3;++col) {for(int a=0;a<3;++a)
             {
                 jac(node,row,data.v+col)+=sign*g[a]*pose[3*a+col];
                 jac(node,row,data.v+3+col)+=sign*cross[a]*pose[3*a+col];
             }
+}
         }
         else if(data.type!=DeviceRobotModel::Fixed)
         {
             double result=0.;
             for(int a=0;a<3;++a)
             {
-                double axis=0.;for(int b=0;b<3;++b)axis+=pose[3*a+b]*data.axis[b];
+                double axis=0.;for(int b=0;b<3;++b) {axis+=pose[3*a+b]*data.axis[b];
+}
                 result+=axis*(data.type==DeviceRobotModel::Prismatic?g[a]:cross[a]);
             }
             jac(node,row,data.v)+=sign*result;
@@ -133,17 +141,22 @@ struct DeviceCollisionCost::Impl
     std::uint64_t bytes=0;
     explicit Impl(const Configuration& c)
     {
-        if(!Kokkos::is_initialized())throw std::logic_error("initialize Kokkos before creating a device collision cost");
+        if(!Kokkos::is_initialized()) {throw std::logic_error("initialize Kokkos before creating a device collision cost");
+}
         joints=decltype(joints)("robot joints",c.model.joints.size());
         spheres=decltype(spheres)("local spheres",c.model.spheres.size());
         pairs=decltype(pairs)("self pairs",c.pairs.size(),2);
         grid=decltype(grid)("sdf",c.grid?c.grid->values().size():0);
         auto hj=Kokkos::create_mirror_view(joints);auto hs=Kokkos::create_mirror_view(spheres);
         auto hp=Kokkos::create_mirror_view(pairs);auto hg=Kokkos::create_mirror_view(grid);
-        for(std::size_t i=0;i<c.model.joints.size();++i)hj(i)=c.model.joints[i];
-        for(std::size_t i=0;i<c.model.spheres.size();++i)hs(i)=c.model.spheres[i];
+        for(std::size_t i=0;i<c.model.joints.size();++i) {hj(i)=c.model.joints[i];
+}
+        for(std::size_t i=0;i<c.model.spheres.size();++i) {hs(i)=c.model.spheres[i];
+}
         for(std::size_t i=0;i<c.pairs.size();++i){hp(i,0)=c.pairs[i].first;hp(i,1)=c.pairs[i].second;}
-        if(c.grid)for(std::size_t i=0;i<c.grid->values().size();++i)hg(i)=c.grid->values()[i];
+        if(c.grid) {for(std::size_t i=0;i<c.grid->values().size();++i) {hg(i)=c.grid->values()[i];
+}
+}
         Kokkos::deep_copy(joints,hj);Kokkos::deep_copy(spheres,hs);
         Kokkos::deep_copy(pairs,hp);Kokkos::deep_copy(grid,hg);
         error=decltype(error)("collision status");
@@ -164,7 +177,8 @@ struct DeviceCollisionCost::Impl
         if(deriv && !jac.extent(0))
         {
             const std::size_t rows=(64u*1024u*1024u)/(std::size_t(n)*(nv+1)*sizeof(double));
-            if(rows<1)throw std::invalid_argument("one collision query tile exceeds the 64 MiB workspace budget");
+            if(rows<1) {throw std::invalid_argument("one collision query tile exceeds the 64 MiB workspace budget");
+}
             tile=std::min<std::size_t>(c.outputs(),rows);
             jac=V3("resident residual Jacobians",n,tile,nv+1);
             gradients.resize(nv,n);hessians.resize(packed,n);
@@ -175,42 +189,62 @@ struct DeviceCollisionCost::Impl
             (q.span()+transforms.span()+centers.span()+jac.span()+result.span())*sizeof(double);
     }
     void check(int node,bool deriv) const
-    {if(!ready || node<0 || node>=nodes || (deriv && !derivatives))throw std::logic_error("device collision result unavailable for this pass");}
+    {if(!ready || node<0 || node>=nodes || (deriv && !derivatives)) {throw std::logic_error("device collision result unavailable for this pass");
+}}
 };
 
 DeviceCollisionCost::DeviceCollisionCost(DeviceRobotModel model,std::shared_ptr<const SdfGrid> grid,
     std::vector<SphereDistanceFunction::Pair> pairs,double weight,double margin,double smoothing,int state_size,int offset)
 {
-    if(!Kokkos::is_initialized())throw std::logic_error("initialize Kokkos before creating a device collision cost");
+    if(!Kokkos::is_initialized()) {throw std::logic_error("initialize Kokkos before creating a device collision cost");
+}
     if(model.nq<1 || model.nv<1 || model.nv>1024 || model.joints.empty() || offset<0 ||
-       !std::isfinite(weight) || weight<0)throw std::invalid_argument("invalid device robot/cost dimensions or weight");
-    if(!state_size)state_size=model.nq;
-    if(state_size<model.nq || offset>state_size-model.nq)throw std::invalid_argument("configuration block exceeds the stored state");
+       !std::isfinite(weight) || weight<0) {throw std::invalid_argument("invalid device robot/cost dimensions or weight");
+}
+    if(!state_size) {state_size=model.nq;
+}
+    if(state_size<model.nq || offset>state_size-model.nq) {throw std::invalid_argument("configuration block exceeds the stored state");
+}
     std::vector<double> radii;
     std::set<int> q_indices,v_indices;
     for(std::size_t i=0;i<model.joints.size();++i)
     {
         const auto& j=model.joints[i];
         if((i && (j.parent<0 || j.parent>=int(i))) || (!i && (j.parent || j.type!=DeviceRobotModel::Fixed)) ||
-           j.type<DeviceRobotModel::Fixed || j.type>DeviceRobotModel::Continuous)
+           j.type<DeviceRobotModel::Fixed || j.type>DeviceRobotModel::Continuous) {
             throw std::invalid_argument("invalid device robot topology");
+}
         const int nq=j.type==DeviceRobotModel::Fixed?0:(j.type==DeviceRobotModel::FreeFlyer?7:(j.type==DeviceRobotModel::Continuous?2:1));
         const int nv=j.type==DeviceRobotModel::Fixed?0:(j.type==DeviceRobotModel::FreeFlyer?6:1);
-        if(j.q<0 || j.v<0 || j.q>model.nq-nq || j.v>model.nv-nv)throw std::invalid_argument("invalid device joint indices");
-        for(int a=0;a<nq;++a)if(!q_indices.insert(j.q+a).second)throw std::invalid_argument("overlapping device configuration indices");
-        for(int a=0;a<nv;++a)if(!v_indices.insert(j.v+a).second)throw std::invalid_argument("overlapping device tangent indices");
-        for(double x:j.placement)if(!std::isfinite(x))throw std::invalid_argument("nonfinite joint placement");
-        double norm=0.;for(double x:j.axis){if(!std::isfinite(x))throw std::invalid_argument("nonfinite joint axis");norm+=x*x;}
-        if(nv==1 && std::abs(norm-1.)>1e-10)throw std::invalid_argument("device joint axis must be normalized");
+        if(j.q<0 || j.v<0 || j.q>model.nq-nq || j.v>model.nv-nv) {throw std::invalid_argument("invalid device joint indices");
+}
+        for(int a=0;a<nq;++a) {if(!q_indices.insert(j.q+a).second) {throw std::invalid_argument("overlapping device configuration indices");
+}
+}
+        for(int a=0;a<nv;++a) {if(!v_indices.insert(j.v+a).second) {throw std::invalid_argument("overlapping device tangent indices");
+}
+}
+        for(double x:j.placement) {if(!std::isfinite(x)) {throw std::invalid_argument("nonfinite joint placement");
+}
+}
+        double norm=0.;for(double x:j.axis){if(!std::isfinite(x)) {throw std::invalid_argument("nonfinite joint axis");
+}norm+=x*x;}
+        if(nv==1 && std::abs(norm-1.)>1e-10) {throw std::invalid_argument("device joint axis must be normalized");
+}
     }
-    if(q_indices.size()!=std::size_t(model.nq) || v_indices.size()!=std::size_t(model.nv))throw std::invalid_argument("incomplete device joint indexing");
+    if(q_indices.size()!=std::size_t(model.nq) || v_indices.size()!=std::size_t(model.nv)) {throw std::invalid_argument("incomplete device joint indexing");
+}
     for(const auto& s:model.spheres)
     {
-        if(s.joint<0 || s.joint>=int(model.joints.size()))throw std::invalid_argument("invalid sphere parent");
-        for(double x:s.center)if(!std::isfinite(x))throw std::invalid_argument("nonfinite sphere center");
+        if(s.joint<0 || s.joint>=int(model.joints.size())) {throw std::invalid_argument("invalid sphere parent");
+}
+        for(double x:s.center) {if(!std::isfinite(x)) {throw std::invalid_argument("nonfinite sphere center");
+}
+}
         radii.push_back(s.radius);
     }
-    std::vector<std::shared_ptr<const DistanceField>> fields;if(grid)fields.push_back(grid);
+    std::vector<std::shared_ptr<const DistanceField>> fields;if(grid) {fields.push_back(grid);
+}
     SphereDistanceFunction validate(radii,fields,pairs,margin,smoothing);
     auto c=std::make_shared<Configuration>();c->model=std::move(model);c->grid=std::move(grid);c->pairs=std::move(pairs);
     c->weight=weight;c->margin=margin;c->smoothing=smoothing;c->state_size=state_size;c->offset=offset;
@@ -239,18 +273,24 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
     const int n=states.cols(),nq=c.model.nq,nv=c.model.nv,ns=c.model.spheres.size(),nj=c.model.joints.size();
     const int outputs=c.outputs(),packed=nv*(nv+1)/2;
     if(n<1 || states.rows()!=c.state_size || !states.allFinite() ||
-       std::uint64_t(n)*std::max(outputs,1+nv+packed)>std::uint64_t(std::numeric_limits<int>::max()))
+       std::uint64_t(n)*std::max(outputs,1+nv+packed)>std::uint64_t(std::numeric_limits<int>::max())) {
         throw std::invalid_argument("invalid device collision trajectory dimensions or values");
+}
     // Pinocchio's configuration manifold assumes normalized unit quaternions.
-    for(const auto& joint:c.model.joints)if(joint.type==DeviceRobotModel::FreeFlyer || joint.type==DeviceRobotModel::Continuous)
+    for(const auto& joint:c.model.joints) {if(joint.type==DeviceRobotModel::FreeFlyer || joint.type==DeviceRobotModel::Continuous)
     {
         const int count=joint.type==DeviceRobotModel::FreeFlyer?4:2;
         const int offset=c.offset+joint.q+(count==4?3:0);
-        for(int node=0;node<n;++node)if(std::abs(states.col(node).segment(offset,count).squaredNorm()-1.)>1e-6)
+        for(int node=0;node<n;++node) {if(std::abs(states.col(node).segment(offset,count).squaredNorm()-1.)>1e-6) {
             throw ilqr::EvaluationError("device collision requires normalized joint configurations");
+}
+}
     }
+}
     w.resize(n,c,derivatives);DeviceCollisionStatistics stat;
-    for(int node=0;node<n;++node)for(int a=0;a<nq;++a)w.host_q(node,a)=states(c.offset+a,node);
+    for(int node=0;node<n;++node) {for(int a=0;a<nq;++a) {w.host_q(node,a)=states(c.offset+a,node);
+}
+}
     const int result_columns=derivatives?1+nv+packed:1;
     auto active_result=Kokkos::subview(w.result,Kokkos::ALL(),std::make_pair(0,result_columns));
     auto active_host_result=Kokkos::subview(w.host_result,Kokkos::ALL(),std::make_pair(0,result_columns));
@@ -270,29 +310,39 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
                 motion[0]=1-2*(y*y+z*z);motion[1]=2*(x*y-z*t);motion[2]=2*(x*z+y*t);
                 motion[3]=2*(x*y+z*t);motion[4]=1-2*(x*x+z*z);motion[5]=2*(y*z-x*t);
                 motion[6]=2*(x*z-y*t);motion[7]=2*(y*z+x*t);motion[8]=1-2*(x*x+y*y);
-                for(int a=0;a<3;++a)motion[9+a]=q(node,data.q+a);
+                for(int a=0;a<3;++a) {motion[9+a]=q(node,data.q+a);
+}
             }
             else if(data.type==DeviceRobotModel::Revolute || data.type==DeviceRobotModel::Continuous)
             {
                 const double cosine=data.type==DeviceRobotModel::Continuous?q(node,data.q):Kokkos::cos(q(node,data.q));
                 const double sine=data.type==DeviceRobotModel::Continuous?q(node,data.q+1):Kokkos::sin(q(node,data.q));
-                for(int a=0;a<3;++a)for(int b=0;b<3;++b)
+                for(int a=0;a<3;++a) {for(int b=0;b<3;++b) {
                     motion[3*a+b]=(a==b?cosine:0.)+(1-cosine)*data.axis[a]*data.axis[b];
+}
+}
                 motion[1]-=sine*data.axis[2];motion[2]+=sine*data.axis[1];
                 motion[3]+=sine*data.axis[2];motion[5]-=sine*data.axis[0];
                 motion[6]-=sine*data.axis[1];motion[7]+=sine*data.axis[0];
             }
-            else if(data.type==DeviceRobotModel::Prismatic)
-                for(int a=0;a<3;++a)motion[9+a]=q(node,data.q)*data.axis[a];
+            else if(data.type==DeviceRobotModel::Prismatic) {
+                for(int a=0;a<3;++a) {motion[9+a]=q(node,data.q)*data.axis[a];
+}
+}
             compose(data.placement,motion,placed);
-            if(joint){for(int a=0;a<12;++a)parent[a]=transforms(node,data.parent,a);compose(parent,placed,world);}
-            else identity(world);
-            for(int a=0;a<12;++a)transforms(node,joint,a)=world[a];
+            if(joint){for(int a=0;a<12;++a) {parent[a]=transforms(node,data.parent,a);
+}compose(parent,placed,world);}
+            else { identity(world);
+}
+            for(int a=0;a<12;++a) {transforms(node,joint,a)=world[a];
+}
         }
         for(int sphere=0;sphere<ns;++sphere)
         {
-            double pose[12],p[3];for(int a=0;a<12;++a)pose[a]=transforms(node,spheres(sphere).joint,a);
-            act(pose,spheres(sphere).center,p);for(int a=0;a<3;++a)centers(node,sphere,a)=p[a];
+            double pose[12],p[3];for(int a=0;a<12;++a) {pose[a]=transforms(node,spheres(sphere).joint,a);
+}
+            act(pose,spheres(sphere).center,p);for(int a=0;a<3;++a) {centers(node,sphere,a)=p[a];
+}
         }
     });
     stat.kinematics_ms=w.timer.stop();++stat.kernel_launches;
@@ -307,7 +357,9 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
         Kokkos::parallel_for("collision device residuals and tangent derivatives",Kokkos::RangePolicy<Space>(0,n*rows),KOKKOS_LAMBDA(int index)
         {
             const int node=index/rows,row=index%rows,query=first+row;
-            if(derivatives)for(int col=0;col<=nv;++col)jac(node,row,col)=0.;
+            if(derivatives) {for(int col=0;col<=nv;++col) {jac(node,row,col)=0.;
+}
+}
             double clear=0.,g[3]={0.,0.,0.};int i=0,other=0;
             const bool env=environment && query<ns;
             if(env)
@@ -317,14 +369,17 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
                    p[0]<0 || p[1]<0 || p[2]<0 || p[0]>nx-1 || p[1]>ny-1 || p[2]>nz-1)
                 {Kokkos::atomic_exchange(&error(),1);return;}
                 const int dims[3]={nx,ny,nz};int lo[3];double f[3];
-                for(int a=0;a<3;++a){lo[a]=int(Kokkos::floor(p[a]));if(lo[a]>dims[a]-2)lo[a]=dims[a]-2;f[a]=p[a]-lo[a];}
-                for(int z=0;z<2;++z)for(int y=0;y<2;++y)for(int x=0;x<2;++x)
+                for(int a=0;a<3;++a){lo[a]=int(Kokkos::floor(p[a]));if(lo[a]>dims[a]-2) {lo[a]=dims[a]-2;
+}f[a]=p[a]-lo[a];}
+                for(int z=0;z<2;++z) {for(int y=0;y<2;++y) {for(int x=0;x<2;++x)
                 {
                     const double wx=x?f[0]:1-f[0],wy=y?f[1]:1-f[1],wz=z?f[2]:1-f[2];
                     const double v=grid((std::size_t(lo[2]+z)*ny+lo[1]+y)*nx+lo[0]+x);
                     clear+=wx*wy*wz*v;g[0]+=(x?1.:-1.)*wy*wz*v/voxel;
                     g[1]+=(y?1.:-1.)*wx*wz*v/voxel;g[2]+=(z?1.:-1.)*wx*wy*v/voxel;
                 }
+}
+}
                 clear-=spheres(i).radius;
             }
             else
@@ -333,7 +388,8 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
                 double norm=1e-24;
                 for(int a=0;a<3;++a){g[a]=centers(node,i,a)-centers(node,other,a);norm+=g[a]*g[a];}
                 const double length=Kokkos::sqrt(norm);clear=length-spheres(i).radius-spheres(other).radius;
-                for(int a=0;a<3;++a)g[a]/=length;
+                for(int a=0;a<3;++a) {g[a]/=length;
+}
             }
             const double z=(margin-clear)/smoothing;
             const double residual=smoothing*(z>40?z:(z< -40?Kokkos::exp(z):Kokkos::log1p(Kokkos::exp(z))));
@@ -341,10 +397,12 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
             if(!derivatives){Kokkos::atomic_add(&result(node,0),.5*weight*residual*residual);return;}
             const double e=Kokkos::exp(z>=0?-Kokkos::fmin(z,700.):Kokkos::fmax(z,-700.));
             const double scale=z>=0?-1./(1.+e):-e/(1.+e);
-            for(int a=0;a<3;++a)g[a]*=scale;
+            for(int a=0;a<3;++a) {g[a]*=scale;
+}
             jac(node,row,nv)=residual;
             project(joints,transforms,spheres,centers,jac,node,row,i,g,1.);
-            if(!env)project(joints,transforms,spheres,centers,jac,node,row,other,g,-1.);
+            if(!env) {project(joints,transforms,spheres,centers,jac,node,row,other,g,-1.);
+}
         });
         stat.queries_ms+=w.timer.stop();++stat.kernel_launches;
         if(derivatives)
@@ -354,14 +412,15 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
             {
                 const int columns=1+nv+packed,node=index/columns,entry=index%columns;
                 int a=nv,b=nv;double scale=weight;
-                if(!entry)scale*=.5;
-                else if(entry<=nv)a=entry-1;
-                else
+                if(!entry) {scale*=.5;
+                } else if(entry<=nv) {a=entry-1;
+                } else
                 {
                     int k=entry-1-nv;a=0;
                     while(k>=nv-a){k-=nv-a;++a;}b=a+k;
                 }
-                double sum=0.;for(int row=0;row<rows;++row)sum+=jac(node,row,a)*jac(node,row,b);
+                double sum=0.;for(int row=0;row<rows;++row) {sum+=jac(node,row,a)*jac(node,row,b);
+}
                 result(node,entry)+=scale*sum;
             });
             stat.accumulation_ms+=w.timer.stop();++stat.kernel_launches;
@@ -369,18 +428,22 @@ void DeviceCollisionCost::prepare(ilqr::MatrixInput states,bool derivatives)
     }
     w.timer.start();Kokkos::deep_copy(active_host_result,active_result);int failed=0;Kokkos::deep_copy(failed,w.error);
     stat.download_ms=w.timer.stop();
-    if(failed)throw ilqr::EvaluationError("device collision query failed (out of grid or nonfinite)");
+    if(failed) {throw ilqr::EvaluationError("device collision query failed (out of grid or nonfinite)");
+}
     for(int node=0;node<n;++node)
     {
         w.values[node]=w.host_result(node,0);
         if(derivatives)
         {
-            for(int a=0;a<nv;++a)w.gradients(a,node)=w.host_result(node,1+a);
-            for(int a=0;a<packed;++a)w.hessians(a,node)=w.host_result(node,1+nv+a);
+            for(int a=0;a<nv;++a) {w.gradients(a,node)=w.host_result(node,1+a);
+}
+            for(int a=0;a<packed;++a) {w.hessians(a,node)=w.host_result(node,1+nv+a);
+}
         }
     }
-    if(!w.values.allFinite() || (derivatives && (!w.gradients.allFinite() || !w.hessians.allFinite())))
+    if(!w.values.allFinite() || (derivatives && (!w.gradients.allFinite() || !w.hessians.allFinite()))) {
         throw ilqr::EvaluationError("nonfinite device collision contribution");
+}
     w.derivatives=derivatives;w.ready=true;
     stat.nodes=n;stat.value_batches=derivatives?0:1;stat.derivative_batches=derivatives?1:0;
     stat.sdf_queries=environment?std::uint64_t(n)*ns:0;stat.self_queries=std::uint64_t(n)*c.pairs.size();

@@ -1,7 +1,6 @@
 // Controlled reference for tools/probe_curobo_v2.py (same q and SDF samples).
 #include "horizon/device_collision.h"
 #include "horizon/pinocchio_collision.h"
-#include "horizon/kyon_spheres.h"
 #include <Kokkos_Core.hpp>
 #include <pinocchio/parsers/urdf.hpp>
 #include <yaml-cpp/yaml.h>
@@ -31,10 +30,9 @@ int main(int argc,char** argv)
         pinocchio::Model model;pinocchio::urdf::buildModel(input["urdf"].as<std::string>(),model);
         Eigen::Vector3i dims;Eigen::Vector3d origin;for(int a=0;a<3;++a){dims[a]=input["dimensions"][a].as<int>();origin[a]=input["origin"][a].as<double>();}
         auto grid=std::make_shared<SdfGrid>(dims,origin,input["voxel_size"].as<double>(),read<float>(directory/"grid.f32",dims.prod()));
-        const auto geometry=kyon::spheres();std::vector<SphereDistanceFunction::Pair> pairs;
-        for(int i=0;i<int(geometry.size());++i)for(int j=i+1;j<int(geometry.size());++j)
-            if(geometry[i].link.find("dagana_1")==0 && geometry[j].link.find("dagana_2")==0)pairs.emplace_back(i,j);
-        DeviceCollisionCost cost(exportDeviceRobot(model,SphereModel(geometry)),grid,pairs,10000.);
+        const auto geometry=loadSphereModelFromUrdf(input["sphere_urdf"].as<std::string>());
+        const auto pairs=makeSelfCollisionPairs(geometry,loadDisabledCollisionPairs(input["collision_policy"].as<std::string>()));
+        DeviceCollisionCost cost(exportDeviceRobot(model,geometry),grid,pairs,10000.);
         std::cout<<std::setprecision(12)<<"{\"execution_space\":\""<<DeviceCollisionCost::executionSpace()<<"\",\"cases\":[";
         bool first=true;const int entries=1+model.nv+model.nv*(model.nv+1)/2;
         for(auto item:input["batches"])

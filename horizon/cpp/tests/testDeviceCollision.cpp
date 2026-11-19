@@ -4,7 +4,7 @@
 #include "ilqr/ilqr.h"
 #include "ilqr/casadi_function.h"
 #ifdef HORIZON_DEVICE_TEST_KYON
-#include "horizon/kyon_spheres.h"
+
 #include "horizon/pinocchio_collision.h"
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/parsers/urdf.hpp>
@@ -240,11 +240,12 @@ TEST(DeviceCollision, ArbitraryAxesContinuousJointsAndFixedFramePlacements)
 }
 TEST(DeviceCollision, KyonFloatingBaseDerivativesAndSelfAvoidance)
 {
-    auto model=std::make_shared<pinocchio::Model>();pinocchio::urdf::buildModel(HORIZON_KYON_URDF_PATH,*model);
-    auto space=std::make_shared<Configuration>(model);SphereModel geometry(kyon::spheres());
+    auto model=std::make_shared<pinocchio::Model>();pinocchio::urdf::buildModel("data/kyon_full_spheres.urdf",*model);
+    auto space=std::make_shared<Configuration>(model);SphereModel geometry(loadSphereModelFromUrdf("data/kyon_full_spheres.urdf").spheres());
     PinocchioSphereCenters fk(model,space,geometry);
     std::vector<double> radii;for(auto& s:geometry.spheres())radii.push_back(s.radius);
-    std::vector<SphereDistanceFunction::Pair> pairs={{0,1},{6,16},{28,45},{34,68}};
+    const auto pairs=makeSelfCollisionPairs(geometry,loadDisabledCollisionPairs("data/kyon_full_disabled_collisions.json"));
+    ASSERT_GT(pairs.size(), 1000);
     Matrix states(model->nq,5);
     const Vector neutral=pinocchio::neutral(*model);
     for(int i=0;i<5;++i)states.col(i)=pinocchio::integrate(*model,neutral,Vector(.25*Vector::Random(model->nv)));
@@ -269,7 +270,7 @@ TEST(DeviceCollision, KyonFloatingBaseDerivativesAndSelfAvoidance)
     fk.valueAndTangentLinearization(neutral,points,jc);
     int first=-1,second=-1;double best=0.;const int ns=radii.size();
     auto distance=[&](Input p,int i,int j){Eigen::Vector3d d;for(int a=0;a<3;++a)d[a]=p[a*ns+i]-p[a*ns+j];return d;};
-    for(int i=0;i<ns;++i)for(int j=i+1;j<ns;++j)
+    for(const auto& [i,j] : pairs)
     {
         const Eigen::Vector3d d=distance(points,i,j);if(d.norm()<1e-6)continue;
         Matrix relative(3,model->nv);for(int a=0;a<3;++a)relative.row(a)=jc.row(a*ns+i)-jc.row(a*ns+j);

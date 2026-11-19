@@ -23,6 +23,49 @@ namespace horizon
 typedef Eigen::Ref<const Eigen::VectorXd> VecConstRef;
 typedef Eigen::Ref<const Eigen::MatrixXd> MatConstRef;
 
+/** Horizon-relative node selection, resolved when a term is installed. */
+class Nodes
+{
+    enum class Kind
+    {
+        Running,
+        Terminal,
+        All
+    };
+
+  public:
+    static Nodes running()
+    {
+        return Nodes(Kind::Running);
+    }
+    static Nodes terminal()
+    {
+        return Nodes(Kind::Terminal);
+    }
+    static Nodes all()
+    {
+        return Nodes(Kind::All);
+    }
+    std::vector<int> resolve(int N) const
+    {
+        if (_kind == Kind::Terminal)
+        {
+            return {N};
+        }
+        std::vector<int> indices(N + (_kind == Kind::All));
+        for (int i = 0; i < static_cast<int>(indices.size()); ++i)
+        {
+            indices[i] = i;
+        }
+        return indices;
+    }
+
+  private:
+    explicit Nodes(Kind kind) : _kind(kind)
+    {
+    }
+    Kind _kind;
+};
 
 /**
  * @brief IterativeLQR implements a multiple-shooting variant of the
@@ -46,6 +89,7 @@ public:
      *
      */
     struct ForwardPassResult;
+    const ForwardPassResult& getIterationResult() const;
 
     /**
      * @brief CallbackType
@@ -79,10 +123,61 @@ public:
                        const std::string& name,
                        std::vector<Eigen::VectorXd> targets = {});
 
+    void setCost(Nodes nodes, const ilqr::FunctionManager &manager,
+                 const std::string &name)
+    {
+        setCost(nodes.resolve(_N), manager, name);
+    }
+    void setCost(Nodes nodes, const casadi::Function &function)
+    {
+        setCost(nodes.resolve(_N), function);
+    }
+    void setResidual(Nodes nodes, const ilqr::FunctionManager &manager,
+                     const std::string &name)
+    {
+        setResidual(nodes.resolve(_N), manager, name);
+    }
+    void setResidual(Nodes nodes, const casadi::Function &function)
+    {
+        setResidual(nodes.resolve(_N), function);
+    }
+    void setConstraint(Nodes nodes, const ilqr::FunctionManager &manager,
+                       const std::string &name)
+    {
+        setConstraint(nodes.resolve(_N), manager, name);
+    }
+    void setConstraint(Nodes nodes, const casadi::Function &function)
+    {
+        setConstraint(nodes.resolve(_N), function);
+    }
+    void setConstraint(Nodes nodes, const ilqr::FunctionManager &manager,
+                       const std::string &name,
+                       std::vector<Eigen::VectorXd> targets)
+    {
+        setConstraint(nodes.resolve(_N), manager, name, std::move(targets));
+    }
+    void setConstraint(Nodes nodes, const casadi::Function &function,
+                       std::vector<Eigen::VectorXd> targets)
+    {
+        setConstraint(nodes.resolve(_N), function, std::move(targets));
+    }
+    void setBatchedCost(Nodes nodes, const std::string &name,
+                        const ilqr::BatchedCost &batch, int tangent_offset = 0)
+    {
+        setBatchedCost(nodes.resolve(_N), name, batch, tangent_offset);
+    }
 
-    void setStateBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
+    /** Fix node zero through equal bounds and initialize its guess. */
+    void fixInitialState(const Eigen::VectorXd &x0);
+    void setInputBounds(double lb, double ub)
+    {
+        setInputBounds(Eigen::MatrixXd::Constant(_nu, _N, lb),
+                       Eigen::MatrixXd::Constant(_nu, _N, ub));
+    }
 
-    void setInputBounds(const Eigen::MatrixXd& lb, const Eigen::MatrixXd& ub);
+    void setStateBounds(const Eigen::MatrixXd &lb, const Eigen::MatrixXd &ub);
+
+    void setInputBounds(const Eigen::MatrixXd &lb, const Eigen::MatrixXd &ub);
 
     /**
      * @brief set an intermediate cost term for the k-th intermediate state,
@@ -90,25 +185,26 @@ public:
      * @param indices: the nodes that the cost refers to
      * @param inter_cost: a function with required signature (x, u, p) -> (l)
      */
-    void setCost(std::vector<int> indices, const casadi::Function& inter_cost);
+    void setCost(std::vector<int> indices, const casadi::Function &inter_cost);
 
-    void setResidual(std::vector<int> indices, const casadi::Function& inter_cost);
+    void setResidual(std::vector<int> indices,
+                     const casadi::Function &inter_cost);
 
     /**
      * @brief set the final cost
      * @param final_cost: a function with required signature (x, u) -> (l),
      * even though the input 'u' is not used
      */
-    void setFinalCost(const casadi::Function& final_cost);
+    void setFinalCost(const casadi::Function &final_cost);
 
     /**
-     * @brief  set an intermediate constraint term for the k-th intermediate state,
-     * as specificed by a vector of indices
+     * @brief  set an intermediate constraint term for the k-th intermediate
+     * state, as specificed by a vector of indices
      * @param indices: the nodes that the cost refers to
-     * @param inter_constraint: a function with required signature (x, u, p) -> (h),
-     * where the constraint is h(x, u) = 0
-     * @param target_values: if specified, the i-th entry is used as target value
-     * for the constraint function at the indices[i]
+     * @param inter_constraint: a function with required signature (x, u, p) ->
+     * (h), where the constraint is h(x, u) = 0
+     * @param target_values: if specified, the i-th entry is used as target
+     * value for the constraint function at the indices[i]
      */
     void setConstraint(std::vector<int> indices,
                        const casadi::Function& inter_constraint,
@@ -119,12 +215,16 @@ public:
     void setIndices(const std::string& f_name,
                     const std::vector<int>& indices);
 
+    void setIndices(const std::string& f_name, Nodes nodes)
+    { setIndices(f_name, nodes.resolve(_N)); }
+
     void updateIndices();
 
     void printState() const;
 
     void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices = {});
 
+    /** Set only the node-zero initial guess; use fixInitialState for bounds. */
     void setInitialState(const Eigen::VectorXd& x0);
 
     void setStateInitialGuess(const Eigen::MatrixXd& x0);
@@ -169,6 +269,13 @@ public:
     {
         Eigen::MatrixXd xtrj;
         Eigen::MatrixXd utrj;
+        double damping = 0;
+        double predicted_reduction = 0, actual_reduction = 0, model_agreement = 0;
+        double stationarity = std::numeric_limits<double>::infinity();
+        int trial_count = 0, direction_solves = 0;
+        int derivative_evaluations = 0, value_evaluations = 0;
+        bool used_correction = false, used_restoration = false;
+        std::string acceptance_reason;
         double hxx_reg;
         double rho;
         double alpha;
@@ -282,6 +389,8 @@ private:
     void add_bound_constraint(int k);
 
     bool auglag_update();
+    bool auglag_inner_converged() const;
+    bool auglag_dual_converged() const;
 
     double compute_merit_value(double mu_f,
                                double mu_c,
@@ -314,6 +423,15 @@ private:
     bool forward_pass(double alpha);
 
     bool line_search(int iter);
+    struct GlobalizationModel;
+    void prepareGlobalization();
+    bool globalizationStep();
+    bool restoreFeasibility();
+    Eigen::VectorXd globalizationResidual(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
+    Eigen::VectorXd feasibilityStep(const GlobalizationModel&, const Eigen::VectorXd&, bool correction);
+    void evaluateGlobalizationTrial(const Eigen::VectorXd& step);
+    void restoreGlobalizationBaseline();
+    void increaseGlobalizationDamping();
 
     void reset_iterate_filter();
 
@@ -342,11 +460,23 @@ private:
     const int _nu;
     const int _N;
 
+    std::string _globalization = "legacy";
+    double _damping = 1e-3, _stationarity_threshold = 1e-6;
+    double _filter_violation_limit = 0;
+    double _global_mu = 0;
+    double _global_inner_stationarity = 0;
+    std::vector<std::pair<double,double>> _global_filter;
+    std::unique_ptr<GlobalizationModel> _global_model;
+    Eigen::MatrixXd _global_xdiag, _global_udiag;
     double _step_length;
     double _bound_multiplier_max = 0;
     double _rho_base;
     double _rho;
     double _rho_growth_factor;
+    double _rho_max;
+    double _auglag_progress_ratio;
+    double _auglag_inner_tolerance;
+    double _auglag_previous_violation;
     double _hxx_reg;
     double _hxx_reg_base;
     double _hxx_reg_growth_factor;
@@ -398,7 +528,9 @@ private:
 
     Eigen::MatrixXd _xtrj;
     Eigen::MatrixXd _utrj;
+    // Multipliers in original constraint row order, including terminal rows.
     std::vector<Eigen::VectorXd> _lam_g;
+    // Column k multiplies A_k dx_k + B_k du_k + d_k - dx_{k+1}.
     Eigen::MatrixXd _lam_x;
 
     Eigen::MatrixXd _lam_bound_x;

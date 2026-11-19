@@ -43,9 +43,12 @@ public:
 
     void update_values(const Eigen::SparseMatrix<T>& E)
     {
-        if(E.rows() != _C.rows()) throw std::runtime_error("E.rows() != C.rows()");
-        if(E.cols() != _C.columns()) throw std::runtime_error("E.cols() != C.cols()");
-        if(E.nonZeros() != _C.nnz()) throw std::runtime_error("E.nnz() != C.nnz()");
+        if(E.rows() != _C.rows()) { throw std::runtime_error("E.rows() != C.rows()");
+}
+        if(E.cols() != _C.columns()) { throw std::runtime_error("E.cols() != C.cols()");
+}
+        if(E.nonZeros() != _C.nnz()) { throw std::runtime_error("E.nnz() != C.nnz()");
+}
 
 
         std::memcpy(_C->data(), E.valuePtr(), sizeof(T)*E.nonZeros());

@@ -34,6 +34,9 @@ class Solver(ABC):
             opts (Dict, optional): A solver-dependent Dict of options. Defaults to None.
             **kwargs: iLQR function_manager/dynamics/state_space; IPOPT gauss_newton/function_manager/dynamics.
         """
+        opts = dict(opts or {})
+        from ._native_problem import prepare
+        native_compilation = prepare(prb, type, opts, kwargs)
         if kwargs and type not in ('ilqr', 'ipopt'):
             raise TypeError('Additional solver arguments are supported only for ilqr and ipopt')
 
@@ -56,6 +59,9 @@ class Solver(ABC):
         else:
             raise KeyError(f'unsupperted solver type "{type}"')
 
+        ret._native_compilation = native_compilation
+        if native_compilation is not None and type == "ilqr":
+            native_compilation.attach(ret)
         ret.type = type
         return ret
 

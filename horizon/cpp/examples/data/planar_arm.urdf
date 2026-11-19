@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<robot name="planar_arm">
+  <link name="base">
+    <visual><geometry><sphere radius="0.10"/></geometry><material name="base_color"><color rgba="0.25 0.31 0.39 1"/></material></visual>
+  </link>
+  <link name="link1">
+    <visual><origin xyz="0.5 0 0"/><geometry><box size="1 0.09 0.09"/></geometry><material name="arm_color"><color rgba="0.13 0.47 0.74 1"/></material></visual>
+  </link>
+  <link name="link2">
+    <visual><origin xyz="0.5 0 0"/><geometry><box size="1 0.07 0.07"/></geometry><material name="arm_color"/></visual>
+  </link>
+  <link name="tool">
+    <visual><geometry><sphere radius="0.06"/></geometry><material name="tool_color"><color rgba="0.95 0.53 0.15 1"/></material></visual>
+  </link>
+  <joint name="shoulder" type="revolute">
+    <parent link="base"/><child link="link1"/><axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="2"/>
+  </joint>
+  <joint name="elbow" type="revolute">
+    <parent link="link1"/><child link="link2"/><origin xyz="1 0 0"/><axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="2"/>
+  </joint>
+  <joint name="tool_fixed" type="fixed">
+    <parent link="link2"/><child link="tool"/><origin xyz="1 0 0"/>
+  </joint>
+</robot>

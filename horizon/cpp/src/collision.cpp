@@ -8,26 +8,32 @@ namespace horizon::collision
 {
 SphereModel::SphereModel(std::vector<LinkSphere> spheres) : _spheres(std::move(spheres))
 {
-    for(const auto& sphere : _spheres)
+    for(const auto& sphere : _spheres) {
         if(sphere.link.empty() || !sphere.center.allFinite() ||
-           !std::isfinite(sphere.radius) || sphere.radius <= 0.)
+           !std::isfinite(sphere.radius) || sphere.radius <= 0.) {
             throw std::invalid_argument("sphere model contains invalid link, center, or radius");
+}
+}
 }
 
 std::vector<Eigen::Vector3d> SphereModel::worldCenters(
     const std::vector<Eigen::Isometry3d>& poses,
     const std::vector<std::string>& names) const
 {
-    if(poses.size() != names.size()) throw std::invalid_argument("link pose/name count mismatch");
+    if(poses.size() != names.size()) { throw std::invalid_argument("link pose/name count mismatch");
+}
     std::unordered_map<std::string, std::size_t> index;
-    for(std::size_t i = 0; i < names.size(); ++i)
-        if(!index.emplace(names[i], i).second) throw std::invalid_argument("duplicate link name");
+    for(std::size_t i = 0; i < names.size(); ++i) {
+        if(!index.emplace(names[i], i).second) { throw std::invalid_argument("duplicate link name");
+}
+}
     std::vector<Eigen::Vector3d> result;
     result.reserve(_spheres.size());
     for(const auto& sphere : _spheres)
     {
         auto it = index.find(sphere.link);
-        if(it == index.end()) throw std::invalid_argument("missing link pose for sphere model: " + sphere.link);
+        if(it == index.end()) { throw std::invalid_argument("missing link pose for sphere model: " + sphere.link);
+}
         result.push_back(poses[it->second] * sphere.center);
     }
     return result;
@@ -39,9 +45,12 @@ SdfGrid::SdfGrid(Eigen::Vector3i dims, Eigen::Vector3d origin,
 {
     const auto count = static_cast<std::size_t>(dims.x()) * dims.y() * dims.z();
     if((dims.array() < 2).any() || !_origin.allFinite() || !std::isfinite(voxel) || voxel <= 0. ||
-       _values.size() != count)
+       _values.size() != count) {
         throw std::invalid_argument("invalid SDF grid dimensions, origin, voxel size, or value count");
-    for(float v : _values) if(!std::isfinite(v)) throw std::invalid_argument("SDF contains nonfinite values");
+}
+    for(float v : _values) { if(!std::isfinite(v)) { throw std::invalid_argument("SDF contains nonfinite values");
+}
+}
 }
 
 std::size_t SdfGrid::index(int x, int y, int z) const
@@ -51,10 +60,12 @@ std::size_t SdfGrid::index(int x, int y, int z) const
 
 DistanceSample SdfGrid::query(const Eigen::Vector3d& point) const
 {
-    if(!point.allFinite()) throw ilqr::EvaluationError("SDF query point is not finite");
+    if(!point.allFinite()) { throw ilqr::EvaluationError("SDF query point is not finite");
+}
     const Eigen::Vector3d p = (point - _origin) / _voxel_size;
-    if((p.array() < 0.).any() || (p.array() > (_dimensions.array() - 1).cast<double>()).any())
+    if((p.array() < 0.).any() || (p.array() > (_dimensions.array() - 1).cast<double>()).any()) {
         throw ilqr::EvaluationError("SDF query lies outside the grid");
+}
     Eigen::Vector3i lo;
     Eigen::Vector3d f;
     for(int a = 0; a < 3; ++a)
@@ -64,7 +75,7 @@ DistanceSample SdfGrid::query(const Eigen::Vector3d& point) const
     }
     double distance = 0.;
     Eigen::Vector3d gradient = Eigen::Vector3d::Zero();
-    for(int z = 0; z < 2; ++z) for(int y = 0; y < 2; ++y) for(int x = 0; x < 2; ++x)
+    for(int z = 0; z < 2; ++z) { for(int y = 0; y < 2; ++y) { for(int x = 0; x < 2; ++x)
     {
         const double wx = x ? f.x() : 1. - f.x();
         const double wy = y ? f.y() : 1. - f.y();
@@ -75,14 +86,17 @@ DistanceSample SdfGrid::query(const Eigen::Vector3d& point) const
         gradient.y() += (y ? 1. : -1.) * wx * wz * v / _voxel_size;
         gradient.z() += (z ? 1. : -1.) * wx * wy * v / _voxel_size;
     }
+}
+}
     return {distance, gradient};
 }
 
 SphereField::SphereField(Eigen::Vector3d center, double radius)
     : _center(std::move(center)), _radius(radius)
 {
-    if(!_center.allFinite() || !std::isfinite(radius) || radius <= 0.)
+    if(!_center.allFinite() || !std::isfinite(radius) || radius <= 0.) {
         throw std::invalid_argument("invalid sphere obstacle");
+}
 }
 DistanceSample SphereField::query(const Eigen::Vector3d& point) const
 {
@@ -94,8 +108,9 @@ DistanceSample SphereField::query(const Eigen::Vector3d& point) const
 PlaneField::PlaneField(Eigen::Vector3d point, Eigen::Vector3d normal)
     : _point(std::move(point)), _normal(std::move(normal))
 {
-    if(!_point.allFinite() || !normal.allFinite() || normal.norm() < 1e-12)
+    if(!_point.allFinite() || !normal.allFinite() || normal.norm() < 1e-12) {
         throw std::invalid_argument("invalid plane obstacle");
+}
     _normal.normalize();
 }
 DistanceSample PlaneField::query(const Eigen::Vector3d& point) const
@@ -107,13 +122,16 @@ namespace
 {
 double softplus(double x)
 {
-    if(x > 40.) return x;
-    if(x < -40.) return std::exp(x);
+    if(x > 40.) { return x;
+}
+    if(x < -40.) { return std::exp(x);
+}
     return std::log1p(std::exp(x));
 }
 double sigmoid(double x)
 {
-    if(x >= 0.) return 1. / (1. + std::exp(-std::min(x, 700.)));
+    if(x >= 0.) { return 1. / (1. + std::exp(-std::min(x, 700.)));
+}
     const double e = std::exp(std::max(x, -700.));
     return e / (1. + e);
 }
@@ -128,16 +146,24 @@ SphereDistanceFunction::SphereDistanceFunction(
       _radii(std::move(radii)), _environment(std::move(environment)),
       _self_pairs(std::move(pairs)), _margin(margin), _smoothing(smoothing)
 {
-    if(_radii.empty() || (_environment.empty() && _self_pairs.empty()))
+    if(_radii.empty() || (_environment.empty() && _self_pairs.empty())) {
         throw std::invalid_argument("collision function needs robot spheres and at least one distance query");
-    if(!std::isfinite(margin) || !std::isfinite(smoothing) || smoothing <= 0.)
+}
+    if(!std::isfinite(margin) || !std::isfinite(smoothing) || smoothing <= 0.) {
         throw std::invalid_argument("collision margin and smoothing must be finite; smoothing must be positive");
-    for(double r : _radii) if(!std::isfinite(r) || r <= 0.) throw std::invalid_argument("invalid robot sphere radius");
-    for(const auto& f : _environment) if(!f) throw std::invalid_argument("null distance field");
-    for(const auto& p : _self_pairs)
+}
+    for(double r : _radii) { if(!std::isfinite(r) || r <= 0.) { throw std::invalid_argument("invalid robot sphere radius");
+}
+}
+    for(const auto& f : _environment) { if(!f) { throw std::invalid_argument("null distance field");
+}
+}
+    for(const auto& p : _self_pairs) {
         if(p.first < 0 || p.second < 0 || p.first >= static_cast<int>(_radii.size()) ||
-           p.second >= static_cast<int>(_radii.size()) || p.first == p.second)
+           p.second >= static_cast<int>(_radii.size()) || p.first == p.second) {
             throw std::invalid_argument("invalid self-collision pair");
+}
+}
 }
 
 std::unique_ptr<ilqr::Function> SphereDistanceFunction::clone() const
@@ -163,8 +189,10 @@ void SphereDistanceFunction::evaluateAndLinearize(ilqr::Input x, ilqr::VectorOut
                                                   const ilqr::MatrixInput* directions,
                                                   ilqr::MatrixOutput* product)
 {
-    if(jac) jac->setZero();
-    if(product) product->setZero();
+    if(jac) { jac->setZero();
+}
+    if(product) { product->setZero();
+}
     int row = 0;
     const int count = static_cast<int>(_radii.size());
     auto addGradient = [&](int output, int sphere, const Eigen::Vector3d& gradient)
@@ -191,12 +219,14 @@ void SphereDistanceFunction::evaluateAndLinearize(ilqr::Input x, ilqr::VectorOut
             for(const auto& field : _environment)
             {
                 auto sample = field->query(c);
-                if(sample.distance < closest.distance) closest = sample;
+                if(sample.distance < closest.distance) { closest = sample;
+}
             }
             const double clear = closest.distance - _radii[i];
             const double z = (_margin - clear) / _smoothing;
             value[row] = _smoothing * softplus(z);
-            if(jac || product) addGradient(row, i, -sigmoid(z) * closest.gradient);
+            if(jac || product) { addGradient(row, i, -sigmoid(z) * closest.gradient);
+}
             ++row;
         }
     }

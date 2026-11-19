@@ -6,9 +6,12 @@ iteration traces, trajectories, logs, and a compact summary are preserved.
 """
 import argparse
 import csv
+import datetime
+import hashlib
 import json
 import math
 import os
+import platform
 from pathlib import Path
 import statistics
 import subprocess
@@ -23,6 +26,8 @@ def trajectory(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
+    parser.add_argument("--urdf", type=Path, default=Path(__file__).resolve().parents[1] / "horizon/cpp/tests/data/kyon_full_spheres.urdf")
+    parser.add_argument("--collision-policy", type=Path, default=Path(__file__).resolve().parents[1] / "horizon/cpp/tests/data/kyon_full_disabled_collisions.json")
     parser.add_argument("--cpu-binary", type=Path,
                         help="Optional separately compiled best CPU baseline")
     parser.add_argument("--output", required=True, type=Path)
@@ -33,7 +38,15 @@ def main():
     parser.add_argument("--self-collision", type=int, choices=[0, 1], default=1)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    summary = {"cases": [], "parity": [], "gpu_before": None, "gpu_after": None}
+    summary = {"format": "horizon.full_collision_benchmark.v1",
+               "created_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+               "platform": platform.platform(), "processor": platform.processor(),
+               "sphere_urdf": str(args.urdf.resolve()),
+               "sphere_urdf_sha256": hashlib.sha256(args.urdf.read_bytes()).hexdigest(),
+               "collision_policy": str(args.collision_policy.resolve()),
+               "collision_policy_sha256": hashlib.sha256(args.collision_policy.read_bytes()).hexdigest(),
+               "nodes": args.nodes, "samples": args.samples, "threads": args.threads,
+               "cases": [], "parity": [], "gpu_before": None, "gpu_after": None}
 
     def gpu_state():
         try:
@@ -52,7 +65,7 @@ def main():
         for label, binary in cases:
             prefix = args.output / f"n{nodes}_{label}"
             backend = "scalar" if label == "cpu_reference" else label
-            command = [str(binary.resolve()), "--nodes", str(nodes), "--samples", str(args.samples),
+            command = [str(binary.resolve()), "--urdf", str(args.urdf.resolve()), "--collision-policy", str(args.collision_policy.resolve()), "--nodes", str(nodes), "--samples", str(args.samples),
                        "--iterations", str(args.iterations), "--threads", str(args.threads),
                        "--backend", backend, "--self-collision", str(args.self_collision),
                        "--output", str(prefix.resolve())]
@@ -69,7 +82,11 @@ def main():
                     "median_ms": statistics.median(times),
                     "p95_ms": times[math.ceil(.95 * len(times)) - 1],
                     "objective": samples[0]["objective"],
-                    "iterations": sorted({s["iterations"] for s in samples})}
+                    "iterations": sorted({s["iterations"] for s in samples}),
+                    "spheres": report["spheres"], "self_pairs": report["self_pairs"],
+                    "min_self_clearance": min(s["min_self_clearance"] for s in samples),
+                    "min_sdf_clearance": min(s["min_sdf_clearance"] for s in samples),
+                    "sample_profile": samples[0]}
             summary["cases"].append(case)
             values = trajectory(prefix.with_suffix(".csv"))
             if not all(math.isfinite(v) for v in values):
@@ -86,7 +103,7 @@ def main():
                                           "objective_max_abs": objective_error})
                 if error > 1e-6 or objective_error > 1e-10 + 1e-8 * abs(reference[1]):
                     raise RuntimeError(f"Backend parity failed: {prefix}")
-            print(json.dumps(case), flush=True)
+            print(json.dumps({key: value for key, value in case.items() if key != "sample_profile"}), flush=True)
             (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     summary["gpu_after"] = gpu_state()
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

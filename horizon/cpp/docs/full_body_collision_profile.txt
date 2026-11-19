@@ -1,0 +1,9 @@
+Kyon nq=31 nv=30 spheres=103 self_pairs=3799 iterations=1000
+Pinocchio sphere centers/value: 1.50337 us/op, 665173 op/s, checksum=118966
+Pinocchio sphere centers/value+Jacobian: 13.7052 us/op, 72965 op/s, checksum=426584
+plane collision/value: 39.4544 us/op, 25345.7 op/s, checksum=906.725
+plane collision/value+Jacobian: 989.642 us/op, 1010.47 op/s, checksum=-7674.42
+dense SDF collision/value: 43.6704 us/op, 22898.8 op/s, checksum=906.725
+dense SDF collision/value+Jacobian: 1047.33 us/op, 954.811 op/s, checksum=-7674.42
+dense SDF collision/value+JacobianProduct: 364.668 us/op, 2742.22 op/s, checksum=1895.33
+combined centers+SDF/value+Jacobians: 1054.17 us/op, 948.617 op/s, checksum=299944

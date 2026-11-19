@@ -20,8 +20,8 @@ from horizon.problem import Problem
 from horizon.solvers import Solver, pyilqr
 from horizon.solvers.function_manager import SymbolicFunctionManager
 
-URDF = Path(os.environ.get("KYON_URDF") or str(Path(__file__).resolve().parents[3] /
-            "iit-kyon-ros-pkg/kyon_urdf/urdf/kyon.urdf"))
+URDF = Path(os.environ.get("KYON_URDF") or str(Path(__file__).resolve().parents[1] /
+            "cpp/tests/data/kyon_full_spheres.urdf"))
 
 
 def reference_qp(N, dt, initial, goal_node, goal, weights, active):
@@ -41,6 +41,28 @@ def reference_qp(N, dt, initial, goal_node, goal, weights, active):
 
 
 class HorizonPythonInterop(unittest.TestCase):
+    def test_augmented_state_and_control_bounds(self):
+        for control_upper, expected in ((.25, .25), (.8, .4)):
+            with self.subTest(control_upper=control_upper):
+                problem = Problem(1)
+                x = problem.createStateVariable("x", 1)
+                u = problem.createInputVariable("u", 1)
+                problem.setDynamics(u)
+                problem.setDt(1.)
+                problem.setInitialState([0.])
+                x.setBounds(-np.inf, .4, nodes=[1])
+                u.setBounds(-.5, control_upper)
+                problem.createIntermediateCost("effort", .01*u*u)
+                problem.createFinalCost("target", (x-2)**2)
+                solver = Solver.make_solver("ilqr", problem, {
+                    "ilqr.enable_auglag": True, "ilqr.max_iter": 150,
+                    "ilqr.constraint_violation_threshold": 1e-8,
+                    "ilqr.merit_der_threshold": 1e-12})
+                solver.set_iteration_callback(lambda r: True)
+                self.assertTrue(solver.solve())
+                np.testing.assert_allclose(solver.u_opt, [[expected]], atol=1e-7)
+                np.testing.assert_allclose(solver.x_opt, [[0., expected]], atol=1e-7)
+
     def test_legacy_parameters_nodes_warm_start_and_exports(self):
         for abstract in (cs.SX, cs.MX):
             for gn, threads in ((False, 0), (True, 2)):
@@ -60,6 +82,7 @@ class HorizonPythonInterop(unittest.TestCase):
                     problem.createFinalResidual("terminal", .3*x)
                     endpoint = problem.createFinalConstraint("endpoint", x-goal)
                     solver = Solver.make_solver("ilqr", problem, {"ilqr.enable_gn": gn,
+                        "ilqr.legacy_problem_cost_scaling": True,
                         "ilqr.n_threads": threads, "ilqr.max_iter": 30, "ilqr.merit_der_threshold": 1e-10})
                     events = []
                     solver.set_iteration_callback(lambda r: events.append((r.iter, r.cost, r.accepted)) or True)

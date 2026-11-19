@@ -82,6 +82,15 @@ class SymbolicFunctionManager(FunctionManager):
         graph = [*inputs, cs.MX(expression)]
         for argument, result, _ in self._calls:
             graph.extend((argument, result))
+        # Problem states/controls may concatenate several symbolic variables.
+        # Lower them to the dense stage symbols required by the native builder,
+        # consistently replacing symbols inside nested native-call arguments.
+        if any(not cs.MX(value).is_symbolic() for value in inputs[:2]):
+            packed = [cs.MX.sym("x", inputs[0].numel()),
+                      cs.MX.sym("u", inputs[1].numel())]
+            graph = [*packed, *inputs[2:],
+                     *cs.substitute(graph[len(inputs):], inputs[:2], packed)]
+            inputs = [*packed, *inputs[2:]]
         serializer = cs.StringSerializer()
         serializer.pack(graph)
         self._addExpression(name, serializer.encode(), len(inputs),

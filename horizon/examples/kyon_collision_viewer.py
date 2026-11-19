@@ -89,7 +89,7 @@ def viser_view(args, manifest, replays):
     from viser.extras import ViserUrdf
     from horizon.examples.kyon_collision import sphere_model
     model = pin.buildModelFromUrdf(str(args.urdf)); data = model.createData()
-    geometry = sphere_model()
+    geometry = sphere_model(args.urdf)
     urdf_path = args.output / "visual_robot.urdf"; urdf_path.write_text(visual_urdf(args.urdf))
     server = viser.ViserServer(host="127.0.0.1", port=args.port)
     try:
@@ -187,7 +187,7 @@ def ros2_view(args, manifest, replays):
     if not shutil.which("ros2"):
         raise ValueError("Source the ROS2 environment before using the ROS2 visualizer")
     description = visual_urdf(args.urdf, uri=True)
-    model = pin.buildModelFromUrdf(str(args.urdf)); data = model.createData(); geometry = sphere_model()
+    model = pin.buildModelFromUrdf(str(args.urdf)); data = model.createData(); geometry = sphere_model(args.urdf)
     names = [name for i, name in enumerate(model.names) if i > 0 and model.joints[i].nq == 1]
     q_indices = [model.joints[model.getJointId(name)].idx_q for name in names]
     colors = {"on": (0., .57, .49), "off": (.88, .52, .20)}

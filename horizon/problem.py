@@ -83,8 +83,8 @@ class Problem:
         casadi_type = self.default_casadi_type if casadi_type is None else casadi_type
         abstract_casadi_type = self.default_abstract_casadi_type if abstract_casadi_type is None else abstract_casadi_type
 
-        if self.state_der is not None:
-            raise RuntimeError('createStateVariable must be called *before* setDynamics')
+        if self.state_der is not None or hasattr(self, "_discrete_dynamics"):
+            raise RuntimeError('createStateVariable must be called before defining dynamics')
 
         # binary array to select which nodes are "active" for the variable. In this case, all of them
         nodes_array = np.ones(self.nodes).astype(int)
@@ -254,6 +254,19 @@ class Problem:
             raise ValueError(f"Integrator function {f_int} must have the following input arguments: "
                              "state, input, time (with appropriate input sizes)")
 
+    def setDiscreteDynamics(self, next_state, state_space=None):
+        """Define the next state directly; Solver creates the transcription.
+
+        Native MX calls may appear anywhere in the expression. If omitted,
+        the state space is inferred from native robot configuration arguments.
+        """
+        if next_state.shape != self.getState().getVars().shape:
+            raise ValueError("discrete dynamics must match the state dimension")
+        from horizon.native import _owners
+        self._discrete_dynamics = cs.MX(next_state)
+        self._native_dynamics_owners = _owners(next_state)
+        self._discrete_state_space = state_space
+
     def getIntegrator(self) -> cs.Function:
         return self.f_int
 
@@ -269,6 +282,8 @@ class Problem:
         if xdot.shape[0] != nx:
             raise ValueError(f'state derivative dimension mismatch ({xdot.shape[0]} != {nx})')
 
+        from horizon.native import _owners
+        self._native_dynamics_owners = _owners(xdot)
         self.state_der = xdot
 
         import horizon.transcriptions.integrators as integrators
