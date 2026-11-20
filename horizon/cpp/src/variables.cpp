@@ -3,11 +3,8 @@
 
 using namespace horizon;
 
-
-Variable::Variable(std::string name, int dim, int n_nodes):
-    _name(name),
-    _dim(dim),
-    _n_nodes(n_nodes)
+Variable::Variable(std::string name, int dim, int n_nodes)
+    : _name(name), _dim(dim), _n_nodes(n_nodes)
 {
 
     _initial_guess.resize(_dim, _n_nodes);
@@ -32,38 +29,39 @@ bool Variable::setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes)
     return _bounds->setUpperBounds(ub, nodes);
 }
 
-bool Variable::setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub, std::vector<int> nodes)
+bool Variable::setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub,
+                         std::vector<int> nodes)
 {
     return _bounds->setBounds(lb, ub, nodes);
 }
 
-bool Variable::setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> nodes)
+bool Variable::setInitialGuess(Eigen::MatrixXd initial_guess,
+                               std::vector<int> nodes)
 {
     if (nodes.empty())
     {
         _initial_guess = initial_guess;
-//        std::cout << "ig: \n" << initial_guess << std::endl;
+        //        std::cout << "ig: \n" << initial_guess << std::endl;
     }
     else
     {
-//        std::cout << "ig at nodes: " << std::endl;
+        //        std::cout << "ig at nodes: " << std::endl;
 
-//        for (int elem : nodes)
-//        {
-//            std::cout << elem << " ";
-//        }
-//        std::cout << std::endl;
+        //        for (int elem : nodes)
+        //        {
+        //            std::cout << elem << " ";
+        //        }
+        //        std::cout << std::endl;
 
-//        std::cout << "with values: \n" << initial_guess << std::endl;
+        //        std::cout << "with values: \n" << initial_guess << std::endl;
 
-         for (int i = 0; i < nodes.size(); i++) {
-             _initial_guess(nodes[i]) = initial_guess(i);
-         }
-
+        for (int i = 0; i < nodes.size(); i++)
+        {
+            _initial_guess(nodes[i]) = initial_guess(i);
+        }
     }
 
-
-     return true;
+    return true;
 }
 
 std::vector<int> Variable::getNodes()
@@ -106,10 +104,8 @@ casadi::SX Variable::getSym()
     return _sym;
 }
 
-Parameter::Parameter(std::string name, int dim, int n_nodes):
-    _name(name),
-    _dim(dim),
-    _n_nodes(n_nodes)
+Parameter::Parameter(std::string name, int dim, int n_nodes)
+    : _name(name), _dim(dim), _n_nodes(n_nodes)
 {
     _values.resize(_dim, _n_nodes);
 
@@ -122,7 +118,8 @@ bool Parameter::setNodes(std::vector<int> nodes, bool erasing)
     return true;
 }
 
-bool Parameter::assign(const Eigen::MatrixXd& values, const std::vector<int>& nodes)
+bool Parameter::assign(const Eigen::MatrixXd &values,
+                       const std::vector<int> &nodes)
 {
     // Case 1: Replace entire matrix
     if (nodes.empty())
@@ -133,9 +130,11 @@ bool Parameter::assign(const Eigen::MatrixXd& values, const std::vector<int>& no
             if (_values.rows() != values.rows() ||
                 _values.cols() != values.cols())
             {
-                std::cerr << "assign error: dimension mismatch when replacing full matrix.\n"
-                          << "Expected (" << _values.rows() << ", " << _values.cols()
-                          << ") but got (" << values.rows() << ", " << values.cols() << ").\n";
+                std::cerr << "assign error: dimension mismatch when replacing "
+                             "full matrix.\n"
+                          << "Expected (" << _values.rows() << ", "
+                          << _values.cols() << ") but got (" << values.rows()
+                          << ", " << values.cols() << ").\n";
                 return false;
             }
         }
@@ -165,8 +164,8 @@ bool Parameter::assign(const Eigen::MatrixXd& values, const std::vector<int>& no
     {
         if (node < 0 || node >= _values.cols())
         {
-            std::cerr << "assign error: node index out of bounds: "
-                      << node << "\n";
+            std::cerr << "assign error: node index out of bounds: " << node
+                      << "\n";
             return false;
         }
     }
@@ -200,9 +199,7 @@ Eigen::MatrixXd Parameter::getValues()
     return _values;
 }
 
-
 casadi::SX Parameter::getSym()
 {
     return _sym;
 }
-

@@ -1,4 +1,5 @@
 #include "horizon/pinocchio_kinematics.h"
+#include "horizon/pinocchio_robot.h"
 #include <Eigen/Geometry>
 #include <gtest/gtest.h>
 #include <pinocchio/algorithm/frames.hpp>
@@ -247,4 +248,57 @@ TEST(FrameKinematics, ValidationAndCloneOwnership)
     EXPECT_THROW(clone->evaluate(z, result), std::invalid_argument);
     z.tail<4>().setConstant(std::numeric_limits<double>::quiet_NaN());
     EXPECT_THROW(clone->evaluate(z, result), std::invalid_argument);
+}
+
+TEST(FrameKinematics, RobotFunctionsShareContextAcrossMixedCalls)
+{
+    Robot robot;
+    auto workspace = std::make_shared<PinocchioModelWorkspace>(robot.model);
+    auto context = std::make_shared<EvaluationContext>();
+    PinocchioRobotFunction tool(robot.model, robot.space,
+                                RobotQuantity::FrameVelocity, "tool",
+                                pin::LOCAL_WORLD_ALIGNED, false, workspace);
+    PinocchioRobotFunction contact(robot.model, robot.space,
+                                   RobotQuantity::FrameVelocity, "contact",
+                                   pin::LOCAL_WORLD_ALIGNED, false, workspace);
+    PinocchioRobotFunction acceleration(robot.model, robot.space,
+                                        RobotQuantity::FrameAcceleration, "tool",
+                                        pin::LOCAL_WORLD_ALIGNED, false, workspace);
+    PinocchioRobotFunction gravity(robot.model, robot.space, RobotQuantity::Gravity,
+                                   {}, pin::LOCAL_WORLD_ALIGNED, false, workspace);
+    PinocchioFramePositions positions(robot.model, robot.space, {"tool"}, workspace);
+    tool.setEvaluationContext(context);
+    contact.setEvaluationContext(context);
+    acceleration.setEvaluationContext(context);
+    gravity.setEvaluationContext(context);
+    positions.setEvaluationContext(context);
+    auto independent = tool.clone();
+    independent->setEvaluationContext(std::make_shared<EvaluationContext>());
+    auto *reference = dynamic_cast<TangentFunction *>(independent.get());
+    ASSERT_NE(reference, nullptr);
+    Vector z(robot.model->nq + robot.model->nv);
+    Vector za(robot.model->nq + 2 * robot.model->nv);
+    Vector value(6), expected(6), other(6), position(3), torque(robot.model->nv);
+    Matrix jac(6, 2 * robot.model->nv), expected_jac(6, 2 * robot.model->nv);
+    Matrix other_jac(6, 2 * robot.model->nv), accel_jac(6, 3 * robot.model->nv);
+    for (int trial = 0; trial < 3; ++trial)
+    {
+        z << pin::integrate(*robot.model, robot.q,
+                            Vector::Constant(robot.model->nv, .03 * trial)),
+            Vector::LinSpaced(robot.model->nv, -.2 + .1 * trial, .3);
+        za << z, Vector::Constant(robot.model->nv, .05 * trial);
+        tool.valueAndTangentLinearization(z, value, jac);
+        contact.valueAndTangentLinearization(z, other, other_jac);
+        positions.evaluate(z.head(robot.model->nq), position);
+        acceleration.valueAndTangentLinearization(za, other, accel_jac);
+        gravity.evaluate(z.head(robot.model->nq), torque);
+        tool.valueAndTangentLinearization(z, value, jac);
+        reference->valueAndTangentLinearization(z, expected, expected_jac);
+        EXPECT_LT((value - expected).norm(), 1e-12);
+        EXPECT_LT((jac - expected_jac).norm(), 1e-12);
+        EXPECT_LT((jac - numericalTangent(tool, z)).norm(), 3e-8);
+    }
+    auto other_context = std::make_shared<EvaluationContext>();
+    EXPECT_NE(workspace->forContext(context).get(),
+              workspace->forContext(other_context).get());
 }

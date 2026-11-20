@@ -12,21 +12,31 @@ namespace horizon::ilqr
  */
 class CasadiFunction final : public Function
 {
-public:
-    explicit CasadiFunction(const casadi::Function& function, bool exact_hessian = true);
+  public:
+    explicit CasadiFunction(const casadi::Function &function,
+                            bool exact_hessian = true);
     std::unique_ptr<Function> clone() const override;
-    bool hasHessian() const override { return _exact_hessian; }
-protected:
+    bool hasHessian() const override
+    {
+        return _exact_hessian;
+    }
+
+  protected:
     void evaluateImpl(Input x, VectorOutput value) override;
     void jacobianImpl(Input x, MatrixOutput jac) override;
-    void valueAndJacobianImpl(Input x, VectorOutput value, MatrixOutput jac) override;
-    void weightedHessianImpl(Input x, Input weights, MatrixOutput hess) override;
-    void valueAndJacobianProductImpl(Input x, MatrixInput directions, VectorOutput value, MatrixOutput product) override;
-private:
-    CasadiFunction(const CasadiFunction&) = default;
+    void valueAndJacobianImpl(Input x, VectorOutput value,
+                              MatrixOutput jac) override;
+    void weightedHessianImpl(Input x, Input weights,
+                             MatrixOutput hess) override;
+    void valueAndJacobianProductImpl(Input x, MatrixInput directions,
+                                     VectorOutput value,
+                                     MatrixOutput product) override;
+
+  private:
+    CasadiFunction(const CasadiFunction &) = default;
     casadi_utils::WrappedFunction _value, _jac, _hess, _linear;
     bool _exact_hessian;
-    std::vector<casadi_int> _valueRows,_jacRows,_jacCols;
+    std::vector<casadi_int> _valueRows, _jacRows, _jacCols;
 };
 
 struct SymbolicCall
@@ -41,9 +51,10 @@ struct SymbolicCall
  */
 class SymbolicNativeFunction
 {
-public:
-    casadi::MX operator()(const casadi::MX& argument) const;
-private:
+  public:
+    casadi::MX operator()(const casadi::MX &argument) const;
+
+  private:
     friend class SymbolicFunctionManager;
     std::string _name;
     std::shared_ptr<const Function> _function;
@@ -56,17 +67,27 @@ private:
  */
 class SymbolicFunctionManager : public FunctionManager
 {
-public:
-    SymbolicNativeFunction addNative(const std::string& name,
+  public:
+    SymbolicNativeFunction addNative(const std::string &name,
                                      std::shared_ptr<const Function> function);
-    void addExpression(const std::string& name, const std::vector<casadi::MX>& inputs,
-                       const casadi::MX& expression, bool exact_hessian = true);
-    void addResidual(const std::string& name, const std::vector<casadi::MX>& inputs,
-                     const casadi::MX& expression) { addExpression(name, inputs, expression, false); }
-    void addCost(const std::string& name, const std::vector<casadi::MX>& inputs,
-                 const casadi::MX& expression) { addExpression(name, inputs, expression, true); }
-private:
-    std::shared_ptr<std::vector<SymbolicCall>> _calls = std::make_shared<std::vector<SymbolicCall>>();
+    void addExpression(const std::string &name,
+                       const std::vector<casadi::MX> &inputs,
+                       const casadi::MX &expression, bool exact_hessian = true);
+    void addResidual(const std::string &name,
+                     const std::vector<casadi::MX> &inputs,
+                     const casadi::MX &expression)
+    {
+        addExpression(name, inputs, expression, false);
+    }
+    void addCost(const std::string &name, const std::vector<casadi::MX> &inputs,
+                 const casadi::MX &expression)
+    {
+        addExpression(name, inputs, expression, true);
+    }
+
+  private:
+    std::shared_ptr<std::vector<SymbolicCall>> _calls =
+        std::make_shared<std::vector<SymbolicCall>>();
 };
-}
+} // namespace horizon::ilqr
 #endif

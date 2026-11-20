@@ -122,6 +122,70 @@ class NativeRobotTest(unittest.TestCase):
                         np.testing.assert_allclose(result[:nv], 0., atol=1e-10)
                         np.testing.assert_allclose(result[nv:], h-actuation@solution["tau"][:, k], atol=1e-9)
 
+    def test_spot_difference_jacobian(self):
+        import pinocchio as pin
+        path = Path(__file__).resolve().parents[1] / "examples/urdf/spot.urdf"
+        robot = pyilqr.PinocchioModel(str(path))
+        model = pin.buildModelFromUrdf(str(path))
+        function = robot.difference()
+        random = np.random.default_rng(42)
+        epsilon = 1e-6
+        for trial in range(3):
+            configurations = [pin.integrate(model, robot.configuration_space.neutral(),
+                                            random.normal(0, .3, robot.nv))
+                              for _ in range(2)]
+            z = np.concatenate(configurations)
+            jacobian = function.jacobian(z)
+            for argument in range(2):
+                for column in range(robot.nv):
+                    with self.subTest(trial=trial, argument=argument, column=column):
+                        direction = np.zeros(robot.nv)
+                        direction[column] = epsilon
+                        plus, minus = z.copy(), z.copy()
+                        section = slice(argument * robot.nq, (argument + 1) * robot.nq)
+                        plus[section] = pin.integrate(model, configurations[argument], direction)
+                        minus[section] = pin.integrate(model, configurations[argument], -direction)
+                        numerical = (function.evaluate(plus) - function.evaluate(minus)) / (2 * epsilon)
+                        tangent = (plus[section] - minus[section]) / (2 * epsilon)
+                        np.testing.assert_allclose(jacobian[:, section] @ tangent,
+                                                   numerical, atol=2e-6, rtol=1e-6)
+
+    def test_spot_inverse_dynamics_contact_jacobians(self):
+        import pinocchio as pin
+        path = Path(__file__).resolve().parents[1] / "examples/urdf/spot.urdf"
+        robot = pyilqr.PinocchioModel(str(path))
+        model = pin.buildModelFromUrdf(str(path))
+        frames = ("lf_foot", "rf_foot", "lh_foot", "rh_foot")
+        random = np.random.default_rng(42)
+        epsilon = 1e-6
+        for dimension in (3, 6):
+            function = robot.inverseDynamics([pyilqr.Contact(frame, dimension) for frame in frames])
+            for trial in range(3):
+                with self.subTest(dimension=dimension, trial=trial):
+                    q = pin.integrate(model, robot.configuration_space.neutral(),
+                                      random.normal(0, .3, robot.nv))
+                    z = np.r_[q, random.normal(0, .3, 2 * robot.nv),
+                              random.normal(0, 40, dimension * len(frames))]
+                    function.evaluate(z)
+                    jacobian = function.jacobian(z)
+                    for column in range(robot.nv):
+                        direction = np.zeros(robot.nv)
+                        direction[column] = epsilon
+                        plus, minus = z.copy(), z.copy()
+                        plus[:robot.nq] = pin.integrate(model, q, direction)
+                        minus[:robot.nq] = pin.integrate(model, q, -direction)
+                        numerical = (function.evaluate(plus) - function.evaluate(minus)) / (2 * epsilon)
+                        tangent = (plus[:robot.nq] - minus[:robot.nq]) / (2 * epsilon)
+                        np.testing.assert_allclose(jacobian[:, :robot.nq] @ tangent,
+                                                   numerical, atol=2e-6, rtol=1e-6)
+                    for column in range(robot.nq, len(z)):
+                        plus, minus = z.copy(), z.copy()
+                        plus[column] += epsilon
+                        minus[column] -= epsilon
+                        numerical = (function.evaluate(plus) - function.evaluate(minus)) / (2 * epsilon)
+                        np.testing.assert_allclose(jacobian[:, column], numerical,
+                                                   atol=2e-6, rtol=1e-6)
+
     def test_multiple_floating_base_point_contacts(self):
         import pinocchio as pin
         from horizon.examples.native_pinocchio_support import initial_configuration

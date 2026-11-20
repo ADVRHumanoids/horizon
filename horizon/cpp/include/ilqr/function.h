@@ -3,13 +3,13 @@
 
 #include <Eigen/Core>
 #include <functional>
-#include <memory>
 #include <map>
-#include <string>
-#include <vector>
+#include <memory>
 #include <stdexcept>
-#include <utility>
+#include <string>
 #include <typeindex>
+#include <utility>
+#include <vector>
 
 namespace horizon::ilqr
 {
@@ -37,34 +37,54 @@ struct EvaluationError : std::runtime_error
  */
 class Function
 {
-public:
+  public:
     Function(int input_size, int output_size);
     virtual ~Function() = default;
-    int inputSize() const { return _input_size; }
-    int outputSize() const { return _output_size; }
+    int inputSize() const
+    {
+        return _input_size;
+    }
+    int outputSize() const
+    {
+        return _output_size;
+    }
     virtual std::unique_ptr<Function> clone() const = 0;
-    virtual bool hasHessian() const { return false; }
+    virtual bool hasHessian() const
+    {
+        return false;
+    }
     /** Prefer the implementation's directional kernel over caching a dense
      * Jacobian. Useful when that Jacobian is large and structurally sparse. */
-    virtual bool hasJacobianProduct() const { return false; }
-    virtual void setEvaluationContext(const std::shared_ptr<EvaluationContext>&) {}
+    virtual bool hasJacobianProduct() const
+    {
+        return false;
+    }
+    virtual void
+    setEvaluationContext(const std::shared_ptr<EvaluationContext> &)
+    {
+    }
 
     void evaluate(Input x, VectorOutput value);
     void jacobian(Input x, MatrixOutput jac);
     void valueAndJacobian(Input x, VectorOutput value, MatrixOutput jac);
     void weightedHessian(Input x, Input weights, MatrixOutput hess);
     /** Evaluate and propagate arbitrary input directions, e.g. [Rx, Iu, 0p]. */
-    void valueAndJacobianProduct(Input x, MatrixInput directions, VectorOutput value, MatrixOutput product);
+    void valueAndJacobianProduct(Input x, MatrixInput directions,
+                                 VectorOutput value, MatrixOutput product);
 
-protected:
-    static void multiplyJacobian(MatrixInput jac,MatrixInput directions,MatrixOutput product);
+  protected:
+    static void multiplyJacobian(MatrixInput jac, MatrixInput directions,
+                                 MatrixOutput product);
     virtual void evaluateImpl(Input x, VectorOutput value) = 0;
     virtual void jacobianImpl(Input x, MatrixOutput jac) = 0;
-    virtual void valueAndJacobianImpl(Input x, VectorOutput value, MatrixOutput jac);
+    virtual void valueAndJacobianImpl(Input x, VectorOutput value,
+                                      MatrixOutput jac);
     virtual void weightedHessianImpl(Input x, Input weights, MatrixOutput hess);
-    virtual void valueAndJacobianProductImpl(Input x, MatrixInput directions, VectorOutput value, MatrixOutput product);
+    virtual void valueAndJacobianProductImpl(Input x, MatrixInput directions,
+                                             VectorOutput value,
+                                             MatrixOutput product);
 
-private:
+  private:
     int _input_size, _output_size;
     Matrix _productJacobian;
 };
@@ -75,36 +95,52 @@ private:
  */
 class EvaluationContext
 {
-public:
-    std::shared_ptr<Function> share(const std::shared_ptr<const Function>& function);
+  public:
+    std::shared_ptr<Function>
+    share(const std::shared_ptr<const Function> &function);
     /** Share an arbitrary node-local backend workspace between native
      * functions. The key must be the common immutable prototype identity.
      */
-    template<class T, class Factory>
-    std::shared_ptr<T> shareObject(const void* key, Factory&& factory)
+    template <class T, class Factory>
+    std::shared_ptr<T> shareObject(const void *key, Factory &&factory)
     {
-        if(!key) { throw std::invalid_argument("evaluation-context object key is null");
-}
+        if (!key)
+        {
+            throw std::invalid_argument(
+                "evaluation-context object key is null");
+        }
         const auto typed_key = std::make_pair(key, std::type_index(typeid(T)));
         auto it = _objects.find(typed_key);
-        if(it != _objects.end()) { return std::static_pointer_cast<T>(it->second);
-}
+        if (it != _objects.end())
+        {
+            return std::static_pointer_cast<T>(it->second);
+        }
         auto value = std::forward<Factory>(factory)();
-        if(!value) { throw std::invalid_argument("evaluation-context factory returned null");
-}
+        if (!value)
+        {
+            throw std::invalid_argument(
+                "evaluation-context factory returned null");
+        }
         auto typed = std::static_pointer_cast<T>(value);
         _objects.emplace(typed_key, std::move(value));
         return typed;
     }
     void invalidate();
-private:
+
+  private:
     struct IdentityLess
     {
-        bool operator()(const std::shared_ptr<const Function>& a,const std::shared_ptr<const Function>& b) const
-        {return std::less<const Function*>{}(a.get(),b.get());}
+        bool operator()(const std::shared_ptr<const Function> &a,
+                        const std::shared_ptr<const Function> &b) const
+        {
+            return std::less<const Function *>{}(a.get(), b.get());
+        }
     };
-    std::map<std::shared_ptr<const Function>,std::shared_ptr<Function>,IdentityLess> _functions;
-    std::map<std::pair<const void*, std::type_index>, std::shared_ptr<void>> _objects;
+    std::map<std::shared_ptr<const Function>, std::shared_ptr<Function>,
+             IdentityLess>
+        _functions;
+    std::map<std::pair<const void *, std::type_index>, std::shared_ptr<void>>
+        _objects;
 };
 
 /** Prepare shared numerical work for all shooting nodes before independent
@@ -113,12 +149,13 @@ private:
  * the supplied node contexts; clones keep independent mutable state. */
 class EvaluationBatch
 {
-public:
+  public:
     virtual ~EvaluationBatch() = default;
     virtual std::unique_ptr<EvaluationBatch> clone() const = 0;
-    virtual void prepare(MatrixInput states, MatrixInput controls,
-                         const std::vector<std::shared_ptr<EvaluationContext>>& contexts,
-                         bool derivatives) = 0;
+    virtual void
+    prepare(MatrixInput states, MatrixInput controls,
+            const std::vector<std::shared_ptr<EvaluationContext>> &contexts,
+            bool derivatives) = 0;
 };
 
 /** State-only horizon cost, already differentiated in tangent coordinates.
@@ -128,7 +165,7 @@ public:
  */
 class BatchedCost
 {
-public:
+  public:
     virtual ~BatchedCost() = default;
     virtual std::unique_ptr<BatchedCost> clone() const = 0;
     virtual int stateSize() const = 0;
@@ -144,38 +181,50 @@ public:
  */
 class CallbackFunction final : public Function
 {
-public:
+  public:
     using Evaluation = std::function<void(Input, VectorOutput)>;
     using Jacobian = std::function<void(Input, MatrixOutput)>;
     using Hessian = std::function<void(Input, Input, MatrixOutput)>;
     CallbackFunction(int nin, int nout, Evaluation value, Jacobian jac,
                      Hessian hess = {});
     std::unique_ptr<Function> clone() const override;
-    bool hasHessian() const override { return bool(_hess); }
-protected:
+    bool hasHessian() const override
+    {
+        return bool(_hess);
+    }
+
+  protected:
     void evaluateImpl(Input x, VectorOutput value) override;
     void jacobianImpl(Input x, MatrixOutput jac) override;
-    void weightedHessianImpl(Input x, Input weights, MatrixOutput hess) override;
-private:
+    void weightedHessianImpl(Input x, Input weights,
+                             MatrixOutput hess) override;
+
+  private:
     Evaluation _value;
     Jacobian _jac;
     Hessian _hess;
 };
 
-/** outer(inner(x)); both Jacobians and exact second derivatives are composed. */
+/** outer(inner(x)); both Jacobians and exact second derivatives are composed.
+ */
 class ComposedFunction final : public Function
 {
-public:
-    ComposedFunction(const Function& outer, const Function& inner);
+  public:
+    ComposedFunction(const Function &outer, const Function &inner);
     std::unique_ptr<Function> clone() const override;
     bool hasHessian() const override;
-    void setEvaluationContext(const std::shared_ptr<EvaluationContext>& context) override;
-protected:
+    void setEvaluationContext(
+        const std::shared_ptr<EvaluationContext> &context) override;
+
+  protected:
     void evaluateImpl(Input x, VectorOutput value) override;
     void jacobianImpl(Input x, MatrixOutput jac) override;
-    void valueAndJacobianImpl(Input x, VectorOutput value, MatrixOutput jac) override;
-    void weightedHessianImpl(Input x, Input weights, MatrixOutput hess) override;
-private:
+    void valueAndJacobianImpl(Input x, VectorOutput value,
+                              MatrixOutput jac) override;
+    void weightedHessianImpl(Input x, Input weights,
+                             MatrixOutput hess) override;
+
+  private:
     std::unique_ptr<Function> _outer, _inner;
     Vector _value, _weights;
     Matrix _Ji, _Jo, _Hi, _Ho, _product;
@@ -199,12 +248,13 @@ struct FunctionSpec
  */
 class FunctionManager
 {
-public:
-    void add(const std::string& name, std::shared_ptr<const Function> function,
+  public:
+    void add(const std::string &name, std::shared_ptr<const Function> function,
              std::vector<Parameter> parameters = {});
-    const FunctionSpec& at(const std::string& name) const;
-private:
+    const FunctionSpec &at(const std::string &name) const;
+
+  private:
     std::map<std::string, FunctionSpec> _functions;
 };
-}
+} // namespace horizon::ilqr
 #endif

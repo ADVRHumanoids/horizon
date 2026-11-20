@@ -7,6 +7,7 @@
 #include <pinocchio/algorithm/jacobian.hpp>
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
+#include <pinocchio/algorithm/kinematics-derivatives.hpp>
 #include <pinocchio/spatial/explog.hpp>
 #include <pinocchio/spatial/skew.hpp>
 #include <stdexcept>
@@ -259,6 +260,12 @@ bool PinocchioModelWorkspace::same(const Eigen::VectorXd &cached,
                     value.size() * sizeof(double)) == 0;
 }
 
+void PinocchioModelWorkspace::invalidate()
+{
+    _has_q = _positions = _velocity = _acceleration = _frames = _jacobians =
+        _derivatives = false;
+}
+
 void PinocchioModelWorkspace::resetForConfiguration(ilqr::Input q)
 {
     if (q.size() != _model->nq || !q.allFinite())
@@ -271,7 +278,8 @@ void PinocchioModelWorkspace::resetForConfiguration(ilqr::Input q)
         _q = _candidate_q;
         _input_q = q;
         _has_q = true;
-        _positions = _velocity = _acceleration = _frames = _jacobians = false;
+        _positions = _velocity = _acceleration = _frames = _jacobians =
+            _derivatives = false;
     }
 }
 
@@ -282,7 +290,7 @@ void PinocchioModelWorkspace::ensurePositions(ilqr::Input q)
     {
         pinocchio::forwardKinematics(*_model, _data, _q);
         _positions = true;
-        _velocity = _acceleration = _frames = _jacobians = false;
+        _velocity = _acceleration = _frames = _jacobians = _derivatives = false;
     }
 }
 
@@ -298,7 +306,7 @@ void PinocchioModelWorkspace::ensureVelocity(ilqr::Input q, ilqr::Input v)
         pinocchio::forwardKinematics(*_model, _data, _q, v);
         _v = v;
         _positions = _velocity = true;
-        _acceleration = _frames = _jacobians = false;
+        _acceleration = _frames = _jacobians = _derivatives = false;
     }
 }
 
@@ -318,7 +326,7 @@ void PinocchioModelWorkspace::ensureAcceleration(ilqr::Input q, ilqr::Input v,
         _v = v;
         _a = a;
         _positions = _velocity = _acceleration = true;
-        _frames = _jacobians = false;
+        _frames = _jacobians = _derivatives = false;
     }
 }
 
@@ -342,6 +350,27 @@ void PinocchioModelWorkspace::ensureJointJacobians(ilqr::Input q)
         // q.
         pinocchio::computeJointJacobians(*_model, _data);
         _jacobians = true;
+        _derivatives = false;
+    }
+}
+
+void PinocchioModelWorkspace::ensureKinematicsDerivatives(ilqr::Input q,
+                                                           ilqr::Input v,
+                                                           ilqr::Input a)
+{
+    resetForConfiguration(q);
+    if (v.size() != _model->nv || a.size() != _model->nv || !v.allFinite() ||
+        !a.allFinite())
+    {
+        throw std::invalid_argument("invalid Pinocchio velocity or acceleration");
+    }
+    if (!_derivatives || !same(_v, v, true) || !same(_a, a, true))
+    {
+        pinocchio::computeForwardKinematicsDerivatives(*_model, _data, _q, v, a);
+        _v = v;
+        _a = a;
+        _positions = _velocity = _acceleration = _derivatives = true;
+        _frames = _jacobians = false;
     }
 }
 

@@ -1,8 +1,8 @@
 #ifndef VARIABLES_H
 #define VARIABLES_H
 
-#include <casadi/casadi.hpp>
 #include <Eigen/Dense>
+#include <casadi/casadi.hpp>
 
 #include "bounds.h"
 
@@ -11,17 +11,18 @@ namespace horizon
 
 class Variable
 {
-public:
-
+  public:
     typedef std::shared_ptr<Variable> Ptr;
 
     Variable(std::string name, int dim, int n_nodes);
     bool setNodes(std::vector<int> nodes, bool erasing);
     bool setLowerBounds(Eigen::MatrixXd lb, std::vector<int> nodes = {});
     bool setUpperBounds(Eigen::MatrixXd ub, std::vector<int> nodes = {});
-    bool setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub, std::vector<int> nodes = {});
+    bool setBounds(Eigen::MatrixXd lb, Eigen::MatrixXd ub,
+                   std::vector<int> nodes = {});
 
-    bool setInitialGuess(Eigen::MatrixXd initial_guess, std::vector<int> nodes = {});
+    bool setInitialGuess(Eigen::MatrixXd initial_guess,
+                         std::vector<int> nodes = {});
 
     Eigen::MatrixXd getValues();
 
@@ -34,13 +35,9 @@ public:
 
     Eigen::MatrixXd getInitialGuess();
 
-
-
     casadi::SX getSym();
 
-
-private:
-
+  private:
     std::string _name;
     int _dim;
     int _n_nodes;
@@ -49,18 +46,17 @@ private:
     Eigen::MatrixXd _initial_guess;
 
     casadi::SX _sym;
-
 };
 
 class Parameter
 {
-public:
-
+  public:
     typedef std::shared_ptr<Parameter> Ptr;
 
     Parameter(std::string name, int dim, int n_nodes);
     bool setNodes(std::vector<int> nodes, bool erasing);
-    bool assign(const Eigen::MatrixXd& values, const std::vector<int>& nodes = {});
+    bool assign(const Eigen::MatrixXd &values,
+                const std::vector<int> &nodes = {});
 
     Eigen::MatrixXd getValues();
 
@@ -70,9 +66,7 @@ public:
 
     casadi::SX getSym();
 
-
-private:
-
+  private:
     std::string _name;
     int _dim;
     int _n_nodes;
@@ -80,7 +74,6 @@ private:
     Eigen::MatrixXd _values;
 
     casadi::SX _sym;
-
 };
-}
+} // namespace horizon
 #endif // VARIABLES_H

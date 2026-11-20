@@ -152,14 +152,31 @@ struct PinocchioRobotImplBase
     std::shared_ptr<const pinocchio::Model> source;
     std::shared_ptr<const PinocchioConfiguration> space;
     pinocchio::Model model;
-    pinocchio::Data data;
+    std::shared_ptr<PinocchioModelWorkspace> workspace_prototype, workspace;
     ilqr::Vector q, zero;
     PinocchioRobotImplBase(std::shared_ptr<const pinocchio::Model> source,
-                           std::shared_ptr<const PinocchioConfiguration> space)
+                           std::shared_ptr<const PinocchioConfiguration> space,
+                           std::shared_ptr<PinocchioModelWorkspace> workspace)
         : source(std::move(source)), space(std::move(space)),
-          model(*this->source), data(model), q(model.nq),
+          model(*this->source),
+          workspace_prototype(workspace ? std::move(workspace)
+                                        : std::make_shared<PinocchioModelWorkspace>(this->source)),
+          workspace(workspace_prototype->cloneEmpty()), q(model.nq),
           zero(ilqr::Vector::Zero(model.nv))
     {
+        if (&workspace_prototype->model() != this->source.get())
+        {
+            throw std::invalid_argument("Pinocchio workspace belongs to a different model");
+        }
+    }
+    pinocchio::Data &data()
+    {
+        return workspace->data();
+    }
+    void setEvaluationContext(const std::shared_ptr<ilqr::EvaluationContext> &context)
+    {
+        workspace = context ? workspace_prototype->forContext(context)
+                            : workspace_prototype->cloneEmpty();
     }
     void prepare(ilqr::Input z)
     {
@@ -181,7 +198,8 @@ struct PinocchioRobotFunction::Impl : detail::PinocchioRobotImplBase
     Impl(std::shared_ptr<const pinocchio::Model> model,
          std::shared_ptr<const PinocchioConfiguration> space,
          RobotQuantity quantity, std::string frame,
-         pinocchio::ReferenceFrame reference, bool symbolic_gravity);
+            pinocchio::ReferenceFrame reference, bool symbolic_gravity,
+            std::shared_ptr<PinocchioModelWorkspace> workspace);
     bool isDynamics() const;
     void evaluateKinematics(ilqr::Input z, ilqr::VectorOutput out);
     void jacobianKinematics(ilqr::Input z, ilqr::MatrixOutput jac);

@@ -1,20 +1,20 @@
 #ifndef __HORIZON__ILQR__H__
 #define __HORIZON__ILQR__H__
 
-#include <casadi/casadi.hpp>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-#include <memory>
-#include <variant>
-#include <thread>
-#include <condition_variable>
-#include <mutex>
 #include <atomic>
+#include <casadi/casadi.hpp>
+#include <condition_variable>
 #include <exception>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <variant>
 
+#include "function.h"
 #include "horizon/profiling.h"
 #include "iterate_filter.h"
-#include "function.h"
 #include "state_space.h"
 
 namespace horizon
@@ -83,44 +83,43 @@ class Nodes
 class IterativeLQR
 {
 
-public:
-
+  public:
     /**
      *
      */
     struct ForwardPassResult;
-    const ForwardPassResult& getIterationResult() const;
+    const ForwardPassResult &getIterationResult() const;
 
     /**
      * @brief CallbackType
      */
-    typedef std::function<bool(const ForwardPassResult& res)> CallbackType;
+    typedef std::function<bool(const ForwardPassResult &res)> CallbackType;
 
     typedef std::variant<int, double, bool, std::string> OptionTypes;
     typedef std::map<std::string, OptionTypes> OptionDict;
 
-
     /**
      * @brief Class constructor
-     * @param fdyn is a function mapping state and control to the integrated state;
-     * required signature is (x, u, p) -> (f)
+     * @param fdyn is a function mapping state and control to the integrated
+     * state; required signature is (x, u, p) -> (f)
      * @param N is the number of shooting intervals
      */
-    IterativeLQR(casadi::Function fdyn,
-                 int N,
+    IterativeLQR(casadi::Function fdyn, int N, OptionDict opt = OptionDict(),
+                 std::shared_ptr<const ilqr::StateSpace> space = nullptr);
+
+    IterativeLQR(const ilqr::FunctionManager &manager,
+                 const std::string &dynamics, int N,
                  OptionDict opt = OptionDict(),
                  std::shared_ptr<const ilqr::StateSpace> space = nullptr);
 
-    IterativeLQR(const ilqr::FunctionManager& manager, const std::string& dynamics,
-                 int N, OptionDict opt = OptionDict(),
-                 std::shared_ptr<const ilqr::StateSpace> space = nullptr);
-
-    void setCost(std::vector<int> indices, const ilqr::FunctionManager& manager,
-                 const std::string& name);
-    void setResidual(std::vector<int> indices, const ilqr::FunctionManager& manager,
-                     const std::string& name);
-    void setConstraint(std::vector<int> indices, const ilqr::FunctionManager& manager,
-                       const std::string& name,
+    void setCost(std::vector<int> indices, const ilqr::FunctionManager &manager,
+                 const std::string &name);
+    void setResidual(std::vector<int> indices,
+                     const ilqr::FunctionManager &manager,
+                     const std::string &name);
+    void setConstraint(std::vector<int> indices,
+                       const ilqr::FunctionManager &manager,
+                       const std::string &name,
                        std::vector<Eigen::VectorXd> targets = {});
 
     void setCost(Nodes nodes, const ilqr::FunctionManager &manager,
@@ -207,55 +206,62 @@ public:
      * value for the constraint function at the indices[i]
      */
     void setConstraint(std::vector<int> indices,
-                       const casadi::Function& inter_constraint,
-                       std::vector<Eigen::VectorXd> target_values = std::vector<Eigen::VectorXd>());
+                       const casadi::Function &inter_constraint,
+                       std::vector<Eigen::VectorXd> target_values =
+                           std::vector<Eigen::VectorXd>());
 
-    void setFinalConstraint(const casadi::Function& final_constraint);
+    void setFinalConstraint(const casadi::Function &final_constraint);
 
-    void setIndices(const std::string& f_name,
-                    const std::vector<int>& indices);
+    void setIndices(const std::string &f_name, const std::vector<int> &indices);
 
-    void setIndices(const std::string& f_name, Nodes nodes)
-    { setIndices(f_name, nodes.resolve(_N)); }
+    void setIndices(const std::string &f_name, Nodes nodes)
+    {
+        setIndices(f_name, nodes.resolve(_N));
+    }
 
     void updateIndices();
 
     void printState() const;
 
-    void setParameterValue(const std::string& pname, const Eigen::MatrixXd& value, const std::vector<int>& indices = {});
+    void setParameterValue(const std::string &pname,
+                           const Eigen::MatrixXd &value,
+                           const std::vector<int> &indices = {});
 
     /** Set only the node-zero initial guess; use fixInitialState for bounds. */
-    void setInitialState(const Eigen::VectorXd& x0);
+    void setInitialState(const Eigen::VectorXd &x0);
 
-    void setStateInitialGuess(const Eigen::MatrixXd& x0);
+    void setStateInitialGuess(const Eigen::MatrixXd &x0);
 
-    void setInputInitialGuess(const Eigen::MatrixXd& u0);
+    void setInputInitialGuess(const Eigen::MatrixXd &u0);
 
-    void setIterationCallback(const CallbackType& cb);
+    void setIterationCallback(const CallbackType &cb);
 
     /** Register a cloned horizon-wide evaluator. Setup operation; the batch
      * must cover the nodes on which its associated functions are installed. */
-    void addEvaluationBatch(const ilqr::EvaluationBatch& batch);
+    void addEvaluationBatch(const ilqr::EvaluationBatch &batch);
     /** State-only Gauss-Newton contribution in a contiguous tangent block.
-     * The prototype is cloned; node cost objects share that solver-owned clone. */
-    void setBatchedCost(std::vector<int> indices, const std::string& name,
-                        const ilqr::BatchedCost& batch, int tangent_offset = 0);
+     * The prototype is cloned; node cost objects share that solver-owned clone.
+     */
+    void setBatchedCost(std::vector<int> indices, const std::string &name,
+                        const ilqr::BatchedCost &batch, int tangent_offset = 0);
 
     bool solve(int max_iter);
 
-    const Eigen::MatrixXd& getStateTrajectory() const;
+    const Eigen::MatrixXd &getStateTrajectory() const;
 
-    const Eigen::MatrixXd& getInputTrajectory() const;
+    const Eigen::MatrixXd &getInputTrajectory() const;
 
-    Eigen::MatrixXd getParameterValue(const std::string& pname, const std::vector<int>& indices = {}) const;
+    Eigen::MatrixXd
+    getParameterValue(const std::string &pname,
+                      const std::vector<int> &indices = {}) const;
 
-    const utils::ProfilingInfo& getProfilingInfo() const;
+    const utils::ProfilingInfo &getProfilingInfo() const;
 
-    const std::vector<ForwardPassResult>& getIterationHistory() const;
+    const std::vector<ForwardPassResult> &getIterationHistory() const;
 
-    const std::map<std::string, Eigen::MatrixXd>& getConstraintsValues() const;
+    const std::map<std::string, Eigen::MatrixXd> &getConstraintsValues() const;
 
-    const std::map<std::string, Eigen::VectorXd>& getCostsValues() const;
+    const std::map<std::string, Eigen::VectorXd> &getCostsValues() const;
 
     VecConstRef state(int i) const;
 
@@ -270,7 +276,8 @@ public:
         Eigen::MatrixXd xtrj;
         Eigen::MatrixXd utrj;
         double damping = 0;
-        double predicted_reduction = 0, actual_reduction = 0, model_agreement = 0;
+        double predicted_reduction = 0, actual_reduction = 0,
+               model_agreement = 0;
         double stationarity = std::numeric_limits<double>::infinity();
         int trial_count = 0, direction_solves = 0;
         int derivative_evaluations = 0, value_evaluations = 0;
@@ -302,12 +309,8 @@ public:
         void print(int N = 1) const;
     };
 
-
-
-
-protected:
-
-private:
+  protected:
+  private:
     friend struct IterativeLQRTestAccess;
 
     static constexpr double inf = std::numeric_limits<double>::infinity();
@@ -336,31 +339,32 @@ private:
     typedef std::shared_ptr<std::map<std::string, Eigen::MatrixXd>>
         ParameterMapPtr;
 
-    typedef std::map<std::string, std::shared_ptr<CostEntityBase>>
-        CostPtrMap;
+    typedef std::map<std::string, std::shared_ptr<CostEntityBase>> CostPtrMap;
 
     typedef std::map<std::string, std::shared_ptr<ConstraintEntity>>
         ConstraintPtrMap;
 
     void init_thread_pool(int pool_size);
 
-    void add_param_to_map(const casadi::Function& f);
-    void add_param_to_map(const ilqr::FunctionSpec& f);
-    void setManagedCost(std::vector<int> indices, const ilqr::FunctionSpec& spec,
-                        const std::string& name, bool residual);
-    void validateIndices(const std::vector<int>& indices) const;
-    void stateEquality(int k, Eigen::MatrixXd& C, Eigen::VectorXd& h) const;
+    void add_param_to_map(const casadi::Function &f);
+    void add_param_to_map(const ilqr::FunctionSpec &f);
+    void setManagedCost(std::vector<int> indices,
+                        const ilqr::FunctionSpec &spec, const std::string &name,
+                        bool residual);
+    void validateIndices(const std::vector<int> &indices) const;
+    void stateEquality(int k, Eigen::MatrixXd &C, Eigen::VectorXd &h) const;
 
     void linearize_quadratize();
-    void prepareEvaluationBatches(const Eigen::MatrixXd& states,
-                                  const Eigen::MatrixXd& controls, bool derivatives);
+    void prepareEvaluationBatches(const Eigen::MatrixXd &states,
+                                  const Eigen::MatrixXd &controls,
+                                  bool derivatives);
     std::vector<std::unique_ptr<ilqr::EvaluationBatch>> _evaluation_batches;
     struct BatchedCostRegistration
     {
         std::shared_ptr<ilqr::BatchedCost> batch;
         std::vector<int> indices;
         Eigen::MatrixXd selected_states;
-        bool full_horizon=false;
+        bool full_horizon = false;
     };
     std::vector<BatchedCostRegistration> _batched_costs;
 
@@ -370,7 +374,7 @@ private:
 
     void linearize_quadratize_thread_main(int istart, int iend);
 
-    void report_result(const ForwardPassResult& fpres);
+    void report_result(const ForwardPassResult &fpres);
 
     void backward_pass();
 
@@ -392,33 +396,29 @@ private:
     bool auglag_inner_converged() const;
     bool auglag_dual_converged() const;
 
-    double compute_merit_value(double mu_f,
-                               double mu_c,
-                               double cost,
-                               double defect_norm,
-                               double constr_viol);
+    double compute_merit_value(double mu_f, double mu_c, double cost,
+                               double defect_norm, double constr_viol);
 
-    double compute_merit_slope(double cost_slope,
-                               double mu_f,
-                               double mu_c,
-                               double defect_norm,
-                               double constr_viol);
+    double compute_merit_slope(double cost_slope, double mu_f, double mu_c,
+                               double defect_norm, double constr_viol);
 
     double compute_cost_slope();
 
-    std::pair<double, double> compute_merit_weights(double cost_der, double defect_norm, double constr_viol);
+    std::pair<double, double> compute_merit_weights(double cost_der,
+                                                    double defect_norm,
+                                                    double constr_viol);
 
-    double compute_cost(const Eigen::MatrixXd& xtrj,
-                        const Eigen::MatrixXd& utrj);
+    double compute_cost(const Eigen::MatrixXd &xtrj,
+                        const Eigen::MatrixXd &utrj);
 
-    double compute_bound_penalty(const Eigen::MatrixXd& xtrj,
-                                 const Eigen::MatrixXd& utrj);
+    double compute_bound_penalty(const Eigen::MatrixXd &xtrj,
+                                 const Eigen::MatrixXd &utrj);
 
-    double compute_constr(const Eigen::MatrixXd& xtrj,
-                          const Eigen::MatrixXd& utrj);
+    double compute_constr(const Eigen::MatrixXd &xtrj,
+                          const Eigen::MatrixXd &utrj);
 
-    double compute_defect(const Eigen::MatrixXd& xtrj,
-                          const Eigen::MatrixXd& utrj);
+    double compute_defect(const Eigen::MatrixXd &xtrj,
+                          const Eigen::MatrixXd &utrj);
 
     bool forward_pass(double alpha);
 
@@ -427,9 +427,11 @@ private:
     void prepareGlobalization();
     bool globalizationStep();
     bool restoreFeasibility();
-    Eigen::VectorXd globalizationResidual(const Eigen::MatrixXd&, const Eigen::MatrixXd&);
-    Eigen::VectorXd feasibilityStep(const GlobalizationModel&, const Eigen::VectorXd&, bool correction);
-    void evaluateGlobalizationTrial(const Eigen::VectorXd& step);
+    Eigen::VectorXd globalizationResidual(const Eigen::MatrixXd &,
+                                          const Eigen::MatrixXd &);
+    Eigen::VectorXd feasibilityStep(const GlobalizationModel &,
+                                    const Eigen::VectorXd &, bool correction);
+    void evaluateGlobalizationTrial(const Eigen::VectorXd &step);
     void restoreGlobalizationBaseline();
     void increaseGlobalizationDamping();
 
@@ -441,14 +443,17 @@ private:
 
     bool fixed_initial_state();
 
-
-
     enum DecompositionType
     {
-        Ldlt, Qr, Lu, Cod, Svd, ReducedHessian
+        Ldlt,
+        Qr,
+        Lu,
+        Cod,
+        Svd,
+        ReducedHessian
     };
 
-    static DecompositionType str_to_decomp_type(const std::string& dt_str);
+    static DecompositionType str_to_decomp_type(const std::string &dt_str);
 
     bool _verbose;
     bool _log;
@@ -465,7 +470,7 @@ private:
     double _filter_violation_limit = 0;
     double _global_mu = 0;
     double _global_inner_stationarity = 0;
-    std::vector<std::pair<double,double>> _global_filter;
+    std::vector<std::pair<double, double>> _global_filter;
     std::unique_ptr<GlobalizationModel> _global_model;
     Eigen::MatrixXd _global_xdiag, _global_udiag;
     double _step_length;
@@ -520,8 +525,11 @@ private:
     std::vector<Eigen::Triplet<double>> _kkt_triplets;
     Eigen::SparseMatrix<double> _kkt_mat;
     Eigen::VectorXd _kkt_rhs;
-    Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> _kkt_lu_solver;
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Lower, Eigen::COLAMDOrdering<int>> _kkt_ldlt_solver;
+    Eigen::SparseLU<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>>
+        _kkt_lu_solver;
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Lower,
+                          Eigen::COLAMDOrdering<int>>
+        _kkt_ldlt_solver;
 
     IterateFilter _it_filt;
     bool _use_it_filter;
@@ -560,8 +568,6 @@ private:
     std::map<std::string, Eigen::VectorXd> _cost_values;
 };
 
-
-
-}
+} // namespace horizon
 
 #endif

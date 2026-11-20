@@ -3,11 +3,14 @@
 
 #include <casadi/casadi.hpp>
 
-namespace horizon { namespace utils {
+namespace horizon
+{
+namespace utils
+{
 
-casadi::Function codegen(const casadi::Function& f,
-                         std::string dir=".");
+casadi::Function codegen(const casadi::Function &f, std::string dir = ".");
 
-} }
+}
+} // namespace horizon
 
 #endif // CODEGEN_FUNCTION_H

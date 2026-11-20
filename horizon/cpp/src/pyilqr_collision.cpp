@@ -16,12 +16,16 @@ void bindIlqrCollision(py::module_ &m)
 {
 #if defined(HORIZON_WITH_KOKKOS) && defined(HORIZON_WITH_PINOCCHIO)
     py::class_<KokkosRuntime>(m, "KokkosRuntime").def(py::init<>());
-    py::class_<DeviceCollisionCost, std::shared_ptr<DeviceCollisionCost>>(m, "DeviceCollisionCost")
+    py::class_<DeviceCollisionCost, std::shared_ptr<DeviceCollisionCost>>(
+        m, "DeviceCollisionCost")
         .def_static("execution_space", &DeviceCollisionCost::executionSpace)
-        .def("batch_counts", [](const DeviceCollisionCost& cost) {
-            auto stats = cost.statistics();
-            return py::make_tuple(stats.value_batches, stats.derivative_batches);
-        });
+        .def("batch_counts",
+             [](const DeviceCollisionCost &cost)
+             {
+                 auto stats = cost.statistics();
+                 return py::make_tuple(stats.value_batches,
+                                       stats.derivative_batches);
+             });
 #endif
     py::class_<DistanceField, std::shared_ptr<DistanceField>>(m,
                                                               "DistanceField")
@@ -49,8 +53,9 @@ void bindIlqrCollision(py::module_ &m)
         .def_property_readonly("origin", &SdfGrid::origin)
         .def_property_readonly("voxel_size", &SdfGrid::voxelSize);
 #ifdef HORIZON_WITH_OPENVDB
-    py::class_<OpenVdbDistanceField, DistanceField, std::shared_ptr<OpenVdbDistanceField>>(
-        m, "OpenVdbDistanceField").def(py::init<const std::string &>());
+    py::class_<OpenVdbDistanceField, DistanceField,
+               std::shared_ptr<OpenVdbDistanceField>>(m, "OpenVdbDistanceField")
+        .def(py::init<const std::string &>());
 #endif
     py::class_<SphereField, DistanceField, std::shared_ptr<SphereField>>(
         m, "SphereField")

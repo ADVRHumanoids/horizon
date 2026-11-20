@@ -79,6 +79,9 @@ class PinocchioModelWorkspace
     void ensureAcceleration(ilqr::Input q, ilqr::Input v, ilqr::Input a);
     void ensureFramePlacements(ilqr::Input q);
     void ensureJointJacobians(ilqr::Input q);
+    void ensureKinematicsDerivatives(ilqr::Input q, ilqr::Input v,
+                     ilqr::Input a);
+    void invalidate();
 
   private:
     PinocchioModelWorkspace(std::shared_ptr<const pinocchio::Model> model,
@@ -91,7 +94,8 @@ class PinocchioModelWorkspace
     pinocchio::Data _data;
     Eigen::VectorXd _q, _input_q, _candidate_q, _v, _a;
     bool _has_q = false, _positions = false, _velocity = false,
-         _acceleration = false, _frames = false, _jacobians = false;
+          _acceleration = false, _frames = false, _jacobians = false,
+          _derivatives = false;
 };
 
 /** Shared native frame evaluator infrastructure, independent of collision

@@ -3,7 +3,12 @@
 
 namespace horizon::collision
 {
-struct KokkosRuntime::Impl { Kokkos::ScopeGuard guard; };
-KokkosRuntime::KokkosRuntime(): impl(std::make_unique<Impl>()) {}
-KokkosRuntime::~KokkosRuntime() = default;
+struct KokkosRuntime::Impl
+{
+    Kokkos::ScopeGuard guard;
+};
+KokkosRuntime::KokkosRuntime() : impl(std::make_unique<Impl>())
+{
 }
+KokkosRuntime::~KokkosRuntime() = default;
+} // namespace horizon::collision

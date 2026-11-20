@@ -56,31 +56,36 @@ class PinocchioSphereCenters final : public ilqr::TangentFunction
     Eigen::Matrix<double, 6, Eigen::Dynamic> _frame_jacobian;
 };
 } // namespace horizon::collision
-namespace horizon::collision {
+namespace horizon::collision
+{
 class PinocchioSphereClearance final : public ilqr::TangentFunction
 {
-public:
-    PinocchioSphereClearance(std::shared_ptr<const pinocchio::Model> model,
+  public:
+    PinocchioSphereClearance(
+        std::shared_ptr<const pinocchio::Model> model,
         std::shared_ptr<const ilqr::StateSpace> space, SphereModel spheres,
         std::vector<std::shared_ptr<const DistanceField>> environment,
-        std::vector<std::pair<int,int>> pairs,
+        std::vector<std::pair<int, int>> pairs,
         std::shared_ptr<PinocchioModelWorkspace> workspace = {});
     std::unique_ptr<ilqr::Function> clone() const override;
-    void setEvaluationContext(const std::shared_ptr<ilqr::EvaluationContext>& context) override;
-private:
+    void setEvaluationContext(
+        const std::shared_ptr<ilqr::EvaluationContext> &context) override;
+
+  private:
     void evaluateImpl(ilqr::Input q, ilqr::VectorOutput value) override;
     void tangentJacobian(ilqr::Input q, ilqr::MatrixOutput jac) override;
-    void valueAndTangentJacobian(ilqr::Input q, ilqr::VectorOutput value, ilqr::MatrixOutput jac) override;
+    void valueAndTangentJacobian(ilqr::Input q, ilqr::VectorOutput value,
+                                 ilqr::MatrixOutput jac) override;
     std::shared_ptr<const pinocchio::Model> _model;
     std::shared_ptr<const ilqr::StateSpace> _space;
     SphereModel _spheres;
     std::vector<std::shared_ptr<const DistanceField>> _environment;
-    std::vector<std::pair<int,int>> _pairs;
+    std::vector<std::pair<int, int>> _pairs;
     std::shared_ptr<PinocchioModelWorkspace> _workspace;
     PinocchioSphereCenters _centers;
     SphereClearanceFunction _clearance;
     ilqr::Vector _points, _value;
     ilqr::Matrix _jacobian;
 };
-}
+} // namespace horizon::collision
 #endif

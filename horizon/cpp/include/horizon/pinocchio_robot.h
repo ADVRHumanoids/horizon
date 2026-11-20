@@ -40,9 +40,12 @@ class PinocchioRobotFunction final : public ilqr::TangentFunction
         std::shared_ptr<const PinocchioConfiguration> configuration,
         RobotQuantity quantity, std::string frame = {},
         pinocchio::ReferenceFrame reference = pinocchio::LOCAL_WORLD_ALIGNED,
-        bool symbolic_gravity = false);
+        bool symbolic_gravity = false,
+        std::shared_ptr<PinocchioModelWorkspace> workspace = {});
     ~PinocchioRobotFunction() override;
     std::unique_ptr<ilqr::Function> clone() const override;
+      void setEvaluationContext(
+        const std::shared_ptr<ilqr::EvaluationContext> &context) override;
 
   private:
     void evaluateImpl(ilqr::Input z, ilqr::VectorOutput out) override;
@@ -78,9 +81,12 @@ class PinocchioContactDynamics final : public ilqr::TangentFunction
         std::shared_ptr<const pinocchio::Model> model,
         std::shared_ptr<const PinocchioConfiguration> configuration,
         std::vector<ContactSpec> contacts, ilqr::Matrix actuation = {},
-        bool inverse = false);
+        bool inverse = false,
+        std::shared_ptr<PinocchioModelWorkspace> workspace = {});
     ~PinocchioContactDynamics() override;
     std::unique_ptr<ilqr::Function> clone() const override;
+      void setEvaluationContext(
+        const std::shared_ptr<ilqr::EvaluationContext> &context) override;
 
   private:
     void evaluateImpl(ilqr::Input z, ilqr::VectorOutput out) override;

@@ -3,16 +3,18 @@
 
 namespace horizon::collision
 {
-// Own the Kokkos runtime. Solvers and costs must be destroyed before this object.
+// Own the Kokkos runtime. Solvers and costs must be destroyed before this
+// object.
 class KokkosRuntime
 {
-public:
+  public:
     KokkosRuntime();
     ~KokkosRuntime();
-    KokkosRuntime(const KokkosRuntime&) = delete;
-    KokkosRuntime& operator=(const KokkosRuntime&) = delete;
-private:
+    KokkosRuntime(const KokkosRuntime &) = delete;
+    KokkosRuntime &operator=(const KokkosRuntime &) = delete;
+
+  private:
     struct Impl;
     std::unique_ptr<Impl> impl;
 };
-}
+} // namespace horizon::collision

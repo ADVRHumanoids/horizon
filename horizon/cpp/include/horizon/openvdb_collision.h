@@ -8,12 +8,13 @@ namespace horizon::collision
 {
 class OpenVdbDistanceField final : public DistanceField
 {
-public:
-    explicit OpenVdbDistanceField(const std::string& path);
-    DistanceSample query(const Eigen::Vector3d& point) const override;
-private:
+  public:
+    explicit OpenVdbDistanceField(const std::string &path);
+    DistanceSample query(const Eigen::Vector3d &point) const override;
+
+  private:
     struct Impl;
     std::shared_ptr<const Impl> _impl;
 };
-}
+} // namespace horizon::collision
 #endif

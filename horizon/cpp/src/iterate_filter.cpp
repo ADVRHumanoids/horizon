@@ -1,44 +1,44 @@
 #include "ilqr/iterate_filter.h"
 #include <limits>
 
-IterateFilter::Pair::Pair():
-    f(std::numeric_limits<double>::max()),
-    h(std::numeric_limits<double>::max())
-{}
-
-bool IterateFilter::Pair::dominates(const IterateFilter::Pair &other, double beta, double gamma) const
+IterateFilter::Pair::Pair()
+    : f(std::numeric_limits<double>::max()),
+      h(std::numeric_limits<double>::max())
 {
-    return f < other.f + gamma*other.h && beta*h < other.h;
+}
+
+bool IterateFilter::Pair::dominates(const IterateFilter::Pair &other,
+                                    double beta, double gamma) const
+{
+    return f < other.f + gamma * other.h && beta * h < other.h;
 }
 
 bool IterateFilter::is_acceptable(const IterateFilter::Pair &test_pair) const
 {
-    auto dominates_test_pair = [&test_pair, this](const Pair& filt_pair)
+    auto dominates_test_pair = [&test_pair, this](const Pair &filt_pair)
     {
         return filt_pair.dominates(test_pair, beta, gamma);
     };
 
-    return std::none_of(_entries.begin(),
-                        _entries.end(),
-                        dominates_test_pair);
+    return std::none_of(_entries.begin(), _entries.end(), dominates_test_pair);
 }
 
 bool IterateFilter::add(const IterateFilter::Pair &new_pair)
 {
-    for(auto& pair : _entries)
+    for (auto &pair : _entries)
     {
-        if(pair.dominates(new_pair))
+        if (pair.dominates(new_pair))
         {
             return false;
         }
     }
 
-    if(!is_acceptable(new_pair))
+    if (!is_acceptable(new_pair))
     {
         return false;
     }
 
-    auto dominated_by_new_pair = [&new_pair](const Pair& filt_pair)
+    auto dominated_by_new_pair = [&new_pair](const Pair &filt_pair)
     {
         return new_pair.dominates(filt_pair);
     };
@@ -60,7 +60,7 @@ void IterateFilter::clear()
 
 void IterateFilter::print()
 {
-    for(const auto& ent : _entries)
+    for (const auto &ent : _entries)
     {
         printf("(%4.3e, %4.3e) \n", ent.f, ent.h);
     }

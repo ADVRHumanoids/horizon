@@ -2,23 +2,23 @@
 #define PYILQR_HELPERS_H
 
 #include "ilqr/ilqr.h"
-#include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <pybind11/embed.h>
-#include <pybind11/stl.h>
 #include <pybind11/functional.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 namespace py = pybind11;
 using namespace horizon;
 
 casadi::Function to_cpp(py::object pyfn)
 {
-    // convert python's casadi.Function to cpp's casadi::Function
-    #if PYBIND11_VERSION_MAJOR > 2 || PYBIND11_VERSION_MINOR > 6
-        auto cs = py::module_::import("casadi");
-    #else
-        auto cs = py::module::import("casadi");
-    #endif
+// convert python's casadi.Function to cpp's casadi::Function
+#if PYBIND11_VERSION_MAJOR > 2 || PYBIND11_VERSION_MINOR > 6
+    auto cs = py::module_::import("casadi");
+#else
+    auto cs = py::module::import("casadi");
+#endif
 
     auto Function = cs.attr("Function");
     auto serialize = Function.attr("serialize");
@@ -30,32 +30,33 @@ casadi::Function to_cpp(py::object pyfn)
 auto construct(py::object fdyn, int N, IterativeLQR::OptionDict opt,
                std::shared_ptr<const horizon::ilqr::StateSpace> space)
 {
-    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt, std::move(space));
+    return std::make_unique<IterativeLQR>(to_cpp(fdyn), N, opt,
+                                          std::move(space));
 }
 
-auto set_inter_cost_wrapper_single(IterativeLQR& self, std::vector<int> k, py::object f)
+auto set_inter_cost_wrapper_single(IterativeLQR &self, std::vector<int> k,
+                                   py::object f)
 {
     self.setCost(k, to_cpp(f));
 }
 
-auto set_residual_wrapper_single(IterativeLQR& self, std::vector<int> k, py::object f)
+auto set_residual_wrapper_single(IterativeLQR &self, std::vector<int> k,
+                                 py::object f)
 {
     self.setResidual(k, to_cpp(f));
 }
 
-auto set_final_cost_wrapper(IterativeLQR& self, py::object pyfn)
+auto set_final_cost_wrapper(IterativeLQR &self, py::object pyfn)
 {
     self.setFinalCost(to_cpp(pyfn));
 }
 
-auto set_final_constraint_wrapper(IterativeLQR& self, py::object pyfn)
+auto set_final_constraint_wrapper(IterativeLQR &self, py::object pyfn)
 {
     self.setFinalConstraint(to_cpp(pyfn));
 }
 
-
-auto set_inter_constraint_wrapper_single(IterativeLQR& self,
-                                         std::vector<int> k,
+auto set_inter_constraint_wrapper_single(IterativeLQR &self, std::vector<int> k,
                                          py::object f,
                                          std::vector<Eigen::VectorXd> tgt)
 {

@@ -22,36 +22,36 @@ void PinocchioRobotFunction::Impl::evaluateDynamics(ilqr::Input z,
     switch (quantity)
     {
     case Q::InverseDynamics:
-        out = pinocchio::rnea(model, data, q, z.segment(model.nq, model.nv),
+        out = pinocchio::rnea(model, data(), q, z.segment(model.nq, model.nv),
                               z.segment(model.nq + model.nv, model.nv));
         return;
     case Q::ForwardDynamics:
-        out = pinocchio::aba(model, data, q, z.segment(model.nq, model.nv),
+        out = pinocchio::aba(model, data(), q, z.segment(model.nq, model.nv),
                              z.tail(model.nv));
         return;
     case Q::MassMatrix:
     {
-        ilqr::Matrix M = pinocchio::crba(model, data, q);
+        ilqr::Matrix M = pinocchio::crba(model, data(), q);
         detail::symmetric(M);
         out = Eigen::Map<const ilqr::Vector>(M.data(), M.size());
         return;
     }
     case Q::Gravity:
-        out = pinocchio::computeGeneralizedGravity(model, data, q);
+        out = pinocchio::computeGeneralizedGravity(model, data(), q);
         return;
     case Q::NonlinearEffects:
-        out = pinocchio::nonLinearEffects(model, data, q, z.tail(model.nv));
+        out = pinocchio::nonLinearEffects(model, data(), q, z.tail(model.nv));
         return;
     case Q::KineticEnergy:
         out[0] =
-            pinocchio::computeKineticEnergy(model, data, q, z.tail(model.nv));
+            pinocchio::computeKineticEnergy(model, data(), q, z.tail(model.nv));
         return;
     case Q::PotentialEnergy:
-        out[0] = pinocchio::computePotentialEnergy(model, data, q);
+        out[0] = pinocchio::computePotentialEnergy(model, data(), q);
         return;
     case Q::CentroidalMap:
     {
-        ilqr::Matrix A = pinocchio::ccrba(model, data, q, zero);
+        ilqr::Matrix A = pinocchio::ccrba(model, data(), q, zero);
         out = Eigen::Map<const ilqr::Vector>(A.data(), A.size());
         return;
     }
@@ -68,11 +68,11 @@ void PinocchioRobotFunction::Impl::evaluateDynamics(ilqr::Input z,
         : zero;
     if (quantity == Q::CentroidalMomentum || quantity == Q::CentroidalDynamics)
     {
-        pinocchio::computeCentroidalMomentumTimeVariation(model, data, q, v, a);
-        out.head<6>() = data.hg.toVector();
+        pinocchio::computeCentroidalMomentumTimeVariation(model, data(), q, v, a);
+        out.head<6>() = data().hg.toVector();
         if (quantity == Q::CentroidalDynamics)
         {
-            out.tail<6>() = data.dhg.toVector();
+            out.tail<6>() = data().dhg.toVector();
         }
         return;
     }
@@ -81,24 +81,24 @@ void PinocchioRobotFunction::Impl::evaluateDynamics(ilqr::Input z,
         throw ilqr::EvaluationError(
             "center of mass requires positive robot mass");
     }
-    pinocchio::centerOfMass(model, data, q, v, a);
+    pinocchio::centerOfMass(model, data(), q, v, a);
     if (quantity == Q::CenterOfMass)
     {
-        out.head<3>() = data.com[0];
-        out.segment<3>(3) = data.vcom[0];
-        out.tail<3>() = data.acom[0];
+        out.head<3>() = data().com[0];
+        out.segment<3>(3) = data().vcom[0];
+        out.tail<3>() = data().acom[0];
     }
     else if (quantity == Q::ComPosition)
     {
-        out = data.com[0];
+        out = data().com[0];
     }
     else if (quantity == Q::ComVelocity)
     {
-        out = data.vcom[0];
+        out = data().vcom[0];
     }
     else if (quantity == Q::ComAcceleration)
     {
-        out = data.acom[0];
+        out = data().acom[0];
     }
     else
     {
@@ -117,11 +117,11 @@ void PinocchioRobotFunction::Impl::jacobianDynamics(ilqr::Input z,
     if (quantity == Q::ForwardDynamics)
     {
         pinocchio::computeABADerivatives(
-            model, data, q, z.segment(model.nq, model.nv), z.tail(model.nv));
-        ilqr::Matrix inverse = data.Minv;
+            model, data(), q, z.segment(model.nq, model.nv), z.tail(model.nv));
+        ilqr::Matrix inverse = data().Minv;
         detail::symmetric(inverse);
-        jac.leftCols(model.nv) = data.ddq_dq;
-        jac.middleCols(model.nv, model.nv) = data.ddq_dv;
+        jac.leftCols(model.nv) = data().ddq_dq;
+        jac.middleCols(model.nv, model.nv) = data().ddq_dv;
         jac.rightCols(model.nv) = inverse;
         return;
     }
@@ -134,49 +134,49 @@ void PinocchioRobotFunction::Impl::jacobianDynamics(ilqr::Input z,
         const ilqr::Vector a = quantity == Q::InverseDynamics
             ? ilqr::Vector(z.segment(model.nq + model.nv, model.nv))
             : zero;
-        pinocchio::computeRNEADerivatives(model, data, q, v, a);
-        jac.leftCols(model.nv) = data.dtau_dq;
+        pinocchio::computeRNEADerivatives(model, data(), q, v, a);
+        jac.leftCols(model.nv) = data().dtau_dq;
         if (quantity != Q::Gravity)
         {
-            jac.middleCols(model.nv, model.nv) = data.dtau_dv;
+            jac.middleCols(model.nv, model.nv) = data().dtau_dv;
         }
         if (quantity == Q::InverseDynamics)
         {
-            ilqr::Matrix M = data.M;
+            ilqr::Matrix M = data().M;
             detail::symmetric(M);
             jac.middleCols(2 * model.nv, model.nv) = M;
         }
         if (symbolic_gravity)
         {
-            pinocchio::jacobianCenterOfMass(model, data, q);
+            pinocchio::jacobianCenterOfMass(model, data(), q);
             jac.rightCols(3) =
-                -pinocchio::computeTotalMass(model) * data.Jcom.transpose();
+                -pinocchio::computeTotalMass(model) * data().Jcom.transpose();
         }
         return;
     }
     if (quantity == Q::MassMatrix || quantity == Q::KineticEnergy)
     {
-        pinocchio::computeRNEADerivatives(model, data, q, zero, zero);
-        const ilqr::Matrix gravity_q = data.dtau_dq;
+        pinocchio::computeRNEADerivatives(model, data(), q, zero, zero);
+        const ilqr::Matrix gravity_q = data().dtau_dq;
         if (quantity == Q::MassMatrix)
         {
             ilqr::Vector basis = zero;
             for (int k = 0; k < model.nv; ++k)
             {
                 basis[k] = 1;
-                pinocchio::computeRNEADerivatives(model, data, q, zero, basis);
+                pinocchio::computeRNEADerivatives(model, data(), q, zero, basis);
                 jac.middleRows(k * model.nv, model.nv) =
-                    data.dtau_dq - gravity_q;
+                    data().dtau_dq - gravity_q;
                 basis[k] = 0;
             }
         }
         else
         {
             const ilqr::Vector v = z.tail(model.nv);
-            pinocchio::computeRNEADerivatives(model, data, q, zero, v);
+            pinocchio::computeRNEADerivatives(model, data(), q, zero, v);
             jac.leftCols(model.nv) =
-                .5 * v.transpose() * (data.dtau_dq - gravity_q);
-            ilqr::Matrix M = data.M;
+                .5 * v.transpose() * (data().dtau_dq - gravity_q);
+            ilqr::Matrix M = data().M;
             detail::symmetric(M);
             jac.rightCols(model.nv) = v.transpose() * M;
         }
@@ -184,7 +184,7 @@ void PinocchioRobotFunction::Impl::jacobianDynamics(ilqr::Input z,
     }
     if (quantity == Q::PotentialEnergy)
     {
-        jac = pinocchio::computeGeneralizedGravity(model, data, q).transpose();
+        jac = pinocchio::computeGeneralizedGravity(model, data(), q).transpose();
         return;
     }
     Eigen::Matrix<double, 6, Eigen::Dynamic>
@@ -198,7 +198,7 @@ void PinocchioRobotFunction::Impl::jacobianDynamics(ilqr::Input z,
         {
             basis[k] = 1;
             pinocchio::computeCentroidalDynamicsDerivatives(
-                model, data, q, basis, zero, momentum_q, rate_q, rate_v, A);
+                model, data(), q, basis, zero, momentum_q, rate_q, rate_v, A);
             jac.middleRows(6 * k, 6) = momentum_q;
             basis[k] = 0;
         }
@@ -213,7 +213,7 @@ void PinocchioRobotFunction::Impl::jacobianDynamics(ilqr::Input z,
         ? ilqr::Vector(z.tail(model.nv))
         : zero;
     pinocchio::computeCentroidalDynamicsDerivatives(
-        model, data, q, v, a, momentum_q, rate_q, rate_v, A);
+        model, data(), q, v, a, momentum_q, rate_q, rate_v, A);
     if (quantity == Q::CentroidalMomentum || quantity == Q::CentroidalDynamics)
     {
         jac.block(0, 0, 6, model.nv) = momentum_q;

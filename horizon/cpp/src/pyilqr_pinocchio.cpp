@@ -32,7 +32,7 @@ struct PythonPinocchioModel
     {
         return std::make_shared<PinocchioRobotFunction>(
             model, space, quantity, std::move(frame), reference,
-            symbolic_gravity);
+            symbolic_gravity, workspace);
     }
     std::shared_ptr<horizon::ilqr::Function>
     centers(std::vector<LinkSphere> spheres) const
@@ -76,13 +76,21 @@ void bindIlqrPinocchio(py::module_ &m)
         .def_readwrite("dimension", &ContactSpec::dimension);
     auto cls = py::class_<PythonPinocchioModel>(m, "PinocchioModel");
 #ifdef HORIZON_WITH_KOKKOS
-    cls.def("deviceCollisionCost", [](const PythonPinocchioModel& robot,
-            const std::vector<LinkSphere>& spheres, const std::vector<std::pair<int,int>>& pairs,
-            std::shared_ptr<SdfGrid> grid, double weight, double margin, double smoothing) {
-        return std::make_shared<DeviceCollisionCost>(exportDeviceRobot(*robot.model, SphereModel(spheres)),
-            std::move(grid), pairs, weight, margin, smoothing);
-    }, py::arg("spheres"), py::arg("pairs"), py::arg("grid") = nullptr,
-       py::arg("weight") = 1., py::arg("margin") = .02, py::arg("smoothing") = .005);
+    cls.def(
+        "deviceCollisionCost",
+        [](const PythonPinocchioModel &robot,
+           const std::vector<LinkSphere> &spheres,
+           const std::vector<std::pair<int, int>> &pairs,
+           std::shared_ptr<SdfGrid> grid, double weight, double margin,
+           double smoothing)
+        {
+            return std::make_shared<DeviceCollisionCost>(
+                exportDeviceRobot(*robot.model, SphereModel(spheres)),
+                std::move(grid), pairs, weight, margin, smoothing);
+        },
+        py::arg("spheres"), py::arg("pairs"), py::arg("grid") = nullptr,
+        py::arg("weight") = 1., py::arg("margin") = .02,
+        py::arg("smoothing") = .005);
 #endif
     cls.def(py::init<const std::string &>(), py::arg("urdf"))
         .def_property_readonly("nq",
@@ -120,12 +128,25 @@ void bindIlqrPinocchio(py::module_ &m)
             },
             py::arg("dt"))
         .def("sphereCenters", &PythonPinocchioModel::centers)
-        .def("sphereClearance",[](const PythonPinocchioModel& r,const std::vector<LinkSphere>& spheres,
-            const std::vector<std::pair<int,int>>& pairs,std::shared_ptr<DistanceField> environment)->std::shared_ptr<horizon::ilqr::Function>{
-            std::vector<std::shared_ptr<const DistanceField>> fields;
-            if(environment)fields.push_back(std::move(environment));
-            return std::make_shared<PinocchioSphereClearance>(r.model,r.space,SphereModel(spheres),std::move(fields),pairs,r.workspace);
-        },py::arg("spheres"),py::arg("pairs"),py::arg("environment")=nullptr)
+        .def(
+            "sphereClearance",
+            [](const PythonPinocchioModel &r,
+               const std::vector<LinkSphere> &spheres,
+               const std::vector<std::pair<int, int>> &pairs,
+               std::shared_ptr<DistanceField> environment)
+                -> std::shared_ptr<horizon::ilqr::Function>
+            {
+                std::vector<std::shared_ptr<const DistanceField>> fields;
+                if (environment)
+                {
+                    fields.push_back(std::move(environment));
+                }
+                return std::make_shared<PinocchioSphereClearance>(
+                    r.model, r.space, SphereModel(spheres), std::move(fields),
+                    pairs, r.workspace);
+            },
+            py::arg("spheres"), py::arg("pairs"),
+            py::arg("environment") = nullptr)
         .def(
             "framePositions",
             [](const PythonPinocchioModel &r,
@@ -341,7 +362,7 @@ void bindIlqrPinocchio(py::module_ &m)
                 }
                 return std::make_shared<PinocchioContactDynamics>(
                     r.model, r.space, std::move(contacts),
-                    horizon::ilqr::Matrix(), true);
+                    horizon::ilqr::Matrix(), true, r.workspace);
             },
             py::arg("contacts") = py::tuple())
         .def(
@@ -351,7 +372,8 @@ void bindIlqrPinocchio(py::module_ &m)
                 -> std::shared_ptr<horizon::ilqr::Function>
             {
                 return std::make_shared<PinocchioContactDynamics>(
-                    r.model, r.space, parseContacts(input), actuation);
+                    r.model, r.space, parseContacts(input), actuation, false,
+                    r.workspace);
             },
             py::arg("contacts"),
             py::arg("actuation_matrix") = horizon::ilqr::Matrix())

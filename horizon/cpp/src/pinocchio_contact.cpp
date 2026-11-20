@@ -81,8 +81,8 @@ struct PinocchioContactDynamics::Impl : detail::PinocchioRobotImplBase
     Impl(std::shared_ptr<const pinocchio::Model> model,
          std::shared_ptr<const PinocchioConfiguration> space,
          std::vector<ContactSpec> contacts, ilqr::Matrix actuation,
-         bool inverse)
-        : PinocchioRobotImplBase(std::move(model), std::move(space)),
+         bool inverse, std::shared_ptr<PinocchioModelWorkspace> workspace)
+        : PinocchioRobotImplBase(std::move(model), std::move(space), std::move(workspace)),
           contacts(std::move(contacts)), actuation(std::move(actuation)),
           inverse(inverse), nc(contactSize(this->contacts))
     {
@@ -110,19 +110,19 @@ struct PinocchioContactDynamics::Impl : detail::PinocchioRobotImplBase
     }
     void constraints(ilqr::Input v)
     {
-        pinocchio::forwardKinematics(model, data, q, v, zero);
-        pinocchio::computeJointJacobians(model, data);
-        pinocchio::updateFramePlacements(model, data);
+        pinocchio::forwardKinematics(model, data(), q, v, zero);
+        pinocchio::computeJointJacobians(model, data());
+        pinocchio::updateFramePlacements(model, data());
         int offset = 0;
         for (std::size_t i = 0; i < contacts.size(); ++i)
         {
             ilqr::Matrix frame_jac = ilqr::Matrix::Zero(6, model.nv);
-            pinocchio::getFrameJacobian(model, data, frames[i],
+            pinocchio::getFrameJacobian(model, data(), frames[i],
                                         pinocchio::LOCAL_WORLD_ALIGNED,
                                         frame_jac);
             const auto acceleration =
                 pinocchio::getFrameClassicalAcceleration(
-                    model, data, frames[i], pinocchio::LOCAL_WORLD_ALIGNED)
+                    model, data(), frames[i], pinocchio::LOCAL_WORLD_ALIGNED)
                     .toVector()
                     .eval();
             const int n = contacts[i].dimension;
@@ -134,9 +134,9 @@ struct PinocchioContactDynamics::Impl : detail::PinocchioRobotImplBase
     void solve(ilqr::Input v, ilqr::Input tau)
     {
         constraints(v);
-        ilqr::Matrix M = pinocchio::crba(model, data, q);
+        ilqr::Matrix M = pinocchio::crba(model, data(), q);
         detail::symmetric(M);
-        const ilqr::Vector h = pinocchio::nonLinearEffects(model, data, q, v);
+        const ilqr::Vector h = pinocchio::nonLinearEffects(model, data(), q, v);
         K.setZero();
         K.topLeftCorner(model.nv, model.nv) = M;
         K.topRightCorner(model.nv, nc) = -J.transpose();
@@ -159,46 +159,17 @@ struct PinocchioContactDynamics::Impl : detail::PinocchioRobotImplBase
             throw ilqr::EvaluationError("contact dynamics KKT solve failed");
         }
     }
-    ilqr::Matrix generalizedForceDerivative(ilqr::Input force)
-    {
-        ilqr::Matrix derivative = ilqr::Matrix::Zero(model.nv, model.nv);
-        if (nc == 0)
-        {
-            return derivative;
-        }
-        ilqr::Vector basis = zero;
-        for (int k = 0; k < model.nv; ++k)
-        {
-            basis[k] = 1;
-            pinocchio::computeForwardKinematicsDerivatives(model, data, q,
-                                                           basis, zero);
-            pinocchio::updateFramePlacements(model, data);
-            int offset = 0;
-            for (std::size_t i = 0; i < contacts.size(); ++i)
-            {
-                ilqr::Matrix dq = ilqr::Matrix::Zero(6, model.nv), dv = dq;
-                detail::frameVelocityDerivatives(model, data, frames[i],
-                                                 pinocchio::LOCAL_WORLD_ALIGNED,
-                                                 dq, dv);
-                const int n = contacts[i].dimension;
-                derivative.row(k).noalias() +=
-                    force.segment(offset, n).transpose() * dq.topRows(n);
-                offset += n;
-            }
-            basis[k] = 0;
-        }
-        return derivative;
-    }
 };
 PinocchioContactDynamics::PinocchioContactDynamics(
     std::shared_ptr<const pinocchio::Model> model,
     std::shared_ptr<const PinocchioConfiguration> space,
-    std::vector<ContactSpec> contacts, ilqr::Matrix actuation, bool inverse)
+    std::vector<ContactSpec> contacts, ilqr::Matrix actuation, bool inverse,
+    std::shared_ptr<PinocchioModelWorkspace> workspace)
     : TangentFunction(contactInput(model, space, contacts, actuation, inverse),
                       contactOutput(model, contacts, inverse)),
       _impl(std::make_unique<Impl>(std::move(model), std::move(space),
                                    std::move(contacts), std::move(actuation),
-                                   inverse))
+                                   inverse, std::move(workspace)))
 {
 }
 PinocchioContactDynamics::~PinocchioContactDynamics() = default;
@@ -206,18 +177,24 @@ std::unique_ptr<ilqr::Function> PinocchioContactDynamics::clone() const
 {
     return std::make_unique<PinocchioContactDynamics>(
         _impl->source, _impl->space, _impl->contacts, _impl->actuation,
-        _impl->inverse);
+        _impl->inverse, _impl->workspace_prototype);
+}
+void PinocchioContactDynamics::setEvaluationContext(
+    const std::shared_ptr<ilqr::EvaluationContext> &context)
+{
+    _impl->setEvaluationContext(context);
 }
 void PinocchioContactDynamics::evaluateImpl(ilqr::Input z,
                                             ilqr::VectorOutput out)
 {
     auto &w = *_impl;
     w.prepare(z);
+    w.workspace->invalidate();
     const auto v = z.segment(w.model.nq, w.model.nv);
     if (w.inverse)
     {
         w.constraints(v);
-        out = pinocchio::rnea(w.model, w.data, w.q, v,
+        out = pinocchio::rnea(w.model, w.data(), w.q, v,
                               z.segment(w.model.nq + w.model.nv, w.model.nv)) -
             w.J.transpose() * z.tail(w.nc);
     }
@@ -232,6 +209,7 @@ void PinocchioContactDynamics::tangentJacobian(ilqr::Input z,
 {
     auto &w = *_impl;
     w.prepare(z);
+    w.workspace->invalidate();
     const int nv = w.model.nv;
     const ilqr::Vector v = z.segment(w.model.nq, nv);
     ilqr::Vector a(nv), force(w.nc);
@@ -247,11 +225,44 @@ void PinocchioContactDynamics::tangentJacobian(ilqr::Input z,
         a = w.solution.head(nv);
         force = w.solution.tail(w.nc);
     }
-    pinocchio::computeRNEADerivatives(w.model, w.data, w.q, v, a);
-    ilqr::Matrix torque_q = w.data.dtau_dq, torque_v = w.data.dtau_dv,
-                 M = w.data.M;
+    pinocchio::container::aligned_vector<pinocchio::Force> external_forces(
+        w.model.njoints, pinocchio::Force::Zero());
+    ilqr::Matrix correction = ilqr::Matrix::Zero(nv, nv);
+    pinocchio::computeJointJacobians(w.model, w.data(), w.q);
+    pinocchio::updateFramePlacements(w.model, w.data());
+    int force_offset = 0;
+    for (std::size_t index = 0; index < w.contacts.size(); ++index)
+    {
+        const auto frame = w.frames[index];
+        const auto &placement = w.model.frames[frame];
+        const auto &rotation = w.data().oMf[frame].rotation();
+        const Eigen::Vector3d local_force =
+            rotation.transpose() * force.segment<3>(force_offset);
+        Eigen::Vector3d local_torque = Eigen::Vector3d::Zero();
+        if (w.contacts[index].dimension == 6)
+        {
+            local_torque = rotation.transpose() * force.segment<3>(force_offset + 3);
+        }
+        external_forces[placement.parent] += placement.placement.act(
+            pinocchio::Force(local_force, local_torque));
+        ilqr::Matrix frame_jacobian = ilqr::Matrix::Zero(6, nv);
+        pinocchio::getFrameJacobian(w.model, w.data(), frame, pinocchio::LOCAL,
+                                    frame_jacobian);
+        correction.noalias() -= frame_jacobian.topRows(3).transpose() *
+            pinocchio::skew(local_force) * frame_jacobian.bottomRows(3);
+        correction.noalias() -= frame_jacobian.bottomRows(3).transpose() *
+            pinocchio::skew(local_torque) * frame_jacobian.bottomRows(3);
+        force_offset += w.contacts[index].dimension;
+    }
+    w.data().dtau_dq.setZero();
+    w.data().dtau_dv.setZero();
+    w.data().M.setZero();
+    pinocchio::computeRNEADerivatives(w.model, w.data(), w.q, v, a,
+                                     external_forces);
+    ilqr::Matrix torque_q = w.data().dtau_dq, torque_v = w.data().dtau_dv,
+                 M = w.data().M;
     detail::symmetric(M);
-    torque_q -= w.generalizedForceDerivative(force);
+    torque_q += correction;
     jac.setZero();
     if (w.inverse)
     {
@@ -266,13 +277,13 @@ void PinocchioContactDynamics::tangentJacobian(ilqr::Input z,
     rhs.topLeftCorner(nv, nv) = -torque_q;
     rhs.block(0, nv, nv, nv) = -torque_v;
     rhs.topRightCorner(nv, w.actuation.cols()) = w.actuation;
-    pinocchio::computeForwardKinematicsDerivatives(w.model, w.data, w.q, v, a);
-    pinocchio::updateFramePlacements(w.model, w.data);
+    pinocchio::computeForwardKinematicsDerivatives(w.model, w.data(), w.q, v, a);
+    pinocchio::updateFramePlacements(w.model, w.data());
     int offset = 0;
     for (std::size_t i = 0; i < w.contacts.size(); ++i)
     {
         ilqr::Matrix dq, dv, da;
-        detail::classicalDerivatives(w.model, w.data, w.frames[i],
+        detail::classicalDerivatives(w.model, w.data(), w.frames[i],
                                      pinocchio::LOCAL_WORLD_ALIGNED, dq, dv, da,
                                      true);
         const int n = w.contacts[i].dimension;

@@ -1,6 +1,6 @@
 #include <Eigen/Dense>
-#include <iostream>
 #include <gtest/gtest.h>
+#include <iostream>
 
 #include <chrono>
 #include <numeric>
@@ -10,16 +10,16 @@ TEST(testQr, rank)
     Eigen::MatrixXd A, R;
     Eigen::HouseholderQR<Eigen::MatrixXd> qr;
 
-    for(int i = 0; i < 100000; i++)
+    for (int i = 0; i < 100000; i++)
     {
-        A = Eigen::MatrixXd::Random(10, 3)*Eigen::MatrixXd::Random(3, 5);
+        A = Eigen::MatrixXd::Random(10, 3) * Eigen::MatrixXd::Random(3, 5);
         qr.compute(A);
         R = qr.matrixQR().triangularView<Eigen::Upper>();
 
         EXPECT_LT(std::fabs(R(3, 3)), 1e-9);
         EXPECT_LT(std::fabs(R(4, 4)), 1e-9);
 
-        A = Eigen::MatrixXd::Random(5, 3)*Eigen::MatrixXd::Random(3, 10);
+        A = Eigen::MatrixXd::Random(5, 3) * Eigen::MatrixXd::Random(3, 10);
         qr.compute(A);
         R = qr.matrixQR().triangularView<Eigen::Upper>();
 
@@ -34,7 +34,7 @@ TEST(testDecomp, compare)
     int nc = 6 + 12;
 
     Eigen::MatrixXd K, Huu, D;
-    K.setZero(nu+nc, nu+nc);
+    K.setZero(nu + nc, nu + nc);
 
     Huu.setIdentity(nu, nu);
     D.setRandom(nc, nu);
@@ -52,51 +52,48 @@ TEST(testDecomp, compare)
     std::map<std::string, std::vector<double>> times;
     using hrc = std::chrono::high_resolution_clock;
     hrc::time_point tic, toc;
-    for(int i = 0; i < n_trials; i++)
+    for (int i = 0; i < n_trials; i++)
     {
         Huu.setRandom(nu, nu);
-        Huu = Huu*Huu.transpose();
+        Huu = Huu * Huu.transpose();
         D.setRandom(nc, nu);
         K.topLeftCorner(nu, nu) = Huu;
         K.bottomLeftCorner(nc, nu) = D;
         K.topRightCorner(nu, nc) = D.transpose();
 
-
         tic = hrc::now();
         qr.compute(K);
         Eigen::MatrixXd q = qr.householderQ();
         toc = hrc::now();
-        times["qr"].push_back((toc - tic).count()*1e-3);
+        times["qr"].push_back((toc - tic).count() * 1e-3);
 
         tic = hrc::now();
         bdcsvd.compute(K);
         toc = hrc::now();
-        times["bdcsvd"].push_back((toc - tic).count()*1e-3);
+        times["bdcsvd"].push_back((toc - tic).count() * 1e-3);
 
         tic = hrc::now();
         jsvd.compute(K);
         toc = hrc::now();
-        times["jsvd"].push_back((toc - tic).count()*1e-3);
+        times["jsvd"].push_back((toc - tic).count() * 1e-3);
 
         tic = hrc::now();
         cod.compute(K);
         toc = hrc::now();
-        times["cod"].push_back((toc - tic).count()*1e-3);
+        times["cod"].push_back((toc - tic).count() * 1e-3);
 
         tic = hrc::now();
         lu.compute(K);
         toc = hrc::now();
-        times["lu"].push_back((toc - tic).count()*1e-3);
+        times["lu"].push_back((toc - tic).count() * 1e-3);
     }
 
-    for(auto& item : times)
+    for (auto &item : times)
     {
         int avg = std::accumulate(item.second.begin(), item.second.end(), .0);
-        std::cout << item.first << ": " << avg/item.second.size() << " us \n";
+        std::cout << item.first << ": " << avg / item.second.size() << " us \n";
     }
-
 }
-
 
 TEST(testLdlt, basic)
 {
@@ -139,6 +136,6 @@ TEST(testLdlt, basic)
 
 int main(int argc, char **argv)
 {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

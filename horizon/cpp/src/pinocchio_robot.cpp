@@ -151,8 +151,8 @@ PinocchioRobotFunction::Impl::Impl(
     std::shared_ptr<const pinocchio::Model> model,
     std::shared_ptr<const PinocchioConfiguration> space, RobotQuantity quantity,
     std::string frame, pinocchio::ReferenceFrame reference,
-    bool symbolic_gravity)
-    : PinocchioRobotImplBase(std::move(model), std::move(space)),
+    bool symbolic_gravity, std::shared_ptr<PinocchioModelWorkspace> workspace)
+    : PinocchioRobotImplBase(std::move(model), std::move(space), std::move(workspace)),
       quantity(quantity), frame(std::move(frame)), reference(reference),
       symbolic_gravity(symbolic_gravity)
 {
@@ -187,12 +187,12 @@ PinocchioRobotFunction::PinocchioRobotFunction(
     std::shared_ptr<const pinocchio::Model> model,
     std::shared_ptr<const PinocchioConfiguration> space, RobotQuantity quantity,
     std::string frame, pinocchio::ReferenceFrame reference,
-    bool symbolic_gravity)
+    bool symbolic_gravity, std::shared_ptr<PinocchioModelWorkspace> workspace)
     : TangentFunction(inputSpace(model, space, quantity, symbolic_gravity),
                       robotOutputSize(model, quantity)),
       _impl(std::make_unique<Impl>(std::move(model), std::move(space), quantity,
                                    std::move(frame), reference,
-                                   symbolic_gravity))
+                                   symbolic_gravity, std::move(workspace)))
 {
 }
 PinocchioRobotFunction::~PinocchioRobotFunction() = default;
@@ -200,13 +200,19 @@ std::unique_ptr<ilqr::Function> PinocchioRobotFunction::clone() const
 {
     return std::make_unique<PinocchioRobotFunction>(
         _impl->source, _impl->space, _impl->quantity, _impl->frame,
-        _impl->reference, _impl->symbolic_gravity);
+        _impl->reference, _impl->symbolic_gravity, _impl->workspace_prototype);
+}
+void PinocchioRobotFunction::setEvaluationContext(
+    const std::shared_ptr<ilqr::EvaluationContext> &context)
+{
+    _impl->setEvaluationContext(context);
 }
 void PinocchioRobotFunction::evaluateImpl(ilqr::Input z, ilqr::VectorOutput out)
 {
     _impl->prepare(z);
     if (_impl->isDynamics())
     {
+        _impl->workspace->invalidate();
         _impl->evaluateDynamics(z, out);
     }
     else
@@ -220,6 +226,7 @@ void PinocchioRobotFunction::tangentJacobian(ilqr::Input z,
     _impl->prepare(z);
     if (_impl->isDynamics())
     {
+        _impl->workspace->invalidate();
         _impl->jacobianDynamics(z, jac);
     }
     else
@@ -247,17 +254,17 @@ void PinocchioRobotFunction::Impl::evaluateKinematics(ilqr::Input z,
     }
     if (quantity == Q::FrameJacobian)
     {
-        pinocchio::computeJointJacobians(model, data, q);
-        pinocchio::updateFramePlacements(model, data);
+        workspace->ensureJointJacobians(q);
+        workspace->ensureFramePlacements(q);
         ilqr::Matrix J = ilqr::Matrix::Zero(6, model.nv);
-        pinocchio::getFrameJacobian(model, data, frame_id, reference, J);
+        pinocchio::getFrameJacobian(model, data(), frame_id, reference, J);
         out = Eigen::Map<const ilqr::Vector>(J.data(), J.size());
         return;
     }
     if (quantity == Q::FrameTransform)
     {
-        pinocchio::framesForwardKinematics(model, data, q);
-        const auto &pose = data.oMf[frame_id];
+        workspace->ensureFramePlacements(q);
+        const auto &pose = data().oMf[frame_id];
         out.head<3>() = pose.translation();
         out.tail<9>() =
             Eigen::Map<const ilqr::Vector>(pose.rotation().data(), 9);
@@ -266,28 +273,28 @@ void PinocchioRobotFunction::Impl::evaluateKinematics(ilqr::Input z,
     const auto v = z.segment(model.nq, model.nv);
     if (quantity == Q::FrameVelocity)
     {
-        pinocchio::forwardKinematics(model, data, q, v);
+        workspace->ensureVelocity(q, v);
     }
     else
     {
-        pinocchio::forwardKinematics(model, data, q, v, z.tail(model.nv));
+        workspace->ensureAcceleration(q, v, z.tail(model.nv));
     }
-    pinocchio::updateFramePlacements(model, data);
+    workspace->ensureFramePlacements(q);
     if (quantity == Q::FrameVelocity)
     {
-        out = pinocchio::getFrameVelocity(model, data, frame_id, reference)
+        out = pinocchio::getFrameVelocity(model, data(), frame_id, reference)
                   .toVector();
     }
     else if (quantity == Q::FrameAcceleration &&
              reference == pinocchio::LOCAL_WORLD_ALIGNED)
     {
-        out = pinocchio::getFrameClassicalAcceleration(model, data, frame_id,
+        out = pinocchio::getFrameClassicalAcceleration(model, data(), frame_id,
                                                        reference)
                   .toVector();
     }
     else
     {
-        out = pinocchio::getFrameAcceleration(model, data, frame_id, reference)
+        out = pinocchio::getFrameAcceleration(model, data(), frame_id, reference)
                   .toVector();
     }
 }
@@ -300,7 +307,7 @@ void PinocchioRobotFunction::Impl::jacobianKinematics(ilqr::Input z,
     {
         ilqr::Vector other;
         detail::normalize(model, z.tail(model.nq), other);
-        ilqr::Matrix A(model.nv, model.nv), B = A;
+        ilqr::Matrix A = ilqr::Matrix::Zero(model.nv, model.nv), B = A;
         pinocchio::dDifference(model, q, other, A, pinocchio::ARG0);
         pinocchio::dDifference(model, q, other, B, pinocchio::ARG1);
         jac.leftCols(model.nv) = A;
@@ -320,17 +327,17 @@ void PinocchioRobotFunction::Impl::jacobianKinematics(ilqr::Input z,
     }
     if (quantity == Q::FrameTransform)
     {
-        pinocchio::computeJointJacobians(model, data, q);
-        pinocchio::updateFramePlacements(model, data);
+        workspace->ensureJointJacobians(q);
+        workspace->ensureFramePlacements(q);
         ilqr::Matrix J = ilqr::Matrix::Zero(6, model.nv);
-        pinocchio::getFrameJacobian(model, data, frame_id,
+        pinocchio::getFrameJacobian(model, data(), frame_id,
                                     pinocchio::LOCAL_WORLD_ALIGNED, J);
         jac.topRows(3) = J.topRows(3);
         for (int k = 0; k < model.nv; ++k)
         {
             const Eigen::Matrix3d derivative =
                 pinocchio::skew(J.col(k).tail<3>()) *
-                data.oMf[frame_id].rotation();
+                data().oMf[frame_id].rotation();
             jac.col(k).tail<9>() =
                 Eigen::Map<const ilqr::Vector>(derivative.data(), 9);
         }
@@ -338,15 +345,16 @@ void PinocchioRobotFunction::Impl::jacobianKinematics(ilqr::Input z,
     }
     if (quantity == Q::FrameJacobian)
     {
+        workspace->invalidate();
         ilqr::Vector basis = zero;
         for (int k = 0; k < model.nv; ++k)
         {
             basis[k] = 1;
-            pinocchio::computeForwardKinematicsDerivatives(model, data, q,
+            pinocchio::computeForwardKinematicsDerivatives(model, data(), q,
                                                            basis, zero);
-            pinocchio::updateFramePlacements(model, data);
+            pinocchio::updateFramePlacements(model, data());
             ilqr::Matrix dq = ilqr::Matrix::Zero(6, model.nv), dv = dq;
-            detail::frameVelocityDerivatives(model, data, frame_id, reference,
+            detail::frameVelocityDerivatives(model, data(), frame_id, reference,
                                              dq, dv);
             jac.middleRows(6 * k, 6) = dq;
             basis[k] = 0;
@@ -356,14 +364,14 @@ void PinocchioRobotFunction::Impl::jacobianKinematics(ilqr::Input z,
     const ilqr::Vector v = z.segment(model.nq, model.nv);
     const ilqr::Vector a =
         quantity == Q::FrameVelocity ? zero : ilqr::Vector(z.tail(model.nv));
-    pinocchio::computeForwardKinematicsDerivatives(model, data, q, v, a);
-    pinocchio::updateFramePlacements(model, data);
+    workspace->ensureKinematicsDerivatives(q, v, a);
+    workspace->ensureFramePlacements(q);
     ilqr::Matrix dq, dv, da;
     if (quantity == Q::FrameVelocity)
     {
         dq.setZero(6, model.nv);
         dv = dq;
-        detail::frameVelocityDerivatives(model, data, frame_id, reference, dq,
+        detail::frameVelocityDerivatives(model, data(), frame_id, reference, dq,
                                          dv);
         jac.leftCols(model.nv) = dq;
         jac.rightCols(model.nv) = dv;
@@ -371,7 +379,7 @@ void PinocchioRobotFunction::Impl::jacobianKinematics(ilqr::Input z,
     else
     {
         detail::classicalDerivatives(
-            model, data, frame_id, reference, dq, dv, da,
+            model, data(), frame_id, reference, dq, dv, da,
             quantity == Q::FrameAcceleration &&
                 reference == pinocchio::LOCAL_WORLD_ALIGNED);
         jac.leftCols(model.nv) = dq;
