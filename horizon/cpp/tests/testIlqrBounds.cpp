@@ -24,12 +24,61 @@ struct IterativeLQRTestAccess
     {
         return s.compute_bound_penalty(s._xtrj, s._utrj);
     }
+    static void stateEquality(const IterativeLQR &s, int k, Eigen::MatrixXd &C,
+                              Eigen::VectorXd &h)
+    {
+        s.stateEquality(k, C, h);
+    }
 };
 } // namespace horizon
 using Access = horizon::IterativeLQRTestAccess;
 using Matrix = Eigen::MatrixXd;
 using Vector = Eigen::VectorXd;
 constexpr double inf = std::numeric_limits<double>::infinity();
+
+TEST(IlqrBoundCost, EmptyStateEqualityDoesNotEvaluateRetraction)
+{
+    int calls = 0;
+    auto space = std::make_shared<horizon::ilqr::CallbackStateSpace>(
+        Vector::Zero(2), 2,
+        [](horizon::ilqr::Input x, horizon::ilqr::Input d,
+           horizon::ilqr::VectorOutput y)
+        {
+            y = x + d;
+        },
+        [](horizon::ilqr::Input x, horizon::ilqr::Input y,
+           horizon::ilqr::VectorOutput d)
+        {
+            d = y - x;
+        },
+        [&calls](horizon::ilqr::Input, horizon::ilqr::MatrixOutput j)
+        {
+            ++calls;
+            j.setIdentity();
+        });
+    auto x = casadi::SX::sym("x", 2), u = casadi::SX::sym("u");
+    horizon::IterativeLQR s(
+        casadi::Function("bound_dyn", {x, u}, {x}, {"x", "u"}, {"f"}), 1, {},
+        space);
+    Matrix lb = Matrix::Constant(2, 2, -inf), ub = -lb, C;
+    Vector h;
+    s.setStateBounds(lb, ub);
+    calls = 0;
+    Access::stateEquality(s, 1, C, h);
+    EXPECT_EQ(calls, 0);
+    EXPECT_EQ(C.rows(), 0);
+    EXPECT_EQ(C.cols(), 2);
+    EXPECT_EQ(h.size(), 0);
+    lb(0, 1) = ub(0, 1) = .4;
+    s.setStateBounds(lb, ub);
+    s.setStateInitialGuess(Matrix::Zero(2, 2));
+    Access::stateEquality(s, 1, C, h);
+    EXPECT_EQ(calls, 1);
+    ASSERT_EQ(C.rows(), 1);
+    EXPECT_DOUBLE_EQ(C(0, 0), 1);
+    EXPECT_DOUBLE_EQ(C(0, 1), 0);
+    EXPECT_NEAR(h(0), -.4, 1e-14);
+}
 
 TEST(IlqrBoundCost, ProjectedDerivativesAndMultiplierRelease)
 {

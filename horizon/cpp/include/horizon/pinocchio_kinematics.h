@@ -30,10 +30,11 @@ class PinocchioConfiguration final : public ilqr::StateSpace
                            ilqr::MatrixOutput projection) const override;
     void differenceJacobians(ilqr::Input a, ilqr::Input b, ilqr::MatrixOutput A,
                              ilqr::MatrixOutput B) const override;
+    void defectBlocks(std::vector<ilqr::DefectBlock> &blocks) const override;
     std::shared_ptr<const pinocchio::Model> model;
 };
 
-class PinocchioStep final : public ilqr::TangentFunction
+class PinocchioStep final : public ilqr::TangentDynamics
 {
   public:
     PinocchioStep(std::shared_ptr<const PinocchioConfiguration> space,
@@ -42,11 +43,12 @@ class PinocchioStep final : public ilqr::TangentFunction
 
   private:
     void evaluateImpl(ilqr::Input z, ilqr::VectorOutput out) override;
-    void tangentJacobian(ilqr::Input z, ilqr::MatrixOutput j) override;
+    void tangentOutputLinearization(ilqr::Input z, ilqr::VectorOutput value,
+                                    ilqr::MatrixOutput j) override;
     std::shared_ptr<const PinocchioConfiguration> _space;
     double _dt;
-    ilqr::Matrix _A, _B, _R;
-    ilqr::Vector _prediction, _configuration;
+    ilqr::Matrix _A, _B;
+    ilqr::Vector _configuration;
 };
 
 /** Node-local cached Pinocchio Data. Pass the same prototype to native

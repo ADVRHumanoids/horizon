@@ -177,6 +177,11 @@ Pass the configuration `StateSpace` to its constructor, implement
 `tangentWeightedHessian` and return true from `hasHessian`. The adapter converts
 the supplied derivatives internally and preserves the local first/second
 derivatives when the solver pulls them back through the state retraction.
+For a scalar stage whose native input space is the product of the solver's
+state-space instance and Euclidean control/parameter coordinates, the solver
+uses the native tangent gradient and exact Hessian directly. Mixed exact-cost
+graphs also use those derivatives for compatible native leaves; transformed
+arguments retain the ambient compatibility path.
 Do not pad an nv-column Jacobian with zero columns to make it nq columns.
 
 `FunctionManager::add(name, function, parameters)` also supports direct
@@ -243,8 +248,8 @@ control decision variable (the existing API passes the last control for evaluati
 Each active horizon node owns cloned function workspaces, including legacy
 CasADi wrappers. Native evaluation never crosses a Python boundary or a CasADi
 callback. Derivative construction and graph lowering occur at setup; numerical
-graph buffers are reused. Residual graphs avoid allocating the quadratic tape
-needed for exact Hessians. The joint `valueAndJacobian` path runs a residual
+graph buffers are reused. Graphs allocate the quadratic tape only when an ambient exact Hessian is
+requested. The joint `valueAndJacobian` path runs a residual
 graph in one sweep and evaluates a shared native call once; native subclasses
 can override `valueAndJacobianImpl` to share their own evaluation work.
 Tangent-native subclasses can override `valueAndTangentJacobian` instead.
@@ -271,8 +276,12 @@ acceleration to a native integration/projection call. Native buffers and known
 identity/zero blocks are reused, without changing the objective or dynamics.
 `ilqr.n_threads` enables independent node evaluation;
 worker exceptions reach the caller and workers are joined at destruction.
-Pure CasADi models retain the existing `ilqr.codegen_enabled` option. Managed
-graphs currently run their symbolic segments through CasADi's numerical evaluator.
+Pure CasADi models retain the existing `ilqr.codegen_enabled` option. Pure
+symbolic managed stages use perturbation-form derivatives for supported state
+spaces and honor this option; mixed graphs evaluate their symbolic segments
+through CasADi's numerical evaluator. Small supported symbolic stages use a
+bounded scalar expansion; larger stages and stages with embedded calls retain
+the original graph representation.
 
 Intermediate costs are averaged over N and the final cost is added once.
 Gradients and Hessians now use this same normalization. This corrects the old
@@ -300,6 +309,58 @@ The regression suites check chain-rule derivatives against finite differences,
 symbolic graphs with shared/nested calls, tangent-native derivatives, arbitrary
 custom sum/difference, SO(3) derivatives and shooting, parameters and node targets,
 serial/parallel agreement, both solver paths, and worker failure propagation.
+
+`TangentDynamics` exposes a prediction in storage coordinates and a Jacobian
+in the prediction's tangent coordinates. The direct solver path requires the
+same state-space instance; other functions retain the ambient compatibility
+path. With Pinocchio enabled, a small nonzero-defect direct/fallback comparison
+can be run with:
+
+```bash
+build/cuda/tests/testFrameKinematics --gtest_also_run_disabled_tests \
+  --gtest_filter=FrameKinematics.DISABLED_ProfileTangentOutputDefectLinearization
+```
+
+Use a Release build with `HORIZON_PROFILING=OFF` for wall-time measurements.
+This microbenchmark measures one linearization, not complete solver sweeps.
+For software instruction counts, set `HORIZON_BENCH_DYNAMICS_PATH` to `direct`
+or `fallback` and run each mode under Callgrind. With profiling enabled on the
+same Release build, Callgrind counted 364 million versus 987 million
+instructions for the complete process, including startup and 10,000 calls.
+These counts are not hardware counters or end-to-end solver measurements.
+The disabled `IlqrFunctions.DISABLED_ProfileGraphTangentPropagation` and
+`IlqrFunctions.DISABLED_ProfileCasadiLocalDerivatives` tests compare matching
+direct and compatibility derivatives on small identical inputs. In the same
+profiling-enabled Release build, the graph test took 1.12–1.15 versus
+1.31–1.33 microseconds per call, and the expanded CasADi test took 0.51–0.52
+versus 1.76–2.25 microseconds. Callgrind process totals for 10,000 calls were
+188 versus 217 million instructions for the graph and 91 versus 313 million
+for CasADi. These are isolated microbenchmarks, not solver-level speedups.
+`ManagedIlqr.DISABLED_ProfileLocalDerivativeSweeps` compares complete dynamics,
+cost and constraint derivative sweeps for the same 16-node quaternion problem,
+including nonzero defects. In the profiling-enabled build, a sweep took 97
+versus 242 microseconds in serial and 88 versus 161 microseconds with two
+threads. An earlier Callgrind run counted 1.72 versus 4.12 billion instructions
+for the complete serial benchmark process, including setup and 1,000 sweeps,
+before the compatibility adapter was changed to explicitly disable tangent
+interfaces.
+These measurements do not include a complete solve.
+With profiling disabled, three repeats of that sweep measured 77.2–78.9
+versus 220.4–224.8 microseconds in serial and 48.4–56.2 versus 135.4–148.8
+microseconds with two threads. The profiling-disabled direct/fallback
+microbenchmarks measured 1.99–2.04/5.71–5.74 microseconds for dynamics,
+1.06–1.07/1.26–1.27 for graph propagation, and 0.38–0.39/1.80–1.82 for
+CasADi. Structured/dense defect transport measured 1.16–1.19/1.14–1.15,
+4.64–4.65/5.14–5.18, and 9.55–9.77/27.18–27.38 microseconds at tangent
+sizes 7, 18, and 36 respectively; the size-7 structured API uses the dense
+solve. The disabled `ManagedIlqr.DISABLED_ProfileSymbolicShooting` measures
+complete solves of a separate five-node quaternion shooting problem, with
+identical initial guesses and solver settings. Across nine profiling-disabled
+samples, serial direct/fallback solves took 230–287/325–352 microseconds;
+two-thread timings varied substantially (298–587/348–550 microseconds).
+Solver construction is excluded, and each sample checks solve and trajectory
+parity. These small-problem timings depend on the machine and do not establish
+a general end-to-end speedup.
 
 For a real Pinocchio model, enable `-DHORIZON_TEST_PINOCCHIO=ON` and include its
 installation prefix in `CMAKE_PREFIX_PATH`. The optional

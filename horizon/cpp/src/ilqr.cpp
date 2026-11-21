@@ -1,4 +1,5 @@
 #include "horizon/codegen_function.h"
+#include "ilqr/casadi_function.h"
 #include "ilqr/ilqr_impl.h"
 #include <cstdlib>
 #include <cxxabi.h>
@@ -179,18 +180,32 @@ IterativeLQR::IterativeLQR(cs::Function fdyn, int N, OptionDict opt,
 
     // set dynamics
     auto fdyn_jac = Dynamics::Jacobian(fdyn);
+    cs::Function local_dynamics;
+    if (!dynamic_cast<const ilqr::EuclideanSpace *>(_space.get()))
+    {
+        local_dynamics = ilqr::compileLocalDerivatives(
+            fdyn, *_space, ilqr::LocalDerivativeKind::Dynamics);
+    }
 
     // codegen if needed
     if (_codegen_enabled)
     {
         fdyn = utils::codegen(fdyn, _codegen_workdir);
         fdyn_jac = utils::codegen(fdyn_jac, _codegen_workdir);
+        if (!local_dynamics.is_null())
+        {
+            local_dynamics = utils::codegen(local_dynamics, _codegen_workdir);
+        }
     }
 
     for (auto &d : _dyn)
     {
         d.f = fdyn;
         d.df = fdyn_jac;
+        if (!local_dynamics.is_null())
+        {
+            d.local = local_dynamics;
+        }
         d.param = _param_map;
         d.space = _space;
     }
@@ -362,6 +377,17 @@ void IterativeLQR::setCost(std::vector<int> indices,
     }
 
     c->setCost(cost, grad, hess);
+    if (!dynamic_cast<const ilqr::EuclideanSpace *>(_space.get()))
+    {
+        auto local = ilqr::compileLocalDerivatives(
+            inter_cost, *_space, ilqr::LocalDerivativeKind::ExactScalar);
+        if (!local.is_null())
+        {
+            c->local = _codegen_enabled
+                ? utils::codegen(local, _codegen_workdir)
+                : local;
+        }
+    }
 
     if (_verbose)
     {
@@ -462,6 +488,17 @@ void IterativeLQR::setResidual(std::vector<int> indices,
                          var_names, {"hess_x_x", "hess_u_u", "hess_u_x"});
 
     c->setCost(cost_fn, grad_fn, hess_fn);
+    if (!dynamic_cast<const ilqr::EuclideanSpace *>(_space.get()))
+    {
+        auto local = ilqr::compileLocalDerivatives(
+            residual, *_space, ilqr::LocalDerivativeKind::GaussNewton);
+        if (!local.is_null())
+        {
+            c->local = _codegen_enabled
+                ? utils::codegen(local, _codegen_workdir)
+                : local;
+        }
+    }
 
     _cost_values[residual.name() + "_cost"].setConstant(
         _N + 1, std::numeric_limits<double>::quiet_NaN());
@@ -536,6 +573,19 @@ void IterativeLQR::setConstraint(std::vector<int> indices,
     }
 
     c->setConstraint(ic_fn, ic_jac);
+    if (!dynamic_cast<const ilqr::EuclideanSpace *>(_space.get()))
+    {
+        auto local = ilqr::compileLocalDerivatives(
+            inter_constraint, *_space, ilqr::LocalDerivativeKind::Jacobian);
+        if (!local.is_null())
+        {
+            c->local = _codegen_enabled
+                ? utils::codegen(local, _codegen_workdir)
+                : local;
+            c->nativeC.setZero(constr_dim, _nx);
+            c->nativeD.setZero(constr_dim, _nu);
+        }
+    }
 
     if (_verbose)
     {
@@ -1412,16 +1462,54 @@ void IterativeLQR::Dynamics::linearize(VecConstRef x, VecConstRef u,
 {
     TIC(linearize_dynamics_inner);
 
+    bool tangent_output = false;
     if (native)
     {
         native->setInput(x, u, k, param);
-        Rx.resize(x.size(), space->tangentSize());
-        space->retractionJacobian(x, Rx);
-        native->setDirections(Rx, u.size());
-        native->function->valueAndJacobianProduct(
-            native->z, native->directions, native->value, native->localJac);
-        localA = native->localJac.leftCols(Rx.cols());
-        localB = native->localJac.rightCols(u.size());
+        auto *local =
+            dynamic_cast<ilqr::TangentDynamics *>(native->function.get());
+        if (native->local.is_valid())
+        {
+            // The symbolic retraction does not enforce the state-space domain.
+            gap.resize(space->tangentSize());
+            space->difference(x, x, gap);
+            native->evaluateLocal();
+            localA = native->localJac.leftCols(space->tangentSize());
+            localB = native->localJac.rightCols(u.size());
+            tangent_output = true;
+        }
+        else if (local && &local->stateSpace() == space.get())
+        {
+            const int nt = space->tangentSize();
+            native->localJac.resize(nt,
+                                    local->tangentInputSpace().tangentSize());
+            local->valueAndTangentOutputLinearization(native->z, native->value,
+                                                      native->localJac);
+            localA = native->localJac.leftCols(nt);
+            localB = native->localJac.middleCols(nt, u.size());
+            tangent_output = true;
+        }
+        else
+        {
+            Rx.resize(x.size(), space->tangentSize());
+            space->retractionJacobian(x, Rx);
+            native->linearizeLocal(space.get(), Rx, u.size());
+            localA = native->localJac.leftCols(Rx.cols());
+            localB = native->localJac.rightCols(u.size());
+        }
+    }
+    else if (local.is_valid())
+    {
+        // Validate the base state without constructing an ambient Jacobian.
+        gap.resize(space->tangentSize());
+        space->difference(x, x, gap);
+        local.setInput(0, x);
+        local.setInput(1, u);
+        set_param_inputs(param, k, local);
+        local.call();
+        localA = local.getOutput(1).leftCols(space->tangentSize());
+        localB = local.getOutput(1).rightCols(u.size());
+        tangent_output = true;
     }
     else
     {
@@ -1432,36 +1520,34 @@ void IterativeLQR::Dynamics::linearize(VecConstRef x, VecConstRef u,
         localA = df.getOutput(0);
         localB = df.getOutput(1);
     }
-    VecConstRef prediction =
-        native ? VecConstRef(native->value) : integrate(x, u, k);
+    VecConstRef prediction = native ? VecConstRef(native->value)
+        : local.is_valid()          ? VecConstRef(local.getOutput(0).col(0))
+                                    : integrate(x, u, k);
     const int nt = space->tangentSize();
     gap.resize(nt);
-    space->difference(xnext, prediction, gap);
     if (dynamic_cast<const ilqr::EuclideanSpace *>(space.get()))
     {
+        space->difference(xnext, prediction, gap);
         d = gap;
         return;
     }
-    Rx.resize(x.size(), nt);
-    Rf.resize(x.size(), nt);
     Dfrom.resize(nt, nt);
     Dto.resize(nt, nt);
-    if (!native)
+    transport.resize(nt, nt);
+    d.resize(nt);
+    if (!native && !tangent_output)
     {
+        Rx.resize(x.size(), nt);
         space->retractionJacobian(x, Rx);
     }
-    space->differenceJacobians(xnext, prediction, Dfrom, Dto);
-    // Convert storage derivatives at prediction to its tangent, then express
-    // the whole defect equation in the tangent at the next shooting state.
-    projection.resize(nt, x.size());
-    space->tangentProjection(prediction, projection);
-    Eigen::FullPivLU<Eigen::MatrixXd> lu(Dfrom);
-    if (!lu.isInvertible())
+    space->linearizeDefect(xnext, prediction, gap, Dfrom, Dto, transport, d);
+    if (!tangent_output)
     {
-        throw std::runtime_error("singular state difference derivative");
+        projection.resize(nt, x.size());
+        space->tangentProjection(prediction, projection);
+        transport = (transport * projection).eval();
     }
-    Eigen::MatrixXd transport = -lu.solve(Dto * projection);
-    if (native)
+    if (native || tangent_output)
     {
         localA = (transport * localA).eval();
     }
@@ -1470,7 +1556,6 @@ void IterativeLQR::Dynamics::linearize(VecConstRef x, VecConstRef u,
         localA = (transport * localA * Rx).eval();
     }
     localB = (transport * localB).eval();
-    d = -lu.solve(gap);
 }
 
 void IterativeLQR::Dynamics::computeDefect(VecConstRef x, VecConstRef u,
@@ -1724,6 +1809,41 @@ void IterativeLQR::IntermediateCostEntity::quadratize(VecConstRef x,
     ddl.call_accumulate(out);
 }
 
+bool IterativeLQR::IntermediateCostEntity::quadratizeLocal(
+    VecConstRef x, VecConstRef u, int k, const ilqr::StateSpace *,
+    MatConstRef retraction, Eigen::MatrixXd &Q, Eigen::MatrixXd &R,
+    Eigen::MatrixXd &P, Eigen::VectorXd &q, Eigen::VectorXd &r)
+{
+    if (!local.is_valid())
+    {
+        return false;
+    }
+    local.setInput(0, x);
+    local.setInput(1, u);
+    set_param_inputs(param, k, local);
+    local.call();
+    const int nt = retraction.cols(), nu = u.size();
+    const auto &value = local.getOutput(0);
+    const auto &jac = local.getOutput(1);
+    const auto &hess = local.getOutput(2);
+    Q += hess.topLeftCorner(nt, nt);
+    R += hess.bottomRightCorner(nu, nu);
+    P += hess.bottomLeftCorner(nu, nt);
+    if (gauss_newton)
+    {
+        q.noalias() += jac.leftCols(nt).transpose() * value.col(0);
+        r.noalias() += jac.rightCols(nu).transpose() * value.col(0);
+        _cost_eval = .5 * value.squaredNorm();
+    }
+    else
+    {
+        q += jac.leftCols(nt).row(0).transpose();
+        r += jac.rightCols(nu).row(0).transpose();
+        _cost_eval = value(0, 0);
+    }
+    return true;
+}
+
 std::string IterativeLQR::IntermediateCostEntity::getName()
 {
     return l.function().name();
@@ -1905,8 +2025,8 @@ void IterativeLQR::IntermediateCost::quadratize(VecConstRef x, VecConstRef u,
     _curvatureGradient.setZero(ns);
     for (auto &it : items)
     {
-        if (it->quadratizeLocal(x, u, k, _Rx, _Qlocal, _R, _Plocal, _qlocal,
-                                _r))
+        if (it->quadratizeLocal(x, u, k, space.get(), _Rx, _Qlocal, _R, _Plocal,
+                                _qlocal, _r))
         {
             continue;
         }
@@ -2105,7 +2225,7 @@ Eigen::Ref<const Eigen::VectorXd> IterativeLQR::ConstraintToGo::h() const
 
 const Eigen::MatrixXd &IterativeLQR::ConstraintEntity::C() const
 {
-    if (native)
+    if (native || local.is_valid())
     {
         return nativeC;
     }
@@ -2114,7 +2234,7 @@ const Eigen::MatrixXd &IterativeLQR::ConstraintEntity::C() const
 
 const Eigen::MatrixXd &IterativeLQR::ConstraintEntity::D() const
 {
-    if (native)
+    if (native || local.is_valid())
     {
         return nativeD;
     }
@@ -2141,6 +2261,7 @@ void IterativeLQR::ConstraintEntity::linearize(VecConstRef x, VecConstRef u,
     if (native)
     {
         native->setInput(x, u, k, param);
+        native->jac.resize(native->value.size(), native->z.size());
         native->function->valueAndJacobian(native->z, native->value,
                                            native->jac);
         const auto target = targets.find(k);
@@ -2284,9 +2405,9 @@ void IterativeLQR::Constraint::linearize(VecConstRef x, VecConstRef u, int k)
     for (auto &it : items)
     {
         const int nc = it->C().rows();
-        if (it->native)
+        if (it->native || it->local.is_valid())
         {
-            it->linearizeLocal(x, u, k, _Rx);
+            it->linearizeLocal(x, u, k, space.get(), _Rx);
             if (manifold)
             {
                 _Clocal.middleRows(i, nc) = it->C();

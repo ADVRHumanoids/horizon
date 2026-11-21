@@ -1,7 +1,11 @@
 #include "horizon/pinocchio_kinematics.h"
 #include "horizon/pinocchio_robot.h"
+#include "ilqr/ilqr_impl.h"
 #include <Eigen/Geometry>
+#include <chrono>
+#include <cstdlib>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <pinocchio/algorithm/frames.hpp>
 #include <pinocchio/algorithm/joint-configuration.hpp>
 #include <pinocchio/algorithm/kinematics.hpp>
@@ -10,6 +14,15 @@
 using namespace horizon::ilqr;
 using namespace horizon::kinematics;
 namespace pin = pinocchio;
+
+namespace horizon
+{
+struct IterativeLQRTestAccess
+{
+    using Dynamics = IterativeLQR::Dynamics;
+    using FunctionWorkspace = IterativeLQR::FunctionWorkspace;
+};
+} // namespace horizon
 
 namespace
 {
@@ -64,6 +77,173 @@ Matrix numericalTangent(TangentFunction &function, const Vector &z,
     return jac;
 }
 } // namespace
+
+TEST(FrameKinematics, TangentOutputStepAndInfeasibleDefectTransport)
+{
+    Robot robot;
+    const int nq = robot.model->nq, nv = robot.model->nv;
+    auto step = std::make_shared<PinocchioStep>(robot.space, .13);
+    Vector z(nq + nv), prediction(nq), plus(nq + nv), minus(nq + nv), yp(nq),
+        ym(nq), dp(nv), dm(nv);
+    z << robot.q, Vector::LinSpaced(nv, -.4, .3);
+    Matrix local(nv, 2 * nv), numeric(nv, 2 * nv);
+    step->valueAndTangentOutputLinearization(z, prediction, local);
+    for (int i = 0; i < 2 * nv; ++i)
+    {
+        Vector direction = Vector::Zero(2 * nv);
+        direction(i) = 1e-7;
+        step->tangentInputSpace().integrate(z, direction, plus);
+        step->tangentInputSpace().integrate(z, -direction, minus);
+        step->evaluate(plus, yp);
+        step->evaluate(minus, ym);
+        robot.space->difference(prediction, yp, dp);
+        robot.space->difference(prediction, ym, dm);
+        numeric.col(i) = (dp - dm) / 2e-7;
+    }
+    EXPECT_LT((local - numeric).norm(), 1e-7);
+
+    using Access = horizon::IterativeLQRTestAccess;
+    FunctionSpec spec{step, {}};
+    Access::Dynamics direct(nq, nv), fallback(nq, nv);
+    direct.space = robot.space;
+    fallback.space = std::make_shared<PinocchioConfiguration>(robot.model);
+    direct.native = std::make_shared<Access::FunctionWorkspace>(spec, nq, nv);
+    fallback.native = std::make_shared<Access::FunctionWorkspace>(spec, nq, nv);
+    for (double offset : {0., .3, -1.2})
+    {
+        Vector next(nq), delta = Vector::Constant(nv, offset);
+        robot.space->integrate(prediction, delta, next);
+        for (double sign : {1., -1.})
+        {
+            next.segment<4>(3) *= sign;
+            direct.linearize(z.head(nq), z.tail(nv), next, 0);
+            fallback.linearize(z.head(nq), z.tail(nv), next, 0);
+            EXPECT_LT((direct.A() - fallback.A()).norm(), 1e-10);
+            EXPECT_LT((direct.B() - fallback.B()).norm(), 1e-10);
+            EXPECT_LT((direct.d - fallback.d).norm(), 1e-10);
+            Vector gap(nv), defect(nv);
+            Matrix A(nv, nv), B(nv, nv), transport(nv, nv);
+            robot.space->linearizeDefect(next, prediction, gap, A, B, transport,
+                                         defect);
+            Eigen::FullPivLU<Matrix> dense(A);
+            ASSERT_TRUE(dense.isInvertible());
+            EXPECT_LT((transport + dense.solve(B)).norm(), 1e-10);
+            EXPECT_LT((defect + dense.solve(gap)).norm(), 1e-10);
+            next.segment<4>(3) *= sign;
+        }
+    }
+    Matrix wrong = Matrix::Zero(nv, nv);
+    EXPECT_THROW(step->valueAndTangentOutputLinearization(z, prediction, wrong),
+                 std::invalid_argument);
+}
+
+TEST(FrameKinematics, DISABLED_ProfileTangentOutputDefectLinearization)
+{
+    Robot robot;
+    const int nq = robot.model->nq, nv = robot.model->nv;
+    auto step = std::make_shared<PinocchioStep>(robot.space, .13);
+    FunctionSpec spec{step, {}};
+    using Access = horizon::IterativeLQRTestAccess;
+    Access::Dynamics direct(nq, nv), fallback(nq, nv);
+    direct.space = robot.space;
+    fallback.space = std::make_shared<PinocchioConfiguration>(robot.model);
+    direct.native = std::make_shared<Access::FunctionWorkspace>(spec, nq, nv);
+    fallback.native = std::make_shared<Access::FunctionWorkspace>(spec, nq, nv);
+    Vector u = Vector::LinSpaced(nv, -.4, .3), next(nq);
+    robot.space->integrate(robot.q, Vector::Constant(nv, .2), next);
+    double checksum = 0;
+    auto run = [&](Access::Dynamics &d)
+    {
+        const auto start = std::chrono::steady_clock::now();
+        for (int i = 0; i < 10000; ++i)
+        {
+            d.linearize(robot.q, u, next, 0);
+            checksum += d.A()(0, 0);
+        }
+        return std::chrono::duration<double, std::micro>(
+                   std::chrono::steady_clock::now() - start)
+                   .count() /
+            10000;
+    };
+    if (const char *mode = std::getenv("HORIZON_BENCH_DYNAMICS_PATH"))
+    {
+        const std::string path(mode);
+        ASSERT_TRUE(path == "direct" || path == "fallback");
+        const double elapsed = run(path == "direct" ? direct : fallback);
+        std::cout << path
+                  << " tangent defect linearization us/call: " << elapsed
+                  << '\n';
+        EXPECT_TRUE(std::isfinite(checksum));
+        return;
+    }
+    run(direct);
+    run(fallback);
+    for (int i = 0; i < 3; ++i)
+    {
+        const double a = run(direct), b = run(fallback);
+        std::cout << "tangent defect linearization us/call: direct=" << a
+                  << " fallback=" << b << '\n';
+    }
+    EXPECT_TRUE(std::isfinite(checksum));
+}
+
+TEST(FrameKinematics, DISABLED_ProfileStructuredDefectTransport)
+{
+    for (int joints : {1, 12, 30})
+    {
+        auto model = std::make_shared<pin::Model>();
+        auto base = model->addJoint(0, pin::JointModelFreeFlyer(),
+                                    pin::SE3::Identity(), "base");
+        for (int i = 0; i < joints; ++i)
+        {
+            model->addJoint(base, pin::JointModelRY(), pin::SE3::Identity(),
+                            "joint" + std::to_string(i));
+        }
+        PinocchioConfiguration space(model);
+        const int nt = space.tangentSize();
+        Vector from(space.stateSize()), to(space.stateSize()), gap(nt),
+            defect(nt), delta = Vector::LinSpaced(nt, -.2, .3);
+        space.neutral(from);
+        space.integrate(from, delta, to);
+        Matrix A(nt, nt), B(nt, nt), transport(nt, nt);
+        double checksum = 0;
+        auto run = [&](bool structured)
+        {
+            auto start = std::chrono::steady_clock::now();
+            for (int i = 0; i < 10000; ++i)
+            {
+                if (structured)
+                {
+                    space.linearizeDefect(from, to, gap, A, B, transport,
+                                          defect);
+                }
+                else
+                {
+                    space.difference(from, to, gap);
+                    space.differenceJacobians(from, to, A, B);
+                    Eigen::FullPivLU<Matrix> lu(A);
+                    transport = -lu.solve(B);
+                    defect = -lu.solve(gap);
+                }
+                checksum += transport(0, 0) + defect(0);
+            }
+            return std::chrono::duration<double, std::micro>(
+                       std::chrono::steady_clock::now() - start)
+                       .count() /
+                10000;
+        };
+        run(true);
+        run(false);
+        for (int i = 0; i < 3; ++i)
+        {
+            const double structured = run(true), dense = run(false);
+            std::cout << "defect transport nv=" << nt
+                      << " us/call: structured=" << structured
+                      << " dense=" << dense << '\n';
+        }
+        EXPECT_TRUE(std::isfinite(checksum));
+    }
+}
 
 TEST(FrameKinematics, PositionsAndPoseMatchIndependentPinocchioAndDerivatives)
 {

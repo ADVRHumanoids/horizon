@@ -1,6 +1,8 @@
 #include "ilqr/state_space.h"
 #include <Eigen/Cholesky>
 #include <Eigen/Geometry>
+#include <Eigen/LU>
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -77,6 +79,129 @@ void StateSpace::differenceJacobians(Input from, Input to, MatrixOutput a,
         difference(from, minus, gm);
         b.col(i) = (gp - gm) / (2 * eps);
         d(i) = 0;
+    }
+}
+
+void StateSpace::defectBlocks(std::vector<DefectBlock> &blocks) const
+{
+    blocks.push_back({0, tangentSize(), false});
+}
+
+void StateSpace::linearizeDefect(Input from, Input to, VectorOutput gap,
+                                 MatrixOutput dfrom, MatrixOutput dto,
+                                 MatrixOutput transport,
+                                 VectorOutput defect) const
+{
+    const int nt = tangentSize();
+    if (from.size() != stateSize() || to.size() != stateSize() ||
+        gap.size() != nt || defect.size() != nt || dfrom.rows() != nt ||
+        dfrom.cols() != nt || dto.rows() != nt || dto.cols() != nt ||
+        transport.rows() != nt || transport.cols() != nt)
+    {
+        throw std::invalid_argument("defect linearization size mismatch");
+    }
+    difference(from, to, gap);
+    differenceJacobians(from, to, dfrom, dto);
+    auto dense = [&]
+    {
+        Eigen::FullPivLU<Matrix> lu(dfrom);
+        if (!lu.isInvertible())
+        {
+            throw std::runtime_error("singular state difference derivative");
+        }
+        transport = -lu.solve(dto);
+        defect = -lu.solve(gap);
+    };
+    // At small dimensions the dense solve is faster than allocating block LUs.
+    if (nt <= 7)
+    {
+        dense();
+        return;
+    }
+    std::vector<DefectBlock> blocks;
+    defectBlocks(blocks);
+    int offset = 0;
+    for (const auto &block : blocks)
+    {
+        if (block.offset != offset || block.size <= 0 ||
+            block.size > nt - offset)
+        {
+            throw std::logic_error("invalid defect block structure");
+        }
+        offset += block.size;
+    }
+    if (offset != nt)
+    {
+        throw std::logic_error("incomplete defect block structure");
+    }
+    if (blocks.size() == 1 && !blocks[0].euclidean)
+    {
+        dense();
+        return;
+    }
+    std::vector<Eigen::FullPivLU<Matrix>> factors(blocks.size());
+    double max_pivot = 0;
+    for (std::size_t i = 0; i < blocks.size(); ++i)
+    {
+        const auto &block = blocks[i];
+        if (block.euclidean)
+        {
+            max_pivot = std::max(max_pivot, 1.0);
+            continue;
+        }
+        factors[i].compute(Matrix(
+            dfrom.block(block.offset, block.offset, block.size, block.size)));
+        max_pivot = std::max(max_pivot, factors[i].maxPivot());
+    }
+    // Match FullPivLU's rank threshold for the entire block-diagonal matrix.
+    const double threshold =
+        max_pivot * (Eigen::NumTraits<double>::epsilon() * double(nt));
+    for (std::size_t i = 0; i < blocks.size(); ++i)
+    {
+        const auto &block = blocks[i];
+        if (block.euclidean)
+        {
+            if (!(1.0 > threshold))
+            {
+                throw std::runtime_error(
+                    "singular state difference derivative");
+            }
+            continue;
+        }
+        const auto &lu = factors[i];
+        if (lu.nonzeroPivots() != block.size)
+        {
+            throw std::runtime_error("singular state difference derivative");
+        }
+        for (int j = 0; j < block.size; ++j)
+        {
+            if (!(std::abs(lu.matrixLU()(j, j)) > threshold))
+            {
+                throw std::runtime_error(
+                    "singular state difference derivative");
+            }
+        }
+    }
+    transport.setZero();
+    for (std::size_t i = 0; i < blocks.size(); ++i)
+    {
+        const auto &block = blocks[i];
+        if (block.euclidean)
+        {
+            transport.block(block.offset, block.offset, block.size, block.size)
+                .setIdentity();
+            defect.segment(block.offset, block.size) =
+                gap.segment(block.offset, block.size);
+        }
+        else
+        {
+            transport.block(block.offset, block.offset, block.size,
+                            block.size) =
+                -factors[i].solve(dto.block(block.offset, block.offset,
+                                            block.size, block.size));
+            defect.segment(block.offset, block.size) =
+                -factors[i].solve(gap.segment(block.offset, block.size));
+        }
     }
 }
 
@@ -249,6 +374,21 @@ void ProductSpace::differenceJacobians(Input from, Input to, MatrixOutput a,
     }
 }
 
+void ProductSpace::defectBlocks(std::vector<DefectBlock> &blocks) const
+{
+    int offset = 0;
+    for (const auto &space : _spaces)
+    {
+        const auto begin = blocks.size();
+        space->defectBlocks(blocks);
+        for (std::size_t i = begin; i < blocks.size(); ++i)
+        {
+            blocks[i].offset += offset;
+        }
+        offset += space->tangentSize();
+    }
+}
+
 TangentFunction::TangentFunction(std::shared_ptr<const StateSpace> space,
                                  int nout)
     : Function(space ? space->stateSize() : 0, nout), _space(std::move(space))
@@ -312,6 +452,26 @@ void TangentFunction::valueAndTangentLinearization(Input x, VectorOutput value,
         throw EvaluationError("tangent linearization is not finite");
     }
 }
+void TangentFunction::weightedTangentHessian(Input x, Input weights,
+                                             MatrixOutput hess)
+{
+    const int nt = _space->tangentSize();
+    if (x.size() != inputSize() || weights.size() != outputSize() ||
+        hess.rows() != nt || hess.cols() != nt || !x.allFinite() ||
+        !weights.allFinite())
+    {
+        throw std::invalid_argument("tangent Hessian size or input mismatch");
+    }
+    if (!hasHessian())
+    {
+        throw std::logic_error("native tangent function has no exact Hessian");
+    }
+    tangentWeightedHessian(x, weights, hess);
+    if (!hess.allFinite())
+    {
+        throw EvaluationError("tangent Hessian is not finite");
+    }
+}
 void TangentFunction::weightedHessianImpl(Input x, Input w, MatrixOutput hess)
 {
     const int nt = _space->tangentSize();
@@ -331,6 +491,68 @@ void TangentFunction::weightedHessianImpl(Input x, Input w, MatrixOutput hess)
 void TangentFunction::tangentWeightedHessian(Input, Input, MatrixOutput)
 {
     throw std::logic_error("native tangent function has no exact Hessian");
+}
+
+namespace
+{
+std::shared_ptr<const StateSpace>
+dynamicsInputSpace(const std::shared_ptr<const StateSpace> &space, int size)
+{
+    if (!space || size <= 0)
+    {
+        throw std::invalid_argument("invalid tangent dynamics input space");
+    }
+    return std::make_shared<ProductSpace>(
+        std::vector<std::shared_ptr<const StateSpace>>{
+            space, std::make_shared<EuclideanSpace>(size)});
+}
+} // namespace
+
+TangentDynamics::TangentDynamics(std::shared_ptr<const StateSpace> space,
+                                 int euclidean_inputs)
+    : TangentFunction(dynamicsInputSpace(space, euclidean_inputs),
+                      space ? space->stateSize() : 0),
+      _state_space(std::move(space))
+{
+}
+
+void TangentDynamics::valueAndTangentOutputLinearization(Input input,
+                                                         VectorOutput value,
+                                                         MatrixOutput jacobian)
+{
+    if (input.size() != inputSize() || value.size() != outputSize() ||
+        jacobian.rows() != _state_space->tangentSize() ||
+        jacobian.cols() != tangentInputSpace().tangentSize())
+    {
+        throw std::invalid_argument(
+            "tangent dynamics linearization size mismatch");
+    }
+    if (!input.allFinite())
+    {
+        throw std::invalid_argument("tangent dynamics input is not finite");
+    }
+    tangentOutputLinearization(input, value, jacobian);
+    if (!value.allFinite() || !jacobian.allFinite())
+    {
+        throw EvaluationError("tangent dynamics linearization is not finite");
+    }
+}
+
+void TangentDynamics::tangentJacobian(Input input, MatrixOutput jacobian)
+{
+    _prediction.resize(outputSize());
+    valueAndTangentJacobian(input, _prediction, jacobian);
+}
+
+void TangentDynamics::valueAndTangentJacobian(Input input, VectorOutput value,
+                                              MatrixOutput jacobian)
+{
+    _local_jacobian.resize(_state_space->tangentSize(),
+                           tangentInputSpace().tangentSize());
+    valueAndTangentOutputLinearization(input, value, _local_jacobian);
+    _output_retraction.resize(outputSize(), _state_space->tangentSize());
+    _state_space->retractionJacobian(value, _output_retraction);
+    jacobian.noalias() = _output_retraction * _local_jacobian;
 }
 
 namespace
@@ -393,6 +615,11 @@ void EuclideanSpace::differenceJacobians(Input, Input, MatrixOutput a,
     a.setIdentity();
     a *= -1;
     b.setIdentity();
+}
+
+void EuclideanSpace::defectBlocks(std::vector<DefectBlock> &blocks) const
+{
+    blocks.push_back({0, _size, true});
 }
 
 void QuaternionSpace::neutral(VectorOutput x) const

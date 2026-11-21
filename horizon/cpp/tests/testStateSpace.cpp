@@ -1,5 +1,6 @@
 #include "ilqr/state_space.h"
 #include <Eigen/Cholesky>
+#include <Eigen/LU>
 #include <gtest/gtest.h>
 
 using namespace horizon::ilqr;
@@ -156,4 +157,57 @@ TEST(StateSpace, NonorthogonalCustomProjectionFallback)
     Matrix seed = Matrix::Random(4, 5), actual(3, 5);
     product.projectDirections(x, seed, actual);
     EXPECT_LT((actual - expected * seed).norm(), 1e-14);
+}
+
+TEST(StateSpace, StructuredDefectMatchesDenseAndGlobalSingularityThreshold)
+{
+    auto quaternion = std::make_shared<QuaternionSpace>();
+    auto scalar = [](double scale)
+    {
+        return std::make_shared<CallbackStateSpace>(
+            Vector::Zero(1), 1,
+            [](Input x, Input d, VectorOutput out)
+            {
+                out = x + d;
+            },
+            [](Input x, Input y, VectorOutput out)
+            {
+                out = y - x;
+            },
+            CallbackStateSpace::Jacobian{}, CallbackStateSpace::Hessian{},
+            [scale](Input, Input, MatrixOutput a, MatrixOutput b)
+            {
+                a(0, 0) = -scale;
+                b(0, 0) = 2;
+            });
+    };
+    for (double scale : {0., 1e-18, 1e-14, 1e-6, 1.})
+    {
+        ProductSpace space({quaternion, std::make_shared<EuclideanSpace>(3),
+                            scalar(scale), scalar(2)});
+        const int nt = space.tangentSize();
+        Vector from(space.stateSize()), to(space.stateSize()),
+            delta = Vector::LinSpaced(nt, -.2, .3), gap(nt), defect(nt);
+        space.neutral(from);
+        space.integrate(from, delta, to);
+        Matrix A(nt, nt), B(nt, nt), T(nt, nt), refA(nt, nt), refB(nt, nt);
+        space.differenceJacobians(from, to, refA, refB);
+        Eigen::FullPivLU<Matrix> lu(refA);
+        if (!lu.isInvertible())
+        {
+            EXPECT_THROW(space.linearizeDefect(from, to, gap, A, B, T, defect),
+                         std::runtime_error);
+        }
+        else
+        {
+            space.linearizeDefect(from, to, gap, A, B, T, defect);
+            Matrix expected = -lu.solve(refB);
+            Vector expected_defect = -lu.solve(gap);
+            EXPECT_LT((A - refA).norm() + (B - refB).norm(), 1e-14);
+            EXPECT_LT((T - expected).norm() / (1 + expected.norm()), 1e-13);
+            EXPECT_LT((defect - expected_defect).norm() /
+                          (1 + expected_defect.norm()),
+                      1e-13);
+        }
+    }
 }

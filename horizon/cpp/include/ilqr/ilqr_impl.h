@@ -24,13 +24,19 @@ struct IterativeLQR::FunctionWorkspace
 {
     ilqr::FunctionSpec spec;
     std::unique_ptr<ilqr::Function> function;
-    Eigen::VectorXd z, value, weights;
-    Eigen::MatrixXd jac, hess, directions, localJac;
+    casadi_utils::WrappedFunction local;
+    Eigen::VectorXd z, value, weights, localGradient;
+    Eigen::MatrixXd jac, hess, directions, localJac, tangentJac, tangentHess,
+        localHess;
     FunctionWorkspace(const ilqr::FunctionSpec &spec, int ns, int nu);
     FunctionWorkspace(const FunctionWorkspace &other);
     void setInput(VecConstRef x, VecConstRef u, int k,
                   const ParameterMapPtr &params);
     void setDirections(MatConstRef retraction, int nu);
+    void evaluateLocal();
+    ilqr::TangentFunction *matchingTangent(const ilqr::StateSpace *space);
+    void linearizeLocal(const ilqr::StateSpace *space, MatConstRef retraction,
+                        int nu);
 };
 
 struct IterativeLQR::Dynamics
@@ -42,10 +48,11 @@ struct IterativeLQR::Dynamics
 
     // dynamics jacobian
     casadi_utils::WrappedFunction df;
+    casadi_utils::WrappedFunction local;
 
     std::shared_ptr<FunctionWorkspace> native;
     std::shared_ptr<const ilqr::StateSpace> space;
-    Eigen::MatrixXd localA, localB, Rx, Rf, Dfrom, Dto, projection;
+    Eigen::MatrixXd localA, localB, Rx, Dfrom, Dto, projection, transport;
     Eigen::VectorXd gap;
 
     // parameters
@@ -83,6 +90,7 @@ struct IterativeLQR::ConstraintEntity
 
     // constraint jacobian
     casadi_utils::WrappedFunction df;
+    casadi_utils::WrappedFunction local;
 
     std::shared_ptr<FunctionWorkspace> native;
     std::string name;
@@ -116,7 +124,7 @@ struct IterativeLQR::ConstraintEntity
 
     void linearize(VecConstRef x, VecConstRef u, int k);
     void linearizeLocal(VecConstRef x, VecConstRef u, int k,
-                        MatConstRef retraction);
+                        const ilqr::StateSpace *space, MatConstRef retraction);
 
     void evaluate(VecConstRef x, VecConstRef u, int k);
 
@@ -200,7 +208,8 @@ struct IterativeLQR::CostEntityBase
                             Eigen::MatrixXd &Q, Eigen::MatrixXd &R,
                             Eigen::MatrixXd &P) = 0;
 
-    virtual bool quadratizeLocal(VecConstRef, VecConstRef, int, MatConstRef,
+    virtual bool quadratizeLocal(VecConstRef, VecConstRef, int,
+                                 const ilqr::StateSpace *, MatConstRef,
                                  Eigen::MatrixXd &, Eigen::MatrixXd &,
                                  Eigen::MatrixXd &, Eigen::VectorXd &,
                                  Eigen::VectorXd &)
@@ -291,6 +300,12 @@ struct IterativeLQR::IntermediateCostEntity : CostEntityBase
 
     void quadratize(VecConstRef x, VecConstRef u, int k, Eigen::MatrixXd &Q,
                     Eigen::MatrixXd &R, Eigen::MatrixXd &P) override;
+    bool quadratizeLocal(VecConstRef x, VecConstRef u, int k,
+                         const ilqr::StateSpace *space, MatConstRef retraction,
+                         Eigen::MatrixXd &Q, Eigen::MatrixXd &R,
+                         Eigen::MatrixXd &P, Eigen::VectorXd &q,
+                         Eigen::VectorXd &r) override;
+    casadi_utils::WrappedFunction local;
 
     std::string getName();
     CostEntityBase::Ptr clone() const override
@@ -352,9 +367,10 @@ struct IterativeLQR::ManagedCostEntity : CostEntityBase
                       bool residual, int ns, int nu);
     CostEntityBase::Ptr clone() const override;
     bool quadratizeLocal(VecConstRef x, VecConstRef u, int k,
-                         MatConstRef retraction, Eigen::MatrixXd &Q,
-                         Eigen::MatrixXd &R, Eigen::MatrixXd &P,
-                         Eigen::VectorXd &q, Eigen::VectorXd &r) override;
+                         const ilqr::StateSpace *space, MatConstRef retraction,
+                         Eigen::MatrixXd &Q, Eigen::MatrixXd &R,
+                         Eigen::MatrixXd &P, Eigen::VectorXd &q,
+                         Eigen::VectorXd &r) override;
     std::string getName() override
     {
         return name;
@@ -536,9 +552,9 @@ struct IterativeLQR::FeasibleConstraint
     VecConstRef h;
 };
 
-static void
-set_param_inputs(std::shared_ptr<std::map<std::string, Eigen::MatrixXd>> params,
-                 int k, casadi_utils::WrappedFunction &f);
+void set_param_inputs(
+    std::shared_ptr<std::map<std::string, Eigen::MatrixXd>> params, int k,
+    casadi_utils::WrappedFunction &f);
 
 #define THROW_NAN(mat)                                                         \
     if ((mat).hasNaN())                                                        \

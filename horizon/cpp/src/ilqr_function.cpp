@@ -104,7 +104,7 @@ void Function::multiplyJacobian(MatrixInput jac, MatrixInput directions,
 
 namespace
 {
-class CachedFunction final : public Function
+class CachedFunction final : public Function, public TangentLinearization
 {
   public:
     explicit CachedFunction(const Function &source)
@@ -123,6 +123,38 @@ class CachedFunction final : public Function
     bool hasHessian() const override
     {
         return _source->hasHessian();
+    }
+    const StateSpace *localInputSpace() const override
+    {
+        return _tangent ? &_tangent->tangentInputSpace() : nullptr;
+    }
+    bool hasTangentHessian() const override
+    {
+        return _tangent && _tangent->hasTangentHessian();
+    }
+    void weightedTangentHessian(Input x, Input weights,
+                                MatrixOutput hess) override
+    {
+        if (!_tangent)
+        {
+            throw std::logic_error("cached tangent Hessian unavailable");
+        }
+        prepare(x);
+        _tangent->weightedTangentHessian(x, weights, hess);
+    }
+    void valueAndTangentLinearization(Input x, VectorOutput value,
+                                      MatrixOutput jac) override
+    {
+        if (!_tangent || x.size() != inputSize() ||
+            value.size() != outputSize() || jac.rows() != outputSize() ||
+            jac.cols() != _jac.cols() || !x.allFinite())
+        {
+            throw std::invalid_argument(
+                "cached tangent linearization mismatch");
+        }
+        linearize(x);
+        value = _value;
+        jac = _jac;
     }
     void setEvaluationContext(
         const std::shared_ptr<EvaluationContext> &context) override

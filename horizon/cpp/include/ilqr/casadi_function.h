@@ -6,6 +6,32 @@
 
 namespace horizon::ilqr
 {
+class StateSpace;
+
+enum class LocalDerivativeKind
+{
+    Jacobian,
+    ExactScalar,
+    GaussNewton,
+    Dynamics
+};
+
+/** Returns a null function when the state space has no symbolic retraction.
+ * The outputs are value, local Jacobian and, when requested, local Hessian.
+ * For dynamics the Jacobian's output is in the tangent at the prediction.
+ */
+casadi::Function compileLocalDerivatives(const casadi::Function &function,
+                                         const StateSpace &state_space,
+                                         LocalDerivativeKind kind);
+
+/** Exposes a pure symbolic stage when a graph contains no native calls. */
+class SymbolicStageSource
+{
+  public:
+    virtual ~SymbolicStageSource() = default;
+    virtual const casadi::Function &symbolicStage() const = 0;
+};
+
 /** CasADi adapter. All column-vector inputs are concatenated in declaration
  * order. One column-vector output is required. AD is constructed once during
  * setup; numerical evaluations reuse WrappedFunction workspaces.

@@ -173,16 +173,24 @@ void PinocchioConfiguration::differenceJacobians(ilqr::Input a, ilqr::Input b,
     pinocchio::dDifference(*model, a, b, B, pinocchio::ARG1);
 }
 
+void PinocchioConfiguration::defectBlocks(
+    std::vector<ilqr::DefectBlock> &blocks) const
+{
+    for (pinocchio::JointIndex i = 1; i < model->njoints; ++i)
+    {
+        const auto &joint = model->joints[i];
+        if (joint.nv())
+        {
+            blocks.push_back({joint.idx_v(), joint.nv(), false});
+        }
+    }
+}
+
 PinocchioStep::PinocchioStep(std::shared_ptr<const PinocchioConfiguration> s,
                              double dt)
-    : TangentFunction(
-          std::make_shared<ilqr::ProductSpace>(
-              std::vector<std::shared_ptr<const ilqr::StateSpace>>{
-                  s, std::make_shared<ilqr::EuclideanSpace>(s->tangentSize())}),
-          s->stateSize()),
-      _space(std::move(s)), _dt(dt), _A(_space->model->nv, _space->model->nv),
-      _B(_A), _R(_space->model->nq, _space->model->nv),
-      _prediction(_space->model->nq), _configuration(_space->model->nq)
+    : TangentDynamics(s, s ? s->tangentSize() : 0), _space(std::move(s)),
+      _dt(dt), _A(_space->model->nv, _space->model->nv), _B(_A),
+      _configuration(_space->model->nq)
 {
     if (!std::isfinite(dt) || dt <= 0)
     {
@@ -200,18 +208,19 @@ void PinocchioStep::evaluateImpl(ilqr::Input z, ilqr::VectorOutput out)
                            _configuration);
     _space->integrate(_configuration, _dt * z.tail(_space->model->nv), out);
 }
-void PinocchioStep::tangentJacobian(ilqr::Input z, ilqr::MatrixOutput j)
+void PinocchioStep::tangentOutputLinearization(ilqr::Input z,
+                                               ilqr::VectorOutput value,
+                                               ilqr::MatrixOutput j)
 {
     const auto &m = *_space->model;
     ilqr::Vector delta = _dt * z.tail(m.nv);
     _A.setZero();
     _B.setZero();
-    evaluateImpl(z, _prediction);
+    evaluateImpl(z, value);
     pinocchio::dIntegrate(m, _configuration, delta, _A, pinocchio::ARG0);
     pinocchio::dIntegrate(m, _configuration, delta, _B, pinocchio::ARG1);
-    _space->retractionJacobian(_prediction, _R);
-    j.leftCols(m.nv).noalias() = _R * _A;
-    j.rightCols(m.nv).noalias() = _dt * _R * _B;
+    j.leftCols(m.nv) = _A;
+    j.rightCols(m.nv) = _dt * _B;
 }
 
 PinocchioModelWorkspace::PinocchioModelWorkspace(

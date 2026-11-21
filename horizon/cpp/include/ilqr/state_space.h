@@ -5,6 +5,12 @@
 
 namespace horizon::ilqr
 {
+struct DefectBlock
+{
+    int offset, size;
+    bool euclidean;
+};
+
 /** Retraction and local difference. State storage and tangent dimensions may
  * differ (e.g. quaternion SO(3): 4 and 3). Implementations must be reentrant.
  * difference(from, to) is the tangent at from taking from to to.
@@ -32,6 +38,16 @@ class StateSpace
      */
     virtual void differenceJacobians(Input from, Input to, MatrixOutput dfrom,
                                      MatrixOutput dto) const;
+    /** Independent diagonal blocks of the difference Jacobians. Offsets are
+     * in this space's tangent coordinates. The default is one coupled block.
+     */
+    virtual void defectBlocks(std::vector<DefectBlock> &blocks) const;
+    /** Difference, its two Jacobians, transport from the prediction tangent
+     * to the shooting-state tangent, and the transported affine defect.
+     */
+    void linearizeDefect(Input from, Input to, VectorOutput gap,
+                         MatrixOutput dfrom, MatrixOutput dto,
+                         MatrixOutput transport, VectorOutput defect) const;
 };
 
 class EuclideanSpace final : public StateSpace
@@ -57,6 +73,7 @@ class EuclideanSpace final : public StateSpace
                            MatrixOutput hess) const override;
     void differenceJacobians(Input from, Input to, MatrixOutput a,
                              MatrixOutput b) const override;
+    void defectBlocks(std::vector<DefectBlock> &blocks) const override;
 
   private:
     int _size;
@@ -152,6 +169,10 @@ class ProductSpace final : public StateSpace
     {
         return _nt;
     }
+    const std::vector<std::shared_ptr<const StateSpace>> &components() const
+    {
+        return _spaces;
+    }
     void neutral(VectorOutput x) const override;
     void integrate(Input x, Input dx, VectorOutput out) const override;
     void difference(Input from, Input to, VectorOutput out) const override;
@@ -162,10 +183,54 @@ class ProductSpace final : public StateSpace
     void retractionHessian(Input x, Input w, MatrixOutput hess) const override;
     void differenceJacobians(Input from, Input to, MatrixOutput a,
                              MatrixOutput b) const override;
+    void defectBlocks(std::vector<DefectBlock> &blocks) const override;
 
   private:
     std::vector<std::shared_ptr<const StateSpace>> _spaces;
     int _ns = 0, _nt = 0;
+};
+
+/** A native map whose Jacobian columns use its input space's tangent chart. */
+class TangentLinearization
+{
+  public:
+    virtual ~TangentLinearization() = default;
+    virtual const StateSpace *localInputSpace() const = 0;
+    virtual void valueAndTangentLinearization(Input x, VectorOutput value,
+                                              MatrixOutput jac) = 0;
+    virtual bool hasTangentHessian() const
+    {
+        return false;
+    }
+    virtual void weightedTangentHessian(Input, Input, MatrixOutput)
+    {
+        throw std::logic_error("tangent Hessian unavailable");
+    }
+};
+
+/** Stage linearization for canonical [dx; du] directions, with parameters
+ * fixed. Retraction is the storage derivative at the state in input.
+ */
+class StageTangentLinearization
+{
+  public:
+    virtual ~StageTangentLinearization() = default;
+    virtual void
+    valueAndStageLinearization(Input input, const StateSpace &state_space,
+                               int control_size, MatrixInput retraction,
+                               VectorOutput value, MatrixOutput jac) = 0;
+};
+
+class StageTangentQuadratic
+{
+  public:
+    virtual ~StageTangentQuadratic() = default;
+    virtual void valueAndStageQuadratic(Input input, const StateSpace &space,
+                                        int control_size,
+                                        MatrixInput retraction,
+                                        VectorOutput value,
+                                        VectorOutput gradient,
+                                        MatrixOutput hessian) = 0;
 };
 
 /** Native maps whose analytical input derivatives use tangent coordinates
@@ -174,7 +239,7 @@ class ProductSpace final : public StateSpace
  * the ambient Function interface, including retraction curvature for Hessians.
  * Subclasses implement clone(), evaluateImpl(), and tangentJacobian().
  */
-class TangentFunction : public Function
+class TangentFunction : public Function, public TangentLinearization
 {
   public:
     TangentFunction(std::shared_ptr<const StateSpace> input_space,
@@ -183,8 +248,18 @@ class TangentFunction : public Function
     {
         return *_space;
     }
+    const StateSpace *localInputSpace() const override
+    {
+        return _space.get();
+    }
     void valueAndTangentLinearization(Input x, VectorOutput value,
-                                      MatrixOutput jac);
+                                      MatrixOutput jac) override;
+    bool hasTangentHessian() const override
+    {
+        return hasHessian();
+    }
+    void weightedTangentHessian(Input x, Input weights,
+                                MatrixOutput hess) override;
 
   protected:
     virtual void tangentJacobian(Input x, MatrixOutput jac) = 0;
@@ -204,6 +279,36 @@ class TangentFunction : public Function
     std::shared_ptr<const StateSpace> _space;
     Matrix _R, _projection, _jac, _hess, _curvature, _product, _directions;
     Vector _gradient;
+};
+
+/** A stage dynamics map with input [state; Euclidean controls/parameters].
+ * Its output is stored in state coordinates; its Jacobian maps input tangent
+ * directions to the tangent at the returned prediction. The exact same state
+ * space object must be used by the solver before this contract can be used.
+ */
+class TangentDynamics : public TangentFunction
+{
+  public:
+    TangentDynamics(std::shared_ptr<const StateSpace> state_space,
+                    int euclidean_inputs);
+    const StateSpace &stateSpace() const
+    {
+        return *_state_space;
+    }
+    void valueAndTangentOutputLinearization(Input input, VectorOutput value,
+                                            MatrixOutput jacobian);
+
+  protected:
+    virtual void tangentOutputLinearization(Input input, VectorOutput value,
+                                            MatrixOutput jacobian) = 0;
+
+  private:
+    void tangentJacobian(Input input, MatrixOutput jacobian) final;
+    void valueAndTangentJacobian(Input input, VectorOutput value,
+                                 MatrixOutput jacobian) final;
+    std::shared_ptr<const StateSpace> _state_space;
+    Matrix _local_jacobian, _output_retraction;
+    Vector _prediction;
 };
 } // namespace horizon::ilqr
 #endif
